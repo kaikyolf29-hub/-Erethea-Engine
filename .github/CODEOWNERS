@@ -530,3 +530,8 @@
 /erethea/**/*.py                              @kaikyolf29-hub @godotengine/buildsystem
 /erethea/tests/                               @kaikyolf29-hub @godotengine/tests
 /tests/erethea/                               @kaikyolf29-hub @godotengine/tests
+/modules/erethea_quality/                     @kaikyolf29-hub @godotengine/rendering
+/modules/erethea_quality/**/*.py              @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_quality/**/SCsub             @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_quality/doc_classes/         @kaikyolf29-hub @godotengine/documentation
+/modules/erethea_quality/tests/               @kaikyolf29-hub @godotengine/tests

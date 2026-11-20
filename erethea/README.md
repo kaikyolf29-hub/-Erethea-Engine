@@ -77,6 +77,40 @@ projetos da Godot continuam com a mesma cara. As imagens ficam no artefato
 vêm de um renderizador na CPU e só servem para comparar uma execução com
 outra; o FPS de verdade se mede rodando a captura numa placa de vídeo.
 
+## Presets de qualidade
+
+A configuração do projeto `rendering/erethea/quality_preset` (em *Configurações
+do Projeto › Rendering › Erethea*) muda de uma vez as configurações de
+qualidade da própria Godot. O código fica em `modules/erethea_quality/`.
+
+| Preset | Para quê |
+| --- | --- |
+| Disabled (padrão) | Nada muda, igual à Godot. Projetos da Godot abrem assim. |
+| Low (Leve) | Placas fracas e integradas: sombras menores e mais duras, oclusão de ambiente mais simples, FXAA, e o 3D desenhado em 77% da resolução e ampliado com FSR 1. |
+| Balanced (Equilibrado) | Perto do padrão da Godot, com texturas mais nítidas (filtro anisotrópico 8×) e SMAA. |
+| Cinematic (Cinema) | Placas fortes: sombras maiores e mais suaves, oclusão de ambiente e luz indireta em tamanho cheio e qualidade alta, filtro 16×, névoa volumétrica mais detalhada e FSR 2 na resolução nativa como antialiasing. |
+| Automatic (Automático) | Escolhe pela placa: integrada, sem placa ou renderizador Compatibility, Low; placa dedicada sem ray tracing, Balanced; placa dedicada com ray tracing, Cinematic. |
+
+Regras:
+
+- O preset só muda o que o projeto deixou no valor padrão. O que o projeto
+  escolheu de propósito continua valendo.
+- Vale para o jogo rodando (F5 ou exportado), não para o editor.
+- Nos renderizadores Mobile e Compatibility, o preset só mexe em sombras,
+  filtro de textura e LOD; os outros efeitos são do Forward+.
+- O jogo pode trocar o preset enquanto roda, por exemplo no menu de opções:
+  `EretheaQuality.apply_preset(EretheaQuality.PRESET_CINEMATIC)`. Os detalhes
+  estão na referência da classe `EretheaQuality`, dentro do editor.
+
+Os valores exatos de cada preset estão em
+`modules/erethea_quality/erethea_quality.cpp`. Para ver um preset na cena de
+referência, acrescente `--quality=low`, `balanced`, `cinematic` ou `automatic`
+depois do `--`; o CI captura os três e mostra a diferença para o padrão.
+
+Ainda não testado nas placas de referência: a escolha do Automático (a RX 580
+deve cair em Balanced, e a RTX 4060 Ti ou 5060 Ti em Cinematic) e o FPS de
+cada preset.
+
 ## Lançar uma versão
 
 As versões da Erethea têm numeração própria (`0.2.0`, `0.2.0-beta.1`),

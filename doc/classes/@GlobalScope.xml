@@ -1572,6 +1572,9 @@
 		<member name="EngineDebugger" type="EngineDebugger" setter="" getter="">
 			The [EngineDebugger] singleton.
 		</member>
+		<member name="EretheaQuality" type="EretheaQuality" setter="" getter="">
+			The [EretheaQuality] singleton.
+		</member>
 		<member name="GDExtensionManager" type="GDExtensionManager" setter="" getter="">
 			The [GDExtensionManager] singleton.
 		</member>

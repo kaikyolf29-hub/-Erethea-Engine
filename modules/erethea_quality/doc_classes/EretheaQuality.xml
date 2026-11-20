@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaQuality" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Erethea's quality presets: one setting that raises or lowers the rendering quality settings together.
+	</brief_description>
+	<description>
+		A quality preset sets Godot's own rendering quality settings together: shadow sizes and filtering, ambient occlusion, indirect light, screen-space antialiasing, 3D scaling, texture filtering, volumetric fog and mesh LOD. The project chooses one in [member ProjectSettings.rendering/erethea/quality_preset], and a game can change it at runtime, for example from its options menu, with [method apply_preset].
+		A preset only changes the settings that the project left at their default value, so the project's own choices win. It only applies to the running project, never to the editor. Mobile and Compatibility skip the settings of effects that only Forward+ draws.
+		[codeblock]
+		# Use the preset that suits the graphics card.
+		EretheaQuality.apply_preset(EretheaQuality.PRESET_AUTOMATIC)
+		print(EretheaQuality.get_active_preset())
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="apply_preset">
+			<return type="void" />
+			<param index="0" name="preset" type="int" enum="EretheaQuality.Preset" />
+			<description>
+				Applies [param preset] to the rendering server and to the root viewport. [constant PRESET_AUTOMATIC] applies the preset returned by [method get_recommended_preset]. [constant PRESET_DISABLED] changes nothing, it doesn't undo a preset applied before.
+				Once a script applies a preset, the preset of the project is no longer applied when the game starts.
+			</description>
+		</method>
+		<method name="get_active_preset" qualifiers="const">
+			<return type="int" enum="EretheaQuality.Preset" />
+			<description>
+				Returns the preset applied last, with [constant PRESET_AUTOMATIC] replaced by the preset it chose. Returns [constant PRESET_DISABLED] if no preset was applied.
+			</description>
+		</method>
+		<method name="get_preset_settings" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="preset" type="int" enum="EretheaQuality.Preset" />
+			<description>
+				Returns the project settings that [param preset] would change, with their new values, by setting path. It leaves out the settings that the project changed and the ones that the current renderer doesn't use.
+			</description>
+		</method>
+		<method name="get_project_preset" qualifiers="const">
+			<return type="int" enum="EretheaQuality.Preset" />
+			<description>
+				Returns the preset chosen in [member ProjectSettings.rendering/erethea/quality_preset].
+			</description>
+		</method>
+		<method name="get_recommended_preset" qualifiers="const">
+			<return type="int" enum="EretheaQuality.Preset" />
+			<description>
+				Returns the preset that suits the graphics card: [constant PRESET_CINEMATIC] for a dedicated card with ray tracing, [constant PRESET_BALANCED] for other dedicated cards, and [constant PRESET_LOW] for integrated graphics, software rendering and the Compatibility renderer.
+			</description>
+		</method>
+	</methods>
+	<constants>
+		<constant name="PRESET_DISABLED" value="0" enum="Preset">
+			No preset: the quality settings stay as the project sets them, like in Godot.
+		</constant>
+		<constant name="PRESET_LOW" value="1" enum="Preset">
+			Faster: smaller and harder shadows, half size and lower quality ambient occlusion, FXAA, and 3D rendered at 77% of the resolution and scaled up with FSR 1.
+		</constant>
+		<constant name="PRESET_BALANCED" value="2" enum="Preset">
+			Close to Godot's defaults, with 8× anisotropic texture filtering and SMAA.
+		</constant>
+		<constant name="PRESET_CINEMATIC" value="3" enum="Preset">
+			Slower and sharper: larger and softer shadows, full size high quality ambient occlusion and indirect light, 16× anisotropic filtering, more detailed volumetric fog, and FSR 2 at native resolution as antialiasing.
+		</constant>
+		<constant name="PRESET_AUTOMATIC" value="4" enum="Preset">
+			The preset that suits the graphics card, see [method get_recommended_preset].
+		</constant>
+	</constants>
+</class>
