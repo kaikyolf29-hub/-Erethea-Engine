@@ -194,17 +194,27 @@ function Wait-MainWindow($process, [int]$timeoutSeconds) {
 	throw "No window after $timeoutSeconds seconds."
 }
 
+# Whether the window has no caption. A maximized window has its borders
+# outside of the screen (the editor starts maximized), so its client area is
+# compared with the work area instead.
+function Test-Extended([IntPtr]$hwnd) {
+	$c = Get-ClientScreenRect $hwnd
+	if ([Win]::IsZoomed($hwnd)) {
+		return $c.Top -eq (Get-WorkArea $hwnd).Top
+	}
+	return $c.Top -eq (Get-Rect $hwnd).Top
+}
+
 # Waits until the window has no caption (the editor sets the flag after loading).
 function Wait-Extended([IntPtr]$hwnd, [int]$timeoutSeconds) {
 	$deadline = (Get-Date).AddSeconds($timeoutSeconds)
 	while ((Get-Date) -lt $deadline) {
-		$w = Get-Rect $hwnd
-		$c = Get-ClientScreenRect $hwnd
-		if ($c.Top -eq $w.Top) {
+		if (Test-Extended $hwnd) {
 			return $true
 		}
 		Start-Sleep -Milliseconds 500
 	}
+	Write-Host "      window $(Format-Rect (Get-Rect $hwnd)), client $(Format-Rect (Get-ClientScreenRect $hwnd)), work area $(Format-Rect (Get-WorkArea $hwnd)), maximized $([Win]::IsZoomed($hwnd))"
 	return $false
 }
 
@@ -296,6 +306,8 @@ function Get-ButtonPoint([IntPtr]$hwnd, [int]$index) {
 	return @{ X = $x; Y = $c.Top + 20 }
 }
 
+# The editor's title bar is wider than the window placed here, so this also
+# checks that the buttons stay inside a window too small for its title bar.
 function Test-Buttons([IntPtr]$hwnd, $process, [string]$name) {
 	Place-Window $hwnd 0
 	$p = Get-ButtonPoint $hwnd 1
