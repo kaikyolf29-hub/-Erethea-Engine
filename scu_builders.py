@@ -436,6 +436,7 @@ def generate_scu_files(max_includes_per_scu):
             "/scene",
             "/servers",
             "/servers/rendering",
+            "/erethea",  # Erethea: Tests of Erethea's own code.
         ],
         ["test_macros", "test_main"],
     )

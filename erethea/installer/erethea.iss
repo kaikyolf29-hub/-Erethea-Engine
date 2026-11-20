@@ -8,6 +8,9 @@
 ; The installer runs without administrator rights and can add Erethea to the
 ; user's PATH. It installs next to Godot without touching it: different
 ; folder, different AppId, different user data folder (%APPDATA%\Erethea).
+;
+; The editor downloads it from the GitHub releases to update itself, and runs
+; it with /SILENT /update=1 (see editor/project_manager/erethea_update.h).
 
 #ifndef MyAppVersion
   #define MyAppVersion "4.8"
@@ -68,11 +71,19 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; An update started from the editor (/update=1) runs silently, then starts the editor again.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait; Check: IsUpdate
 
 [Code]
 const
     ModPathName = 'modifypath';
     ModPathType = 'user';
+
+// True when the editor started this installer to update itself.
+function IsUpdate(): Boolean;
+begin
+    Result := ExpandConstant('{param:update|0}') = '1';
+end;
 
 function ModPathDir(): TArrayOfString;
 begin

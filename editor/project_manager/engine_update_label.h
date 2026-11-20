@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "editor/project_manager/erethea_update.h"
 #include "scene/gui/link_button.h"
 
 class HTTPRequest;
@@ -93,6 +94,16 @@ private:
 
 	VersionType _get_version_type(const String &p_string, int *r_index = nullptr) const;
 	String _extract_sub_string(const String &p_line) const;
+
+	// Erethea: Updates from the releases of the Erethea repository, see erethea_update.h.
+	HTTPRequest *erethea_download = nullptr;
+	EretheaUpdate::Release erethea_release;
+
+	bool _erethea_can_install_update() const;
+	void _erethea_releases_received(int p_result, int p_response_code, const PackedStringArray &p_headers, const PackedByteArray &p_body);
+	void _erethea_install_update();
+	void _erethea_download_completed(int p_result, int p_response_code, const PackedStringArray &p_headers, const PackedByteArray &p_body);
+	void _erethea_download_failed(const String &p_message, const Variant &p_message_argument = Variant());
 
 protected:
 	void _notification(int p_what);
