@@ -6,7 +6,8 @@ on:
 # Builds the Windows installer from the editor built by windows_builds.yml,
 # installs it silently, and opens a plain Godot project with the installed
 # Erethea: first an import in the editor, then a run of the main scene.
-# This is the "done" test of phase 0.
+# This is the "done" test of phase 0. Then installs it again the way the
+# editor updates itself.
 
 jobs:
   installer:
@@ -70,6 +71,25 @@ jobs:
             throw "The project's main scene did not run"
           }
           Write-Output "The installed Erethea opened and ran the Godot project without errors."
+
+      - name: Update silently, like the editor does
+        shell: pwsh
+        run: |
+          # Same arguments as EretheaUpdate::launch_installer(): the installer
+          # must install over the previous one, then start the editor again.
+          $exe = Join-Path $env:ERETHEA_DIR "erethea.exe"
+          $p = Start-Process -Wait -PassThru erethea/installer/erethea-setup-x86_64.exe `
+            -ArgumentList "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/update=1"
+          if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
+          $deadline = (Get-Date).AddSeconds(60)
+          $editor = $null
+          while (-not $editor) {
+            $editor = Get-Process erethea -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }
+            if (-not $editor -and (Get-Date) -gt $deadline) { throw "The installer didn't start $exe again" }
+            Start-Sleep -Seconds 1
+          }
+          Write-Output "The installer updated Erethea and started $exe again."
+          $editor | Stop-Process -Force
 
       - name: Upload installer
         uses: actions/upload-artifact@v7
