@@ -523,3 +523,9 @@
 
 /thirdparty/                                  @godotengine/buildsystem
 /thirdparty/jolt_physics/                     @godotengine/buildsystem @godotengine/jolt-physics
+
+# Erethea Engine
+
+/erethea/                                     @kaikydev1-jpg
+/erethea/**/*.py                              @kaikydev1-jpg @godotengine/buildsystem
+/erethea/tests/                               @kaikydev1-jpg @godotengine/tests
