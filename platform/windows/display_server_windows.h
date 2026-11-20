@@ -543,6 +543,9 @@ class DisplayServerWindows : public DisplayServer {
 	LRESULT _extend_to_title_nchittest(WindowData &p_wd, HWND hWnd, WPARAM wParam, LPARAM lParam);
 	bool _extend_to_title_is_cursor_on_maximize_button(const WindowData &p_wd, HWND hWnd) const;
 	bool _extend_to_title_nc_mouse(WindowData &p_wd, HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT &r_result);
+	Color window_color = Color(0, 0, 0, 0);
+	bool _window_use_dark_frame(const WindowData &p_wd) const;
+	void _update_window_frame(WindowData &p_wd);
 
 	enum class WinKeyModifierMask {
 		ALT_GR = (1 << 1),
@@ -760,6 +763,7 @@ public:
 
 	virtual void window_start_drag(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override;
 	virtual void window_set_maximize_button_rect(const Rect2i &p_rect, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override; // Erethea.
+	virtual void window_set_color(const Color &p_color) override; // Erethea.
 	virtual void window_start_resize(DisplayServerEnums::WindowResizeEdge p_edge, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override;
 
 	virtual void cursor_set_shape(DisplayServerEnums::CursorShape p_shape) override;

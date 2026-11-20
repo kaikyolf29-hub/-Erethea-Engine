@@ -45,16 +45,36 @@
 // HTMAXBUTTON, so that Windows 11 shows its snap layouts when the mouse hovers
 // it. Windows then sends non-client mouse messages for that area, which are
 // passed on to the engine as client ones, so that the button still reacts.
+//
+// window_set_color() gives the background color of the application (the
+// editor passes its theme's background). The frame of an extended window
+// follows it: dark mode for a dark color, and on Windows 11 a border of a
+// slightly lighter shade, unless the user asked for the accent color on window
+// borders in the Windows settings.
 
 #include "display_server_windows.h"
 
 #include "core/config/engine.h"
 
+#include <dwmapi.h>
 #include <shellapi.h>
 
 // Space left free on the side of an auto-hide taskbar, so that it can still
 // be revealed when a window is maximized.
 static constexpr int AUTOHIDE_TASKBAR_GAP = 2;
+
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1
+#define DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 19
+#endif
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+#ifndef DWMWA_COLOR_DEFAULT
+#define DWMWA_COLOR_DEFAULT 0xFFFFFFFF
+#endif
 
 bool DisplayServerWindows::_is_extend_to_title_supported() const {
 	if (os_ver.dwBuildNumber < 10240) {
@@ -265,4 +285,45 @@ void DisplayServerWindows::window_set_maximize_button_rect(const Rect2i &p_rect,
 
 	ERR_FAIL_COND(!windows.has(p_window));
 	windows[p_window].maximize_button_rect = p_rect;
+}
+
+static bool _is_accent_color_on_borders() {
+	DWORD value = 0;
+	DWORD size = sizeof(value);
+	if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\DWM", L"ColorPrevalence", RRF_RT_REG_DWORD, nullptr, &value, &size) != ERROR_SUCCESS) {
+		return false;
+	}
+	return value != 0;
+}
+
+bool DisplayServerWindows::_window_use_dark_frame(const WindowData &p_wd) const {
+	if (p_wd.id == DisplayServerEnums::MAIN_WINDOW_ID && window_color.a > 0 && _is_window_extended_to_title(p_wd)) {
+		return window_color.get_luminance() < 0.5;
+	}
+	return is_dark_mode();
+}
+
+void DisplayServerWindows::_update_window_frame(WindowData &p_wd) {
+	if (is_dark_mode_supported() && dark_title_available) {
+		BOOL value = _window_use_dark_frame(p_wd);
+		::DwmSetWindowAttribute(p_wd.hWnd, use_legacy_dark_mode_before_20H1 ? DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 : DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+	}
+
+	if (os_ver.dwBuildNumber >= 22000) { // Windows 11+ only.
+		COLORREF border = DWMWA_COLOR_DEFAULT;
+		if (p_wd.id == DisplayServerEnums::MAIN_WINDOW_ID && window_color.a > 0 && _is_window_extended_to_title(p_wd) && !_is_accent_color_on_borders()) {
+			const Color color = window_color.get_luminance() < 0.5 ? window_color.lightened(0.12) : window_color.darkened(0.12);
+			border = RGB(color.get_r8(), color.get_g8(), color.get_b8());
+		}
+		::DwmSetWindowAttribute(p_wd.hWnd, DWMWA_BORDER_COLOR, &border, sizeof(border));
+	}
+}
+
+void DisplayServerWindows::window_set_color(const Color &p_color) {
+	_THREAD_SAFE_METHOD_
+
+	window_color = p_color;
+	if (windows.has(DisplayServerEnums::MAIN_WINDOW_ID)) {
+		_update_window_frame(windows[DisplayServerEnums::MAIN_WINDOW_ID]);
+	}
 }
