@@ -3033,7 +3033,7 @@
 			Base size used to determine size of froxel buffer in the camera X-axis and Y-axis. The final size is scaled by the aspect ratio of the screen, so actual values may differ from what is set. Set a larger size for more detailed fog, set a smaller size for better performance.
 		</member>
 		<member name="rendering/erethea/quality_preset" type="int" setter="" getter="" default="0">
-			Erethea's quality preset, which sets the rendering quality settings together: [code]Disabled[/code] keeps them as the project sets them, [code]Low[/code], [code]Balanced[/code] and [code]Cinematic[/code] go from faster to sharper, and [code]Automatic[/code] chooses one from the graphics card. A preset only changes the settings left at their default value, and only in the running project. See [EretheaQuality].
+			Erethea's quality preset, which sets the rendering quality settings together: [code]Disabled[/code] keeps them as the project sets them, [code]Low[/code], [code]Balanced[/code] and [code]Cinematic[/code] go from faster to sharper, and [code]Automatic[/code] chooses one from the graphics card. A preset only changes the settings left at their default value, and only in the running project. Projects created in Erethea start with [code]Automatic[/code]. See [EretheaQuality].
 		</member>
 		<member name="rendering/gl_compatibility/driver" type="String" setter="" getter="" default="&quot;opengl3&quot;">
 			Sets the driver to be used by the renderer when using the Compatibility renderer. Editing this property has no effect in the default configuration, as first-party platforms each have platform-specific overrides. Use those overrides to configure the driver for each platform.

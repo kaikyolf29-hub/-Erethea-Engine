@@ -8531,6 +8531,9 @@ HashMap<String, Variant> EditorNode::get_initial_settings() {
 	settings["physics/3d/physics_engine"] = PhysicsServer3DManager::JOLT_PHYSICS_NAME;
 	settings["rendering/rendering_device/driver.windows"] = "d3d12";
 	settings["rendering/lights_and_shadows/multi_bounce_occlusion/enabled"] = true;
+	// Erethea: New projects choose their quality preset from the graphics card
+	// (EretheaQuality::PRESET_AUTOMATIC). Godot projects keep it disabled.
+	settings["rendering/erethea/quality_preset"] = 4;
 	return settings;
 }
 

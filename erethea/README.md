@@ -85,11 +85,11 @@ qualidade da própria Godot. O código fica em `modules/erethea_quality/`.
 
 | Preset | Para quê |
 | --- | --- |
-| Disabled (padrão) | Nada muda, igual à Godot. Projetos da Godot abrem assim. |
+| Disabled | Nada muda, igual à Godot. É o padrão, então projetos da Godot abrem assim. |
 | Low (Leve) | Placas fracas e integradas: sombras menores e mais duras, oclusão de ambiente mais simples, FXAA, e o 3D desenhado em 77% da resolução e ampliado com FSR 1. |
 | Balanced (Equilibrado) | Perto do padrão da Godot, com texturas mais nítidas (filtro anisotrópico 8×) e SMAA. |
 | Cinematic (Cinema) | Placas fortes: sombras maiores e mais suaves, oclusão de ambiente e luz indireta em tamanho cheio e qualidade alta, filtro 16×, névoa volumétrica mais detalhada e FSR 2 na resolução nativa como antialiasing. |
-| Automatic (Automático) | Escolhe pela placa: integrada, sem placa ou renderizador Compatibility, Low; placa dedicada sem ray tracing, Balanced; placa dedicada com ray tracing, Cinematic. |
+| Automatic (Automático) | Escolhe pela placa: integrada, sem placa ou renderizador Compatibility, Low; placa dedicada sem ray tracing, Balanced; placa dedicada com ray tracing, Cinematic. Projetos novos criados na Erethea já começam assim. |
 
 Regras:
 
