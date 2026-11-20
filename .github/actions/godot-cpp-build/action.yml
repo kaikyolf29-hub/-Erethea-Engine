@@ -33,8 +33,14 @@ runs:
       shell: sh
       run: ${{ inputs.bin }} --headless --dump-gdextension-interface --dump-extension-api
 
+    # Erethea: build godot-cpp from a short path. The workspace path of this
+    # repository (/home/runner/work/-Erethea-Engine/-Erethea-Engine) is long
+    # enough to push godot-cpp's `ar` command line past the 128 KiB limit of a
+    # single shell argument ("Argument list too long").
     - name: SCons Build
       shell: sh
       env:
         SCONS_CACHE: ${{ inputs.scons-cache }}
-      run: scons --directory=./godot-cpp/test "gdextension_dir=${{ github.workspace }}" ${{ inputs.scons-flags }}
+      run: |
+        mv ./godot-cpp "${{ runner.temp }}/gcpp"
+        scons --directory="${{ runner.temp }}/gcpp/test" "gdextension_dir=${{ github.workspace }}" ${{ inputs.scons-flags }}
