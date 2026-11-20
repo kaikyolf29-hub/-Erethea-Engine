@@ -31,7 +31,9 @@
 #include "editor_window_buttons.h"
 
 #include "core/object/callable_mp.h"
+#include "editor/editor_string_names.h"
 #include "editor/themes/editor_scale.h"
+#include "scene/gui/box_container.h"
 #include "scene/main/window.h"
 #include "servers/display/display_server.h"
 
@@ -122,13 +124,13 @@ void EditorWindowButton::_notification(int p_what) {
 			const bool hovered = pressed || mode == DRAW_HOVER;
 
 			Color glyph_color = get_theme_color(SceneStringName(font_color));
-			Color background_color = Color(0, 0, 0, 0);
+			Color hover_color = Color(0, 0, 0, 0);
 			if (kind == KIND_CLOSE && hovered) {
-				background_color = pressed ? CLOSE_PRESSED_COLOR : CLOSE_HOVER_COLOR;
+				hover_color = pressed ? CLOSE_PRESSED_COLOR : CLOSE_HOVER_COLOR;
 				glyph_color = Color(1, 1, 1);
 			} else if (hovered) {
-				background_color = glyph_color;
-				background_color.a = pressed ? 0.06 : 0.1;
+				hover_color = glyph_color;
+				hover_color.a = pressed ? 0.06 : 0.1;
 			}
 
 			const Window *win = get_window();
@@ -136,8 +138,12 @@ void EditorWindowButton::_notification(int p_what) {
 				glyph_color.a *= 0.45;
 			}
 
+			const Rect2 extended_rect = get_extended_rect();
 			if (background_color.a > 0) {
-				draw_rect(get_extended_rect(), background_color);
+				draw_rect(extended_rect, background_color);
+			}
+			if (hover_color.a > 0) {
+				draw_rect(extended_rect, hover_color);
 			}
 			_draw_glyph(Rect2(Point2(), get_size()), glyph_color);
 		} break;
@@ -150,6 +156,14 @@ bool EditorWindowButton::has_point(const Point2 &p_point) const {
 
 void EditorWindowButton::set_edge(bool p_edge) {
 	edge = p_edge;
+	queue_redraw();
+}
+
+void EditorWindowButton::set_background_color(const Color &p_color) {
+	if (background_color == p_color) {
+		return;
+	}
+	background_color = p_color;
 	queue_redraw();
 }
 
@@ -180,6 +194,34 @@ void EditorWindowButtons::_update_buttons() {
 	minimize_button->queue_redraw();
 	maximize_button->queue_redraw();
 	close_button->queue_redraw();
+	_update_box();
+}
+
+void EditorWindowButtons::_update_box() {
+	if (!is_inside_tree()) {
+		return;
+	}
+
+	// Stay where the title bar puts us, unless it is cut off by the side of
+	// the window.
+	const Point2 global_position = get_global_position();
+	const real_t width = box->get_combined_minimum_size().x;
+	const real_t viewport_width = get_viewport_rect().size.x;
+	real_t x = global_position.x;
+	if (is_layout_rtl()) {
+		x = MAX(x, 0);
+	} else {
+		x = MIN(x, viewport_width - width);
+	}
+	box->set_position(Point2(x, global_position.y));
+	box->set_size(Size2(width, get_size().y));
+
+	// Cover what is under the buttons.
+	const Color background_color = Math::is_equal_approx(x, global_position.x) ? Color(0, 0, 0, 0) : get_theme_color(SNAME("background"), EditorStringName(Editor));
+	minimize_button->set_background_color(background_color);
+	maximize_button->set_background_color(background_color);
+	close_button->set_background_color(background_color);
+
 	_update_maximize_button_rect();
 }
 
@@ -217,31 +259,47 @@ void EditorWindowButtons::_notification(int p_what) {
 			get_window()->disconnect(SNAME("size_changed"), callable_mp(this, &EditorWindowButtons::_update_buttons));
 			DisplayServer::get_singleton()->window_set_maximize_button_rect(Rect2i(), get_window()->get_window_id());
 		} break;
-		case NOTIFICATION_TRANSFORM_CHANGED: {
-			_update_maximize_button_rect();
+		case NOTIFICATION_RESIZED:
+		case NOTIFICATION_TRANSFORM_CHANGED:
+		case NOTIFICATION_THEME_CHANGED:
+		case NOTIFICATION_LAYOUT_DIRECTION_CHANGED: {
+			_update_box();
+		} break;
+		case NOTIFICATION_VISIBILITY_CHANGED: {
+			box->set_visible(is_visible_in_tree());
 		} break;
 	}
 }
 
+Size2 EditorWindowButtons::get_minimum_size() const {
+	return Size2(box->get_combined_minimum_size().x, 0);
+}
+
 EditorWindowButtons::EditorWindowButtons() {
-	add_theme_constant_override("separation", 0);
+	set_mouse_filter(MOUSE_FILTER_IGNORE);
 	set_notify_transform(true);
+
+	box = memnew(HBoxContainer);
+	box->set_as_top_level(true);
+	box->add_theme_constant_override("separation", 0);
+	box->connect(SceneStringName(minimum_size_changed), callable_mp((Control *)this, &Control::update_minimum_size));
+	add_child(box, false, INTERNAL_MODE_FRONT);
 
 	minimize_button = memnew(EditorWindowButton(EditorWindowButton::KIND_MINIMIZE));
 	minimize_button->set_tooltip_text(TTRC("Minimize"));
 	minimize_button->set_accessibility_name(TTRC("Minimize"));
 	minimize_button->connect(SceneStringName(pressed), callable_mp(this, &EditorWindowButtons::_minimize));
-	add_child(minimize_button);
+	box->add_child(minimize_button);
 
 	maximize_button = memnew(EditorWindowButton(EditorWindowButton::KIND_MAXIMIZE));
 	maximize_button->connect(SceneStringName(pressed), callable_mp(this, &EditorWindowButtons::_toggle_maximize));
 	maximize_button->connect(SceneStringName(item_rect_changed), callable_mp(this, &EditorWindowButtons::_update_maximize_button_rect));
-	add_child(maximize_button);
+	box->add_child(maximize_button);
 
 	close_button = memnew(EditorWindowButton(EditorWindowButton::KIND_CLOSE));
 	close_button->set_tooltip_text(TTRC("Close"));
 	close_button->set_accessibility_name(TTRC("Close"));
 	close_button->set_edge(true);
 	close_button->connect(SceneStringName(pressed), callable_mp(this, &EditorWindowButtons::_close));
-	add_child(close_button);
+	box->add_child(close_button);
 }

@@ -30,8 +30,9 @@
 
 #pragma once
 
-#include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
+
+class HBoxContainer;
 
 // Erethea: Minimize, maximize and close buttons for a window whose title bar
 // is drawn by the editor, on platforms where the system doesn't draw them over
@@ -42,6 +43,9 @@
 // mouse into the corner of a maximized window. The area of the maximize button
 // is given to the display server, so that Windows 11 shows its snap layouts
 // when the mouse hovers it.
+//
+// The title bar can be wider than a small window, which cuts off its end. The
+// buttons are kept inside the window anyway, over the end of the title bar.
 
 class EditorWindowButton : public Button {
 	GDCLASS(EditorWindowButton, Button);
@@ -56,6 +60,7 @@ public:
 private:
 	Kind kind = KIND_MINIMIZE;
 	bool edge = false;
+	Color background_color = Color(0, 0, 0, 0);
 
 	void _draw_glyph(const Rect2 &p_rect, const Color &p_color);
 
@@ -68,18 +73,23 @@ public:
 
 	Rect2 get_extended_rect() const;
 	void set_edge(bool p_edge);
+	void set_background_color(const Color &p_color);
 
 	EditorWindowButton(Kind p_kind = KIND_MINIMIZE);
 };
 
-class EditorWindowButtons : public HBoxContainer {
-	GDCLASS(EditorWindowButtons, HBoxContainer);
+// Takes the place of the buttons in the title bar. The buttons themselves are
+// in a top level box, so that they can stay inside the window.
+class EditorWindowButtons : public Control {
+	GDCLASS(EditorWindowButtons, Control);
 
+	HBoxContainer *box = nullptr;
 	EditorWindowButton *minimize_button = nullptr;
 	EditorWindowButton *maximize_button = nullptr;
 	EditorWindowButton *close_button = nullptr;
 
 	void _update_buttons();
+	void _update_box();
 	void _update_maximize_button_rect();
 	void _minimize();
 	void _toggle_maximize();
@@ -90,5 +100,7 @@ protected:
 	static void _bind_methods() {}
 
 public:
+	virtual Size2 get_minimum_size() const override;
+
 	EditorWindowButtons();
 };
