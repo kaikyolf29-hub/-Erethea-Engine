@@ -8,7 +8,7 @@ que juntar versões novas da Godot não dê conflito.
 | `branding/` | Logo, ícones (`.svg`, `.png`, `.ico`) e splash da Erethea |
 | `tools/rebrand.py` | Aplica a marca Erethea por cima do código da Godot |
 | `tools/make_branding.py` | Gera os arquivos de `branding/` a partir do desenho do logo |
-| `installer/erethea.iss` | Instalador do Windows (Inno Setup 6) |
+| `installer/erethea.iss` | Instalador do Windows (Inno Setup 6), também usado nas atualizações |
 | `tests/smoke_project/` | Projeto Godot simples que o CI abre com o instalador |
 
 ## Atualizar a Godot
@@ -30,6 +30,31 @@ python erethea/tools/rebrand.py --check
 
 O `--check` também roda no CI. Se uma regra parar de bater porque a Godot mudou
 o texto, ajuste a regra em `tools/rebrand.py`, nunca o arquivo de destino à mão.
+
+## Lançar uma versão
+
+As versões da Erethea têm numeração própria (`0.2.0`, `0.2.0-beta.1`),
+separada da versão da Godot em que se baseiam. Para lançar, crie a tag no
+`main` e envie:
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+O workflow `🔥 Erethea Release` compila o editor do Windows com
+`BUILD_NAME=erethea-0.2.0`, confere o projeto de teste, gera o instalador e
+publica o release no GitHub com o arquivo `erethea-setup-x86_64.exe`. Uma
+versão com traço (`-beta.1`) sai como prerelease. Rodar o workflow à mão
+(`workflow_dispatch`) só compila e confere, sem publicar.
+
+## Atualização automática
+
+O gerenciador de projetos procura versões novas nos releases deste repositório
+(`editor/project_manager/erethea_update.h`), quando o editor está no modo
+online, como na Godot. Ao clicar no aviso "Update available", a Erethea
+instalada pelo instalador baixa o instalador novo, confere o SHA-256 que o
+GitHub informa, instala por cima sem perguntas e abre de novo. Builds de
+desenvolvimento (sem `BUILD_NAME=erethea-<versão>`) não procuram atualizações.
 
 ## O que a marca troca e o que não troca
 

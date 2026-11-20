@@ -1,0 +1,148 @@
+name: 🔥 Erethea Release
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build, like 0.2.0 or 0.2.0-beta.1. A manual run only builds and checks the installer, it publishes nothing.
+        required: true
+        type: string
+
+# Builds the Windows editor and installer of a version, checks them, and
+# publishes a GitHub release with the installer. The editor finds the release
+# there and offers to update itself (see editor/project_manager/erethea_update.h).
+#
+# To release, push a tag "v<version>" on main, for example "v0.2.0". A version
+# with a dash ("v0.2.0-beta.1") is published as a prerelease.
+
+permissions:
+  contents: write
+
+env:
+  PYTHONIOENCODING: utf8
+  SCONS_CACHE_MSVC_CONFIG: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+    name: Windows editor and installer
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Read the version
+        id: version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $version = $env:GITHUB_REF_NAME -replace "^v", ""
+          } else {
+            $version = $env:INPUT_VERSION
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$') {
+            throw "Invalid version '$version'. Use <major>.<minor>.<patch>, optionally with a prerelease like -beta.1."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$(if ($version.Contains('-')) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
+          Write-Output "Erethea $version"
+
+      - name: Setup Python and SCons
+        uses: ./.github/actions/godot-deps
+
+      - name: Download Direct3D 12 SDK components
+        shell: sh
+        run: python ./misc/scripts/install_d3d12_sdk_windows.py
+
+      - name: Download pre-built ANGLE
+        shell: sh
+        run: python ./misc/scripts/install_angle.py
+
+      - name: Download pre-built AccessKit
+        shell: sh
+        run: python ./misc/scripts/install_accesskit.py
+
+      - name: Compilation
+        shell: sh
+        env:
+          # The editor reads its version from the build name.
+          BUILD_NAME: erethea-${{ steps.version.outputs.version }}
+        run: |
+          scons platform=windows target=editor production=yes lto=none debug_symbols=no d3d12=yes angle=yes accesskit=yes
+          ls -l bin/
+
+      - name: Check the editor
+        shell: pwsh
+        run: |
+          $exe = "bin/erethea.windows.editor.x86_64.console.exe"
+          $version = & $exe --version
+          Write-Output "Version: $version"
+          if (-not ($version -match [regex]::Escape("erethea-${{ steps.version.outputs.version }}"))) {
+            throw "The editor doesn't report the version being released."
+          }
+
+          $project = "erethea/tests/smoke_project"
+          & $exe --headless --import --path $project 2>&1 | Tee-Object -FilePath import.log
+          if ($LASTEXITCODE -ne 0) { throw "Editor import failed with exit code $LASTEXITCODE" }
+          & $exe --headless --path $project 2>&1 | Tee-Object -FilePath run.log
+          if ($LASTEXITCODE -ne 0) { throw "Project run failed with exit code $LASTEXITCODE" }
+          if (-not (Select-String -Path run.log -Pattern "ERETHEA_SMOKE_OK" -Quiet)) {
+            throw "The project's main scene did not run"
+          }
+
+      - name: Find or install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) { throw "Inno Setup not found at $iscc" }
+          "ISCC=$iscc" >> $env:GITHUB_ENV
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          Copy-Item bin/erethea.windows.editor.x86_64.exe erethea/installer/erethea.exe
+          Copy-Item bin/erethea.windows.editor.x86_64.console.exe erethea/installer/erethea.console.exe
+          & $env:ISCC "/DMyAppVersion=${{ steps.version.outputs.version }}" erethea/installer/erethea.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Install silently
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "Erethea"
+          $p = Start-Process -Wait -PassThru erethea/installer/erethea-setup-x86_64.exe `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$dir`""
+          if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
+          $version = & "$dir/erethea.console.exe" --version
+          if (-not ($version -match [regex]::Escape("erethea-${{ steps.version.outputs.version }}"))) {
+            throw "The installed editor doesn't report the version being released: $version"
+          }
+          Write-Output "Installed $version"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-${{ steps.version.outputs.version }}-setup-windows
+          path: erethea/installer/erethea-setup-x86_64.exe
+          retention-days: 30
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $arguments = @("release", "create", "v$version", "erethea/installer/erethea-setup-x86_64.exe",
+            "--title", "Erethea Engine $version", "--generate-notes", "--verify-tag")
+          if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $arguments += "--prerelease" }
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
