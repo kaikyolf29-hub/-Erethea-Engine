@@ -13,6 +13,9 @@ extends Node3D
 ## Give <folder> as an absolute path: a relative one is inside the project. It saves <time>_<view>.png for each time of day and view, and results.json
 ## with the frame times. Optional arguments: --warmup=<frames> before each
 ## capture (default 20) and --frames=<frames> measured after it (default 20).
+##
+## In Erethea, --quality=<low|balanced|cinematic|automatic> applies a quality
+## preset (EretheaQuality) first. Stock Godot ignores it with a warning.
 
 const TIMES: Array[String] = ["dia", "noite"]
 const VIEWS := {
@@ -21,6 +24,9 @@ const VIEWS := {
 	"personagem": [Vector3(3.1, 1.65, 6.4), Vector3(1.5, 1.3, 3.0)],
 }
 const VIEW_KEYS := {KEY_1: "vila", KEY_2: "floresta", KEY_3: "personagem"}
+# The values of EretheaQuality.Preset, written out so stock Godot can parse the
+# script.
+const QUALITY_PRESETS := {"low": 1, "balanced": 2, "cinematic": 3, "automatic": 4}
 const CAPTURE_SIZE := Vector2i(1280, 720)
 const SEED := 2026
 
@@ -51,6 +57,8 @@ func _ready() -> void:
 	set_view("vila")
 
 	var arguments := _get_user_arguments()
+	if arguments.has("quality"):
+		_apply_quality(arguments["quality"])
 	if arguments.has("capture"):
 		await _capture(arguments["capture"], int(arguments.get("warmup", "20")), int(arguments.get("frames", "20")))
 		get_tree().quit()
@@ -113,6 +121,18 @@ func set_time(time: String) -> void:
 		light.visible = night
 
 
+func _apply_quality(preset: String) -> void:
+	if not QUALITY_PRESETS.has(preset):
+		push_error("Unknown quality preset '%s'. Use one of %s." % [preset, ", ".join(PackedStringArray(QUALITY_PRESETS.keys()))])
+		return
+	if not Engine.has_singleton("EretheaQuality"):
+		push_warning("This engine has no quality presets, ignoring --quality=%s." % preset)
+		return
+	var quality := Engine.get_singleton("EretheaQuality")
+	quality.call("apply_preset", QUALITY_PRESETS[preset])
+	print("Quality preset %s applied: %s" % [preset, quality.call("get_preset_settings", quality.call("get_active_preset"))])
+
+
 func _get_user_arguments() -> Dictionary:
 	var arguments := {}
 	for argument in OS.get_cmdline_user_args():
@@ -140,6 +160,7 @@ func _capture(folder: String, warmup: int, frames: int) -> void:
 		"vendor": RenderingServer.get_video_adapter_vendor(),
 		"api": RenderingServer.get_video_adapter_api_version(),
 		"size": [CAPTURE_SIZE.x, CAPTURE_SIZE.y],
+		"quality": _get_user_arguments().get("quality", "default"),
 		"captures": [],
 	}
 	print("Reference scene on %s (%s)" % [results["adapter"], results["api"]])
