@@ -205,6 +205,9 @@ bool DisplayServerWindows::has_feature(DisplayServerEnums::Feature p_feature) co
 			return (os_ver.dwBuildNumber >= 19041); // Fully supported on Windows 10 Vibranium R1 (2004)+ only, captured as black rect on older versions.
 		case DisplayServerEnums::FEATURE_EMOJI_AND_SYMBOL_PICKER:
 			return (os_ver.dwBuildNumber >= 17134); // Windows 10 Redstone 4 (1803)+ only.
+		case DisplayServerEnums::FEATURE_EXTEND_TO_TITLE:
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			return _is_extend_to_title_supported();
 		case DisplayServerEnums::FEATURE_ACCESSIBILITY_SCREEN_READER: {
 			return AccessibilityServer::get_singleton()->is_supported();
 		} break;
@@ -2450,7 +2453,8 @@ void DisplayServerWindows::window_set_position(const Point2i &p_position, Displa
 	const DWORD style = GetWindowLongPtr(wd.hWnd, GWL_STYLE);
 	const DWORD exStyle = GetWindowLongPtr(wd.hWnd, GWL_EXSTYLE);
 
-	AdjustWindowRectEx(&rc, style, false, exStyle);
+	// Erethea: Was AdjustWindowRectEx(), which adds a caption that an extended window doesn't have.
+	_window_adjust_rect(&wd, rc, style, exStyle);
 	MoveWindow(wd.hWnd, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, TRUE);
 
 	wd.last_pos = p_position;
@@ -3055,6 +3059,20 @@ void DisplayServerWindows::window_set_flag(DisplayServerEnums::WindowFlags p_fla
 			}
 			wd.is_popup = p_enabled;
 		} break;
+		case DisplayServerEnums::WINDOW_FLAG_EXTEND_TO_TITLE: {
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			if (p_enabled && !_is_extend_to_title_supported()) {
+				return;
+			}
+			if (wd.extend_to_title == p_enabled) {
+				return;
+			}
+			wd.extend_to_title = p_enabled;
+			if (!wd.parent_hwnd) {
+				// Recompute the non-client area.
+				SetWindowPos(wd.hWnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+			}
+		} break;
 		default:
 			break;
 	}
@@ -3098,6 +3116,9 @@ bool DisplayServerWindows::window_get_flag(DisplayServerEnums::WindowFlags p_fla
 		} break;
 		case DisplayServerEnums::WINDOW_FLAG_POPUP: {
 			return wd.is_popup;
+		} break;
+		case DisplayServerEnums::WINDOW_FLAG_EXTEND_TO_TITLE: {
+			return wd.extend_to_title; // Erethea: Integrated title bar.
 		} break;
 		default:
 			break;
@@ -5829,9 +5850,19 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				SendMessageW(windows[window_id].hWnd, WM_PAINT, 0, 0);
 			}
 		} break;
+		case WM_NCCALCSIZE: {
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			if (wParam && _is_window_extended_to_title(windows[window_id])) {
+				return _extend_to_title_nccalcsize(windows[window_id], hWnd, wParam, lParam);
+			}
+		} break;
 		case WM_NCHITTEST: {
 			if (windows[window_id].mpass) {
 				return HTTRANSPARENT;
+			}
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			if (_is_window_extended_to_title(windows[window_id])) {
+				return _extend_to_title_nchittest(windows[window_id], hWnd, wParam, lParam);
 			}
 		} break;
 		case WM_MOUSEACTIVATE: {

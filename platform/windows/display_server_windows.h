@@ -326,6 +326,9 @@ class DisplayServerWindows : public DisplayServer {
 		bool mpass = false;
 		bool sharp_corners = false;
 		bool hide_from_capture = false;
+		// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+		bool extend_to_title = false;
+		int extend_to_title_border = 0;
 
 		// Used to transfer data between events using timer.
 		WPARAM saved_wparam;
@@ -530,6 +533,13 @@ class DisplayServerWindows : public DisplayServer {
 	Point2i _get_screens_origin() const;
 
 	Vector2i _get_screen_expand_offset(int p_screen) const;
+
+	// Erethea: Integrated title bar ("extend to title"), see display_server_windows_title_bar.cpp.
+	bool _is_extend_to_title_supported() const;
+	bool _is_window_extended_to_title(const WindowData &p_wd) const;
+	void _window_adjust_rect(const WindowData *p_wd, RECT &r_rect, DWORD p_style, DWORD p_style_ex) const;
+	LRESULT _extend_to_title_nccalcsize(WindowData &p_wd, HWND hWnd, WPARAM wParam, LPARAM lParam);
+	LRESULT _extend_to_title_nchittest(WindowData &p_wd, HWND hWnd, WPARAM wParam, LPARAM lParam);
 
 	enum class WinKeyModifierMask {
 		ALT_GR = (1 << 1),
