@@ -30,6 +30,8 @@
 
 #include "engine_update_label.h"
 
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/object/callable_mp.h"
 #include "core/os/os.h"
@@ -37,16 +39,21 @@
 #include "editor/editor_string_names.h"
 #include "editor/settings/editor_settings.h"
 #include "scene/main/http_request.h"
+#include "scene/main/scene_tree.h"
 
 bool EngineUpdateLabel::_can_check_updates() const {
+	// Erethea: Development builds don't know their version, see erethea_update.h.
 	return int(EDITOR_GET("network/connection/network_mode")) == EditorSettings::NETWORK_ONLINE &&
-			UpdateMode(int(EDITOR_GET("network/connection/check_for_updates"))) != UpdateMode::DISABLED;
+			UpdateMode(int(EDITOR_GET("network/connection/check_for_updates"))) != UpdateMode::DISABLED &&
+			!EretheaUpdate::get_current_version().is_empty();
 }
 
 void EngineUpdateLabel::_check_update() {
 	checked_update = true;
 	_set_status(UpdateStatus::BUSY);
-	http->request("https://godotengine.org/versions.json");
+	// Erethea: Look for updates in the releases of the Erethea repository.
+	const Vector<String> headers = { "Accept: application/vnd.github+json", "X-GitHub-Api-Version: 2022-11-28" };
+	http->request(EretheaUpdate::RELEASES_URL, headers);
 }
 
 void EngineUpdateLabel::_http_request_completed(int p_result, int p_response_code, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
@@ -206,7 +213,8 @@ void EngineUpdateLabel::_set_status(UpdateStatus p_status) {
 		case UpdateStatus::UPDATE_AVAILABLE: {
 			set_disabled(false);
 			set_accessibility_live(AccessibilityServerEnums::AccessibilityLiveMode::LIVE_POLITE);
-			set_tooltip_text(TTR("Click to open download page."));
+			// Erethea: The update can be installed from here.
+			set_tooltip_text(_erethea_can_install_update() ? TTR("Click to download and install the update.") : TTR("Click to open download page."));
 		} break;
 
 		default: {
@@ -311,7 +319,8 @@ void EngineUpdateLabel::pressed() {
 		} break;
 
 		case UpdateStatus::UPDATE_AVAILABLE: {
-			OS::get_singleton()->shell_open("https://godotengine.org/download/archive/" + available_newer_version);
+			// Erethea: Install the update, or open its release page.
+			_erethea_install_update();
 		} break;
 
 		default: {
@@ -327,5 +336,110 @@ EngineUpdateLabel::EngineUpdateLabel() {
 	http->set_https_proxy(EDITOR_GET("network/http_proxy/host"), EDITOR_GET("network/http_proxy/port"));
 	http->set_timeout(10.0);
 	add_child(http);
-	http->connect("request_completed", callable_mp(this, &EngineUpdateLabel::_http_request_completed));
+	// Erethea: Look for updates in the releases of the Erethea repository.
+	http->connect("request_completed", callable_mp(this, &EngineUpdateLabel::_erethea_releases_received));
+
+	erethea_download = memnew(HTTPRequest);
+	erethea_download->set_https_proxy(EDITOR_GET("network/http_proxy/host"), EDITOR_GET("network/http_proxy/port"));
+	add_child(erethea_download);
+	erethea_download->connect("request_completed", callable_mp(this, &EngineUpdateLabel::_erethea_download_completed));
+}
+
+// Erethea: Updates from the releases of the Erethea repository.
+
+bool EngineUpdateLabel::_erethea_can_install_update() const {
+	return EretheaUpdate::can_install_update() && !erethea_release.installer_url.is_empty();
+}
+
+void EngineUpdateLabel::_erethea_releases_received(int p_result, int p_response_code, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
+	if (p_result != OK) {
+		_set_status(UpdateStatus::ERROR);
+		_set_message(TTRC("Failed to check for updates. Error: %d."), theme_cache.error_color, p_result);
+		return;
+	}
+
+	if (p_response_code != 200) {
+		_set_status(UpdateStatus::ERROR);
+		_set_message(TTRC("Failed to check for updates. Response code: %d."), theme_cache.error_color, p_response_code);
+		return;
+	}
+
+	const Variant releases = JSON::parse_string(String::utf8((const char *)p_body.ptr(), p_body.size()));
+	if (releases.get_type() != Variant::ARRAY) {
+		_set_status(UpdateStatus::ERROR);
+		_set_message(TTRC("Received JSON data is not a valid version array."), theme_cache.error_color);
+		return;
+	}
+
+	const String current_version = EretheaUpdate::get_current_version();
+	UpdateMode update_mode = UpdateMode(int(EDITOR_GET("network/connection/check_for_updates")));
+	if (update_mode == UpdateMode::AUTO) {
+		update_mode = EretheaUpdate::is_prerelease(current_version) ? UpdateMode::NEWEST_UNSTABLE : UpdateMode::NEWEST_STABLE;
+	}
+	const bool stable_only = update_mode == UpdateMode::NEWEST_STABLE || update_mode == UpdateMode::NEWEST_PATCH;
+	const bool patch_only = update_mode == UpdateMode::NEWEST_PATCH;
+
+	erethea_release = EretheaUpdate::Release();
+	if (EretheaUpdate::find_newer_release(releases, current_version, stable_only, patch_only, erethea_release)) {
+		available_newer_version = erethea_release.version;
+		_set_status(UpdateStatus::UPDATE_AVAILABLE);
+		_set_message(TTRC("Update available: %s."), theme_cache.update_color, available_newer_version);
+	} else {
+		available_newer_version = String();
+		_set_status(UpdateStatus::UP_TO_DATE);
+	}
+}
+
+void EngineUpdateLabel::_erethea_install_update() {
+	if (!_erethea_can_install_update()) {
+		OS::get_singleton()->shell_open(erethea_release.page_url.is_empty() ? String(EretheaUpdate::RELEASES_PAGE_URL) : erethea_release.page_url);
+		return;
+	}
+
+	status = UpdateStatus::BUSY;
+	set_disabled(true);
+	set_tooltip_text("");
+	_set_message(TTRC("Downloading update %s..."), theme_cache.default_color, erethea_release.version);
+
+	erethea_download->set_download_file(EretheaUpdate::get_installer_download_path(erethea_release.version));
+	const Error err = erethea_download->request(erethea_release.installer_url);
+	if (err != OK) {
+		_erethea_download_failed(TTRC("Failed to download the update. Error: %d."), err);
+	}
+}
+
+void EngineUpdateLabel::_erethea_download_completed(int p_result, int p_response_code, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
+	if (p_result != OK) {
+		_erethea_download_failed(TTRC("Failed to download the update. Error: %d."), p_result);
+		return;
+	}
+	if (p_response_code != 200) {
+		_erethea_download_failed(TTRC("Failed to download the update. Response code: %d."), p_response_code);
+		return;
+	}
+
+	const String path = erethea_download->get_download_file();
+	if (!erethea_release.installer_sha256.is_empty() && FileAccess::get_sha256(path) != erethea_release.installer_sha256) {
+		_erethea_download_failed(TTRC("The downloaded update is damaged."));
+		return;
+	}
+
+	const Error err = EretheaUpdate::launch_installer(path);
+	if (err != OK) {
+		_erethea_download_failed(TTRC("Failed to start the update installer. Error: %d."), err);
+		return;
+	}
+
+	// The installer replaces this editor, then starts it again.
+	get_tree()->quit();
+}
+
+void EngineUpdateLabel::_erethea_download_failed(const String &p_message, const Variant &p_message_argument) {
+	const String path = erethea_download->get_download_file();
+	if (!path.is_empty() && FileAccess::exists(path)) {
+		DirAccess::remove_absolute(path);
+	}
+	set_disabled(false);
+	_set_status(UpdateStatus::ERROR);
+	_set_message(p_message, theme_cache.error_color, p_message_argument);
 }
