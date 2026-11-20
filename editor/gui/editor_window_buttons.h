@@ -39,7 +39,9 @@
 //
 // Put it at the end of the title bar. The buttons reach the top and side edges
 // of the window, like the system ones, so that they can be hit by throwing the
-// mouse into the corner of a maximized window.
+// mouse into the corner of a maximized window. The area of the maximize button
+// is given to the display server, so that Windows 11 shows its snap layouts
+// when the mouse hovers it.
 
 class EditorWindowButton : public Button {
 	GDCLASS(EditorWindowButton, Button);
@@ -55,7 +57,6 @@ private:
 	Kind kind = KIND_MINIMIZE;
 	bool edge = false;
 
-	Rect2 _get_extended_rect() const;
 	void _draw_glyph(const Rect2 &p_rect, const Color &p_color);
 
 protected:
@@ -65,6 +66,7 @@ protected:
 public:
 	virtual bool has_point(const Point2 &p_point) const override;
 
+	Rect2 get_extended_rect() const;
 	void set_edge(bool p_edge);
 
 	EditorWindowButton(Kind p_kind = KIND_MINIMIZE);
@@ -78,6 +80,7 @@ class EditorWindowButtons : public HBoxContainer {
 	EditorWindowButton *close_button = nullptr;
 
 	void _update_buttons();
+	void _update_maximize_button_rect();
 	void _minimize();
 	void _toggle_maximize();
 	void _close();

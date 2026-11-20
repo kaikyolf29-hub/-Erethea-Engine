@@ -33,6 +33,7 @@
 #include "core/object/callable_mp.h"
 #include "editor/themes/editor_scale.h"
 #include "scene/main/window.h"
+#include "servers/display/display_server.h"
 
 // Sizes of the Windows 11 caption buttons, at 100% scale.
 static constexpr int BUTTON_WIDTH = 46;
@@ -42,7 +43,7 @@ static constexpr int GLYPH_SIZE = 10;
 static const Color CLOSE_HOVER_COLOR = Color(0.769, 0.169, 0.110); // #C42B1C
 static const Color CLOSE_PRESSED_COLOR = Color(0.784, 0.235, 0.192); // #C83C31
 
-Rect2 EditorWindowButton::_get_extended_rect() const {
+Rect2 EditorWindowButton::get_extended_rect() const {
 	Rect2 rect = Rect2(Point2(), get_size());
 	if (!is_inside_tree()) {
 		return rect;
@@ -136,7 +137,7 @@ void EditorWindowButton::_notification(int p_what) {
 			}
 
 			if (background_color.a > 0) {
-				draw_rect(_get_extended_rect(), background_color);
+				draw_rect(get_extended_rect(), background_color);
 			}
 			_draw_glyph(Rect2(Point2(), get_size()), glyph_color);
 		} break;
@@ -144,7 +145,7 @@ void EditorWindowButton::_notification(int p_what) {
 }
 
 bool EditorWindowButton::has_point(const Point2 &p_point) const {
-	return _get_extended_rect().has_point(p_point);
+	return get_extended_rect().has_point(p_point);
 }
 
 void EditorWindowButton::set_edge(bool p_edge) {
@@ -179,6 +180,15 @@ void EditorWindowButtons::_update_buttons() {
 	minimize_button->queue_redraw();
 	maximize_button->queue_redraw();
 	close_button->queue_redraw();
+	_update_maximize_button_rect();
+}
+
+void EditorWindowButtons::_update_maximize_button_rect() {
+	if (!is_inside_tree()) {
+		return;
+	}
+	const Rect2 rect = maximize_button->get_global_transform().xform(maximize_button->get_extended_rect());
+	DisplayServer::get_singleton()->window_set_maximize_button_rect(Rect2i(rect.position.round(), rect.size.round()), get_window()->get_window_id());
 }
 
 void EditorWindowButtons::_minimize() {
@@ -205,12 +215,17 @@ void EditorWindowButtons::_notification(int p_what) {
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			get_window()->disconnect(SNAME("size_changed"), callable_mp(this, &EditorWindowButtons::_update_buttons));
+			DisplayServer::get_singleton()->window_set_maximize_button_rect(Rect2i(), get_window()->get_window_id());
+		} break;
+		case NOTIFICATION_TRANSFORM_CHANGED: {
+			_update_maximize_button_rect();
 		} break;
 	}
 }
 
 EditorWindowButtons::EditorWindowButtons() {
 	add_theme_constant_override("separation", 0);
+	set_notify_transform(true);
 
 	minimize_button = memnew(EditorWindowButton(EditorWindowButton::KIND_MINIMIZE));
 	minimize_button->set_tooltip_text(TTRC("Minimize"));
@@ -220,6 +235,7 @@ EditorWindowButtons::EditorWindowButtons() {
 
 	maximize_button = memnew(EditorWindowButton(EditorWindowButton::KIND_MAXIMIZE));
 	maximize_button->connect(SceneStringName(pressed), callable_mp(this, &EditorWindowButtons::_toggle_maximize));
+	maximize_button->connect(SceneStringName(item_rect_changed), callable_mp(this, &EditorWindowButtons::_update_maximize_button_rect));
 	add_child(maximize_button);
 
 	close_button = memnew(EditorWindowButton(EditorWindowButton::KIND_CLOSE));

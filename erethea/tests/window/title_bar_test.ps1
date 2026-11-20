@@ -8,7 +8,8 @@
 #   the left half (compared with a native window, which shows if the desktop
 #   snaps at all);
 # - a maximized window covers the work area exactly;
-# - the editor's minimize, maximize and close buttons work.
+# - the editor's minimize, maximize and close buttons work, and Windows knows
+#   where the maximize button is, to show the snap layouts.
 #
 # Screenshots of every step are saved in -OutDir.
 
@@ -64,6 +65,7 @@ $WS_CAPTION = 0x00C00000
 $WS_THICKFRAME = 0x00040000
 $WM_NCHITTEST = 0x0084
 $HTCLIENT = 1
+$HTMAXBUTTON = 9
 $HTTOP = 12
 $HTTOPLEFT = 13
 $HTTOPRIGHT = 14
@@ -297,6 +299,18 @@ function Get-ButtonPoint([IntPtr]$hwnd, [int]$index) {
 function Test-Buttons([IntPtr]$hwnd, $process, [string]$name) {
 	Place-Window $hwnd 0
 	$p = Get-ButtonPoint $hwnd 1
+	$hit = Hit-Test $hwnd $p.X $p.Y
+	Check "$name maximize button is reported to Windows for the snap layouts" ($hit -eq $HTMAXBUTTON) "hit=$hit"
+	$hitMinimize = Hit-Test $hwnd (Get-ButtonPoint $hwnd 2).X $p.Y
+	Check "$name minimize button is client area" ($hitMinimize -eq $HTCLIENT) "hit=$hitMinimize"
+
+	# Hover: the button must still highlight, and Windows 11 may show its snap layouts.
+	Move-Mouse $p.X $p.Y
+	Start-Sleep -Milliseconds 2500
+	Save-Screenshot "$name-maximize-hover"
+	Move-Mouse ($p.X - 200) ($p.Y + 200)
+	Start-Sleep -Milliseconds 800
+
 	Click $p.X $p.Y
 	Start-Sleep -Milliseconds 1500
 	Save-Screenshot "$name-maximize-button"

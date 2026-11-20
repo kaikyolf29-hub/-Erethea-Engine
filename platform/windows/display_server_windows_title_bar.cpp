@@ -39,6 +39,12 @@
 //   border.
 // The application draws its own title bar and caption buttons (the editor
 // uses EditorWindowButtons), and moves the window with window_start_drag().
+//
+// The application also tells where its maximize button is, with
+// window_set_maximize_button_rect(). WM_NCHITTEST reports that area as
+// HTMAXBUTTON, so that Windows 11 shows its snap layouts when the mouse hovers
+// it. Windows then sends non-client mouse messages for that area, which are
+// passed on to the engine as client ones, so that the button still reacts.
 
 #include "display_server_windows.h"
 
@@ -144,25 +150,119 @@ LRESULT DisplayServerWindows::_extend_to_title_nchittest(WindowData &p_wd, HWND 
 		return hit;
 	}
 
-	if (!p_wd.resizable || IsZoomed(hWnd)) {
-		return HTCLIENT;
-	}
-
-	// The top border now lies inside the client area.
 	POINT point = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 	ScreenToClient(hWnd, &point);
+
+	// The top border now lies inside the client area.
 	const int border = p_wd.extend_to_title_border;
-	if (point.y < 0 || point.y >= border) {
-		return HTCLIENT;
+	if (p_wd.resizable && !IsZoomed(hWnd) && point.y >= 0 && point.y < border) {
+		RECT client_rect;
+		GetClientRect(hWnd, &client_rect);
+		if (point.x < border) {
+			return HTTOPLEFT;
+		}
+		if (point.x >= client_rect.right - border) {
+			return HTTOPRIGHT;
+		}
+		return HTTOP;
 	}
 
-	RECT client_rect;
-	GetClientRect(hWnd, &client_rect);
-	if (point.x < border) {
-		return HTTOPLEFT;
+	if (!p_wd.no_max_btn && p_wd.maximize_button_rect.has_point(Point2i(point.x, point.y))) {
+		return HTMAXBUTTON;
 	}
-	if (point.x >= client_rect.right - border) {
-		return HTTOPRIGHT;
+
+	return HTCLIENT;
+}
+
+bool DisplayServerWindows::_extend_to_title_is_cursor_on_maximize_button(const WindowData &p_wd, HWND hWnd) const {
+	if (!p_wd.maximize_button_rect.has_area()) {
+		return false;
 	}
-	return HTTOP;
+	POINT cursor;
+	if (!GetCursorPos(&cursor) || WindowFromPoint(cursor) != hWnd) {
+		return false;
+	}
+	ScreenToClient(hWnd, &cursor);
+	return p_wd.maximize_button_rect.has_point(Point2i(cursor.x, cursor.y));
+}
+
+static void _track_mouse_leave(HWND hWnd, DWORD p_flags) {
+	TRACKMOUSEEVENT tme = {};
+	tme.cbSize = sizeof(TRACKMOUSEEVENT);
+	tme.dwFlags = p_flags;
+	tme.hwndTrack = hWnd;
+	tme.dwHoverTime = HOVER_DEFAULT;
+	TrackMouseEvent(&tme);
+}
+
+bool DisplayServerWindows::_extend_to_title_nc_mouse(WindowData &p_wd, HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT &r_result) {
+	if (uMsg == WM_NCMOUSELEAVE) {
+		POINT cursor;
+		GetCursorPos(&cursor);
+		if (WindowFromPoint(cursor) == hWnd) {
+			// Back in the client area, Windows needs a new request to report when the cursor leaves it.
+			_track_mouse_leave(hWnd, TME_LEAVE);
+			return false;
+		}
+		// The cursor left the window from the maximize button.
+		r_result = WndProc(hWnd, WM_MOUSELEAVE, 0, 0);
+		return true;
+	}
+
+	if (wParam != HTMAXBUTTON) {
+		return false;
+	}
+
+	POINT point = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+	ScreenToClient(hWnd, &point);
+	const LPARAM client_lparam = MAKELPARAM(point.x, point.y);
+
+	WPARAM keys = 0;
+	if (GetKeyState(VK_LBUTTON) < 0) {
+		keys |= MK_LBUTTON;
+	}
+	if (GetKeyState(VK_RBUTTON) < 0) {
+		keys |= MK_RBUTTON;
+	}
+	if (GetKeyState(VK_MBUTTON) < 0) {
+		keys |= MK_MBUTTON;
+	}
+	if (GetKeyState(VK_SHIFT) < 0) {
+		keys |= MK_SHIFT;
+	}
+	if (GetKeyState(VK_CONTROL) < 0) {
+		keys |= MK_CONTROL;
+	}
+
+	// The button is drawn by the engine: pass the messages on as client ones,
+	// and keep DefWindowProc() from tracking a system caption button.
+	switch (uMsg) {
+		case WM_NCMOUSEMOVE: {
+			WndProc(hWnd, WM_MOUSEMOVE, keys, client_lparam);
+			// Report when the cursor leaves the button, which is non-client area.
+			_track_mouse_leave(hWnd, TME_LEAVE | TME_NONCLIENT);
+			r_result = 0;
+			return true;
+		}
+		case WM_NCLBUTTONDOWN: {
+			r_result = WndProc(hWnd, WM_LBUTTONDOWN, keys | MK_LBUTTON, client_lparam);
+			return true;
+		}
+		case WM_NCLBUTTONDBLCLK: {
+			r_result = WndProc(hWnd, WM_LBUTTONDBLCLK, keys | MK_LBUTTON, client_lparam);
+			return true;
+		}
+		case WM_NCLBUTTONUP: {
+			r_result = WndProc(hWnd, WM_LBUTTONUP, keys & ~WPARAM(MK_LBUTTON), client_lparam);
+			return true;
+		}
+	}
+	return false;
+}
+
+void DisplayServerWindows::window_set_maximize_button_rect(const Rect2i &p_rect, DisplayServerEnums::WindowID p_window) {
+	_THREAD_SAFE_METHOD_
+
+	ERR_FAIL_COND(!windows.has(p_window));
+	windows[p_window].maximize_button_rect = p_rect;
 }

@@ -5865,6 +5865,17 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				return _extend_to_title_nchittest(windows[window_id], hWnd, wParam, lParam);
 			}
 		} break;
+		case WM_NCMOUSEMOVE:
+		case WM_NCMOUSELEAVE:
+		case WM_NCLBUTTONDOWN:
+		case WM_NCLBUTTONUP:
+		case WM_NCLBUTTONDBLCLK: {
+			// Erethea: Maximize button of an extended title bar, see display_server_windows_title_bar.cpp.
+			LRESULT result = 0;
+			if (_is_window_extended_to_title(windows[window_id]) && _extend_to_title_nc_mouse(windows[window_id], hWnd, uMsg, wParam, lParam, result)) {
+				return result;
+			}
+		} break;
 		case WM_MOUSEACTIVATE: {
 			if (windows[window_id].no_focus || windows[window_id].is_popup) {
 				return MA_NOACTIVATE; // Do not activate, but process mouse messages.
@@ -6043,6 +6054,10 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			return 0;
 		}
 		case WM_MOUSELEAVE: {
+			// Erethea: The cursor is on the maximize button of an extended title bar, which counts as non-client area.
+			if (_is_window_extended_to_title(windows[window_id]) && _extend_to_title_is_cursor_on_maximize_button(windows[window_id], hWnd)) {
+				break;
+			}
 			if (window_mouseover_id == window_id) {
 				old_invalid = true;
 				window_mouseover_id = DisplayServerEnums::INVALID_WINDOW_ID;

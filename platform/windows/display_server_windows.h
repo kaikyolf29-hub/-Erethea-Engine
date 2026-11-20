@@ -329,6 +329,7 @@ class DisplayServerWindows : public DisplayServer {
 		// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
 		bool extend_to_title = false;
 		int extend_to_title_border = 0;
+		Rect2i maximize_button_rect;
 
 		// Used to transfer data between events using timer.
 		WPARAM saved_wparam;
@@ -540,6 +541,8 @@ class DisplayServerWindows : public DisplayServer {
 	void _window_adjust_rect(const WindowData *p_wd, RECT &r_rect, DWORD p_style, DWORD p_style_ex) const;
 	LRESULT _extend_to_title_nccalcsize(WindowData &p_wd, HWND hWnd, WPARAM wParam, LPARAM lParam);
 	LRESULT _extend_to_title_nchittest(WindowData &p_wd, HWND hWnd, WPARAM wParam, LPARAM lParam);
+	bool _extend_to_title_is_cursor_on_maximize_button(const WindowData &p_wd, HWND hWnd) const;
+	bool _extend_to_title_nc_mouse(WindowData &p_wd, HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT &r_result);
 
 	enum class WinKeyModifierMask {
 		ALT_GR = (1 << 1),
@@ -756,6 +759,7 @@ public:
 	virtual float window_get_output_max_linear_value(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) const override;
 
 	virtual void window_start_drag(DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override;
+	virtual void window_set_maximize_button_rect(const Rect2i &p_rect, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override; // Erethea.
 	virtual void window_start_resize(DisplayServerEnums::WindowResizeEdge p_edge, DisplayServerEnums::WindowID p_window = DisplayServerEnums::MAIN_WINDOW_ID) override;
 
 	virtual void cursor_set_shape(DisplayServerEnums::CursorShape p_shape) override;
