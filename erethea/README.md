@@ -10,6 +10,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tools/make_branding.py` | Gera os arquivos de `branding/` a partir do desenho do logo |
 | `installer/erethea.iss` | Instalador do Windows (Inno Setup 6), também usado nas atualizações |
 | `tests/smoke_project/` | Projeto Godot simples que o CI abre com o instalador |
+| `tests/reference_scene/` | Cena de referência (vila, floresta, personagem, dia e noite) para comparar com a Godot |
 
 ## Atualizar a Godot
 
@@ -30,6 +31,51 @@ python erethea/tools/rebrand.py --check
 
 O `--check` também roda no CI. Se uma regra parar de bater porque a Godot mudou
 o texto, ajuste a regra em `tools/rebrand.py`, nunca o arquivo de destino à mão.
+
+Depois de juntar uma versão nova da Godot, troque também `GODOT_BASE_VERSION`
+em `.github/workflows/erethea_reference_scene.yml` pela versão da Godot em que
+a Erethea passou a se basear (veja "Cena de referência").
+
+## Cena de referência
+
+`tests/reference_scene/` é um projeto Godot com uma vila, uma floresta e um
+personagem, de dia e de noite, montado todo por código (sem assets
+importados). Ele serve para medir cada mudança visual lado a lado com a Godot
+padrão, com capturas e tempo por quadro.
+
+Para olhar a cena, abra o projeto e rode: as teclas 1, 2 e 3 trocam a vista,
+N troca dia e noite, e o título da janela mostra o FPS. Para capturar:
+
+```sh
+erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --capture="$PWD/capturas/erethea"
+```
+
+Use um caminho absoluto em `--capture` (como `"$PWD/..."`, que funciona no
+terminal do Linux e no PowerShell): um caminho relativo vai parar dentro da
+pasta do projeto.
+
+Isso salva `dia_vila.png`, `dia_floresta.png`, `dia_personagem.png` e as três
+de noite, em 1280×720, e um `results.json` com a placa de vídeo e o tempo por
+quadro de cada vista. Para comparar duas capturas (por exemplo, a mesma cena
+na Godot e na Erethea):
+
+```sh
+erethea --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
+    --baseline="$PWD/capturas/godot" --candidate="$PWD/capturas/erethea" --out="$PWD/capturas/comparacao"
+```
+
+Cada imagem em `capturas/comparacao` mostra a base à esquerda, a comparada no
+meio e a diferença, aumentada, à direita. O `summary.md` traz a diferença
+(RMSE da luminância, de 0 a 255) e os tempos por quadro.
+
+No CI, o job `🔥 Erethea reference scene` faz isso em todo PR: renderiza a
+cena com a Godot oficial da versão base (`GODOT_BASE_VERSION`) e com a
+Erethea do PR, na CPU com o lavapipe (Vulkan do Mesa), e falha se a Erethea,
+com as configurações padrão, desenhar diferente da Godot. Isso garante que
+projetos da Godot continuam com a mesma cara. As imagens ficam no artefato
+`reference-scene` do job, e a tabela aparece no resumo do job. Os tempos do CI
+vêm de um renderizador na CPU e só servem para comparar uma execução com
+outra; o FPS de verdade se mede rodando a captura numa placa de vídeo.
 
 ## Lançar uma versão
 

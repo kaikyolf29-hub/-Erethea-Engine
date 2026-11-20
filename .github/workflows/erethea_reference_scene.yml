@@ -1,0 +1,100 @@
+name: 🔥 Erethea Reference Scene
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Renders the reference scene (erethea/tests/reference_scene) with stock Godot
+# and with the Linux editor built by linux_builds.yml, on the CPU with Mesa's
+# lavapipe Vulkan driver, and compares the captures. With its default settings,
+# Erethea must draw exactly like the Godot version it is based on, so that
+# Godot projects keep their look. The captures, side by side, are uploaded as
+# an artifact, and the job summary lists the differences and frame times.
+#
+# The frame times come from a CPU renderer: they only compare one run with
+# another, they don't say how fast a game runs on a graphics card.
+
+env:
+  # The Godot release that `upstream` is based on. Update it after each merge
+  # of a new Godot version.
+  GODOT_BASE_VERSION: 4.8-beta4
+  # Largest allowed difference with stock Godot, as luminance RMSE (0 to 255).
+  MAX_RMSE: 1.0
+
+jobs:
+  reference-scene:
+    runs-on: ubuntu-24.04
+    name: Reference scene against stock Godot
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the lavapipe Vulkan driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Download stock Godot
+        run: |
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_BASE_VERSION}"
+          file="Godot_v${GODOT_BASE_VERSION}_linux.x86_64"
+          mkdir -p stock && cd stock
+          curl -fsSL -o "$file.zip" "$base/$file.zip"
+          curl -fsSL -o SHA512-SUMS.txt "$base/SHA512-SUMS.txt"
+          grep " $file.zip\$" SHA512-SUMS.txt | sha512sum -c -
+          unzip -q "$file.zip"
+          chmod +x "$file"
+          echo "GODOT_STOCK=$PWD/$file" >> "$GITHUB_ENV"
+          chmod +x "$GITHUB_WORKSPACE"/bin/erethea.*
+          echo "ERETHEA=$GITHUB_WORKSPACE/bin/erethea.linuxbsd.editor.x86_64.mono" >> "$GITHUB_ENV"
+
+      - name: Capture with stock Godot
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          cp -r erethea/tests/reference_scene "$RUNNER_TEMP/scene_godot"
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$GODOT_STOCK" --path "$RUNNER_TEMP/scene_godot" \
+            --audio-driver Dummy --fixed-fps 30 -- --capture="$PWD/captures/godot"
+
+      - name: Capture with Erethea
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          cp -r erethea/tests/reference_scene "$RUNNER_TEMP/scene_erethea"
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
+            --audio-driver Dummy --fixed-fps 30 -- --capture="$PWD/captures/erethea"
+
+      - name: Compare the captures
+        run: |
+          status=0
+          "$ERETHEA" --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
+            --baseline="$PWD/captures/godot" --candidate="$PWD/captures/erethea" \
+            --out="$PWD/captures/comparison" --max-rmse="$MAX_RMSE" || status=$?
+          {
+            echo "## Cena de referência: Godot ${GODOT_BASE_VERSION} × Erethea"
+            echo
+            if [ "$status" -eq 0 ]; then
+              echo "Com as configurações padrão, a Erethea desenha igual à Godot (diferença máxima permitida: RMSE ${MAX_RMSE})."
+            else
+              echo "**A Erethea desenha diferente da Godot com as configurações padrão.** As imagens lado a lado estão no artefato \`reference-scene\` (Godot, Erethea, diferença)."
+            fi
+            echo
+            cat captures/comparison/summary.md || true
+            echo
+            echo "Os tempos por quadro vêm do lavapipe, que desenha na CPU: servem só para comparar uma execução com outra."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Upload the captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reference-scene
+          path: captures
+          retention-days: 30
