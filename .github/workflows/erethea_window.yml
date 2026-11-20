@@ -1,0 +1,43 @@
+name: 🔥 Erethea Window
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Opens the project manager and the editor built by windows_builds.yml on the
+# runner's desktop, and checks the integrated title bar: no system title bar,
+# resize borders, snapping to the screen edge, maximize and the caption buttons.
+# This is the "done" test of the title bar task of phase 1. The runner has no
+# GPU, so the editor runs with the Compatibility renderer on ANGLE (WARP).
+
+jobs:
+  window:
+    runs-on: windows-latest
+    name: Windows title bar
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Check the title bar
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "erethea-window"
+          ./erethea/tests/window/title_bar_test.ps1 `
+            -Editor (Resolve-Path bin/erethea.windows.editor.x86_64.exe) `
+            -Project (Resolve-Path erethea/tests/smoke_project) `
+            -OutDir $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-window-test
+          path: ${{ runner.temp }}/erethea-window
+          retention-days: 14

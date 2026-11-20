@@ -205,6 +205,9 @@ bool DisplayServerWindows::has_feature(DisplayServerEnums::Feature p_feature) co
 			return (os_ver.dwBuildNumber >= 19041); // Fully supported on Windows 10 Vibranium R1 (2004)+ only, captured as black rect on older versions.
 		case DisplayServerEnums::FEATURE_EMOJI_AND_SYMBOL_PICKER:
 			return (os_ver.dwBuildNumber >= 17134); // Windows 10 Redstone 4 (1803)+ only.
+		case DisplayServerEnums::FEATURE_EXTEND_TO_TITLE:
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			return _is_extend_to_title_supported();
 		case DisplayServerEnums::FEATURE_ACCESSIBILITY_SCREEN_READER: {
 			return AccessibilityServer::get_singleton()->is_supported();
 		} break;
@@ -2450,7 +2453,8 @@ void DisplayServerWindows::window_set_position(const Point2i &p_position, Displa
 	const DWORD style = GetWindowLongPtr(wd.hWnd, GWL_STYLE);
 	const DWORD exStyle = GetWindowLongPtr(wd.hWnd, GWL_EXSTYLE);
 
-	AdjustWindowRectEx(&rc, style, false, exStyle);
+	// Erethea: Was AdjustWindowRectEx(), which adds a caption that an extended window doesn't have.
+	_window_adjust_rect(&wd, rc, style, exStyle);
 	MoveWindow(wd.hWnd, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, TRUE);
 
 	wd.last_pos = p_position;
@@ -3055,6 +3059,21 @@ void DisplayServerWindows::window_set_flag(DisplayServerEnums::WindowFlags p_fla
 			}
 			wd.is_popup = p_enabled;
 		} break;
+		case DisplayServerEnums::WINDOW_FLAG_EXTEND_TO_TITLE: {
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			if (p_enabled && !_is_extend_to_title_supported()) {
+				return;
+			}
+			if (wd.extend_to_title == p_enabled) {
+				return;
+			}
+			wd.extend_to_title = p_enabled;
+			if (!wd.parent_hwnd) {
+				// Recompute the non-client area.
+				SetWindowPos(wd.hWnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+				_update_window_frame(wd);
+			}
+		} break;
 		default:
 			break;
 	}
@@ -3098,6 +3117,9 @@ bool DisplayServerWindows::window_get_flag(DisplayServerEnums::WindowFlags p_fla
 		} break;
 		case DisplayServerEnums::WINDOW_FLAG_POPUP: {
 			return wd.is_popup;
+		} break;
+		case DisplayServerEnums::WINDOW_FLAG_EXTEND_TO_TITLE: {
+			return wd.extend_to_title; // Erethea: Integrated title bar.
 		} break;
 		default:
 			break;
@@ -5829,9 +5851,30 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				SendMessageW(windows[window_id].hWnd, WM_PAINT, 0, 0);
 			}
 		} break;
+		case WM_NCCALCSIZE: {
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			if (wParam && _is_window_extended_to_title(windows[window_id])) {
+				return _extend_to_title_nccalcsize(windows[window_id], hWnd, wParam, lParam);
+			}
+		} break;
 		case WM_NCHITTEST: {
 			if (windows[window_id].mpass) {
 				return HTTRANSPARENT;
+			}
+			// Erethea: Integrated title bar, see display_server_windows_title_bar.cpp.
+			if (_is_window_extended_to_title(windows[window_id])) {
+				return _extend_to_title_nchittest(windows[window_id], hWnd, wParam, lParam);
+			}
+		} break;
+		case WM_NCMOUSEMOVE:
+		case WM_NCMOUSELEAVE:
+		case WM_NCLBUTTONDOWN:
+		case WM_NCLBUTTONUP:
+		case WM_NCLBUTTONDBLCLK: {
+			// Erethea: Maximize button of an extended title bar, see display_server_windows_title_bar.cpp.
+			LRESULT result = 0;
+			if (_is_window_extended_to_title(windows[window_id]) && _extend_to_title_nc_mouse(windows[window_id], hWnd, uMsg, wParam, lParam, result)) {
+				return result;
 			}
 		} break;
 		case WM_MOUSEACTIVATE: {
@@ -5926,7 +5969,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case WM_SYSCOLORCHANGE: {
 			if (lParam && CompareStringOrdinal(reinterpret_cast<LPCWCH>(lParam), -1, L"ImmersiveColorSet", -1, true) == CSTR_EQUAL) {
 				if (is_dark_mode_supported() && dark_title_available) {
-					BOOL value = is_dark_mode();
+					BOOL value = _window_use_dark_frame(windows[window_id]); // Erethea: Was is_dark_mode(), see display_server_windows_title_bar.cpp.
 					::DwmSetWindowAttribute(windows[window_id].hWnd, use_legacy_dark_mode_before_20H1 ? DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 : DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
 				}
 			}
@@ -5941,7 +5984,7 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		} break;
 		case WM_THEMECHANGED: {
 			if (is_dark_mode_supported() && dark_title_available) {
-				BOOL value = is_dark_mode();
+				BOOL value = _window_use_dark_frame(windows[window_id]); // Erethea: Was is_dark_mode(), see display_server_windows_title_bar.cpp.
 				::DwmSetWindowAttribute(windows[window_id].hWnd, use_legacy_dark_mode_before_20H1 ? DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 : DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
 			}
 		} break;
@@ -6012,6 +6055,10 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			return 0;
 		}
 		case WM_MOUSELEAVE: {
+			// Erethea: The cursor is on the maximize button of an extended title bar, which counts as non-client area.
+			if (_is_window_extended_to_title(windows[window_id]) && _extend_to_title_is_cursor_on_maximize_button(windows[window_id], hWnd)) {
+				break;
+			}
 			if (window_mouseover_id == window_id) {
 				old_invalid = true;
 				window_mouseover_id = DisplayServerEnums::INVALID_WINDOW_ID;

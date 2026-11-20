@@ -88,6 +88,7 @@
 #include "editor/gui/editor_quick_open_dialog.h"
 #include "editor/gui/editor_title_bar.h"
 #include "editor/gui/editor_toaster.h"
+#include "editor/gui/editor_window_buttons.h"
 #include "editor/gui/progress_dialog.h"
 #include "editor/gui/window_wrapper.h"
 #include "editor/import/3d/editor_import_collada.h"
@@ -9342,6 +9343,10 @@ EditorNode::EditorNode() {
 		right_menu_spacer = memnew(Control);
 		right_menu_spacer->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		title_bar->add_child(right_menu_spacer);
+#ifdef WINDOWS_ENABLED
+		// Erethea: Windows doesn't draw the caption buttons over an extended title bar.
+		title_bar->add_child(memnew(EditorWindowButtons));
+#endif
 	}
 
 	const String current_renderer_ps = String(GLOBAL_GET("rendering/renderer/rendering_method")).to_lower();

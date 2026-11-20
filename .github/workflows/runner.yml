@@ -38,7 +38,7 @@ jobs:
     if: needs.static-checks.outputs.sources-changed == 'true' || github.event_name != 'pull_request'
     uses: ./.github/workflows/windows_builds.yml
 
-  # Erethea: branding check, Windows installer and smoke test.
+  # Erethea: branding check, Windows installer and smoke test, window test.
 
   erethea-branding:
     name: 🔥 Erethea branding
@@ -55,3 +55,8 @@ jobs:
     name: 🔥 Erethea installer
     needs: windows-build
     uses: ./.github/workflows/erethea_installer.yml
+
+  erethea-window:
+    name: 🔥 Erethea window
+    needs: windows-build
+    uses: ./.github/workflows/erethea_window.yml
