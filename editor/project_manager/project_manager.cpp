@@ -48,6 +48,7 @@
 #include "editor/gui/editor_icon_manager.h"
 #include "editor/gui/editor_title_bar.h"
 #include "editor/gui/editor_version_button.h"
+#include "editor/gui/editor_window_buttons.h"
 #include "editor/inspector/editor_inspector.h"
 #include "editor/project_manager/engine_update_label.h"
 #include "editor/project_manager/project_dialog.h"
@@ -1637,6 +1638,10 @@ ProjectManager::ProjectManager() {
 			right_menu_spacer = memnew(Control);
 			right_menu_spacer->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 			title_bar->add_child(right_menu_spacer);
+#ifdef WINDOWS_ENABLED
+			// Erethea: Windows doesn't draw the caption buttons over an extended title bar.
+			title_bar->add_child(memnew(EditorWindowButtons));
+#endif
 		}
 	}
 
