@@ -50,7 +50,7 @@ novas da Godot sem reescrever nada.
 | Gráficos, renderizador | `servers/rendering/renderer_rd/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
-| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`) |
+| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`) |
 
 ## Compilar e testar
 
@@ -65,7 +65,14 @@ python erethea/tools/rebrand.py --check
 ```
 
 Antes de propor uma mudança visual, renderize a cena de referência e compare as
-capturas com a Godot padrão (a cena de referência chega na fase 2).
+capturas com a Godot padrão (passo a passo em `erethea/README.md`, "Cena de
+referência"). Com as configurações padrão, a Erethea tem que desenhar igual à
+Godot; o CI confere isso em todo PR. Recurso visual novo entra desligado e é
+comparado ligando-o na cena.
+
+```sh
+bin/erethea.<plataforma>.editor.x86_64 --path erethea/tests/reference_scene --fixed-fps 30 -- --capture="$PWD/capturas/erethea"
+```
 
 O estilo de código é o da Godot: rode `prek run --all-files` (ou `pre-commit`)
 antes de abrir o PR. O CI roda as checagens de estilo, os builds de Linux e
