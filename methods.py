@@ -264,7 +264,7 @@ def detect_modules(search_path, recursive=False):
         version_path = os.path.join(path, "version.py")
         if os.path.exists(version_path):
             with open(version_path, "r", encoding="utf-8") as f:
-                if 'short_name = "godot"' in f.read():
+                if 'short_name = "godot"' in (content := f.read()) or 'short_name = "erethea"' in content:
                     return True
         return False
 
@@ -1232,7 +1232,7 @@ def generate_vs_project(env, original_args, project_name="godot"):
     others_active = []
 
     get_dependencies(
-        env.File(f"#bin/godot{env['PROGSUFFIX']}"), env, extensions, headers_active, sources_active, others_active
+        env.File(f"#bin/erethea{env['PROGSUFFIX']}"), env, extensions, headers_active, sources_active, others_active
     )
 
     all_items = []

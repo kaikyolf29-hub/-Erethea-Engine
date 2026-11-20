@@ -1,0 +1,79 @@
+name: 🔥 Erethea Installer
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Builds the Windows installer from the editor built by windows_builds.yml,
+# installs it silently, and opens a plain Godot project with the installed
+# Erethea: first an import in the editor, then a run of the main scene.
+# This is the "done" test of phase 0.
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    name: Windows installer and smoke test
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Find or install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) { throw "Inno Setup not found at $iscc" }
+          "ISCC=$iscc" >> $env:GITHUB_ENV
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          Copy-Item bin/erethea.windows.editor.x86_64.exe erethea/installer/erethea.exe
+          $version = python -c "import version; print(f'{version.major}.{version.minor}')"
+          & $env:ISCC "/DMyAppVersion=$version" erethea/installer/erethea.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Install silently
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "Erethea"
+          $p = Start-Process -Wait -PassThru erethea/installer/erethea-setup-x86_64.exe `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$dir`""
+          if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
+          if (-not (Test-Path "$dir/erethea.exe")) { throw "erethea.exe was not installed" }
+          "ERETHEA_DIR=$dir" >> $env:GITHUB_ENV
+
+      - name: Open a Godot project with the installed editor
+        shell: pwsh
+        run: |
+          $exe = "$env:ERETHEA_DIR/erethea.exe"
+          $project = "erethea/tests/smoke_project"
+
+          & $exe --version
+          & $exe --headless --import --path $project 2>&1 | Tee-Object -FilePath import.log
+          if ($LASTEXITCODE -ne 0) { throw "Editor import failed with exit code $LASTEXITCODE" }
+
+          & $exe --headless --path $project 2>&1 | Tee-Object -FilePath run.log
+          if ($LASTEXITCODE -ne 0) { throw "Project run failed with exit code $LASTEXITCODE" }
+
+          $errors = Select-String -Path import.log, run.log -Pattern "SCRIPT ERROR|Parse Error|^ERROR:"
+          if ($errors) { $errors; throw "The editor reported errors while opening the project" }
+          if (-not (Select-String -Path run.log -Pattern "ERETHEA_SMOKE_OK" -Quiet)) {
+            throw "The project's main scene did not run"
+          }
+          Write-Output "The installed Erethea opened and ran the Godot project without errors."
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-setup-windows
+          path: erethea/installer/erethea-setup-x86_64.exe
+          retention-days: 30

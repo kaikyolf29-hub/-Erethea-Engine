@@ -1,5 +1,12 @@
 name: 🔗 GHA
-on: [push, pull_request, merge_group, workflow_dispatch]
+# Erethea: run on pushes to `main` and on pull requests only. The `upstream`
+# branch mirrors Godot and is not built here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}|${{ github.ref_name }}
@@ -14,20 +21,8 @@ jobs:
     uses: ./.github/workflows/static_checks.yml
 
   # Second stage: Run all the builds and some of the tests.
-
-  android-build:
-    name: 🤖 Android
-    needs: static-checks
-    if: needs.static-checks.outputs.sources-changed == 'true' || github.event_name != 'pull_request'
-    uses: ./.github/workflows/android_builds.yml
-    secrets:
-      SERVICE_ACCOUNT_KEY: ${{ secrets.SERVICE_ACCOUNT_KEY }}
-
-  ios-build:
-    name: 🍏 iOS
-    needs: static-checks
-    if: needs.static-checks.outputs.sources-changed == 'true' || github.event_name != 'pull_request'
-    uses: ./.github/workflows/ios_builds.yml
+  # Erethea: Windows first, and Linux must keep compiling. Android, iOS, macOS
+  # and Web builds are disabled until the engine targets those platforms.
 
   linux-build:
     name: 🐧 Linux
@@ -37,20 +32,26 @@ jobs:
     with:
       changed-files: ${{ needs.static-checks.outputs.changed-files }}
 
-  macos-build:
-    name: 🍎 macOS
-    needs: static-checks
-    if: needs.static-checks.outputs.sources-changed == 'true' || github.event_name != 'pull_request'
-    uses: ./.github/workflows/macos_builds.yml
-
   windows-build:
     name: 🏁 Windows
     needs: static-checks
     if: needs.static-checks.outputs.sources-changed == 'true' || github.event_name != 'pull_request'
     uses: ./.github/workflows/windows_builds.yml
 
-  web-build:
-    name: 🌐 Web
-    needs: static-checks
-    if: needs.static-checks.outputs.sources-changed == 'true' || github.event_name != 'pull_request'
-    uses: ./.github/workflows/web_builds.yml
+  # Erethea: branding check, Windows installer and smoke test.
+
+  erethea-branding:
+    name: 🔥 Erethea branding
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check that the rebrand script is fully applied
+        run: python3 erethea/tools/rebrand.py --check
+
+  erethea-installer:
+    name: 🔥 Erethea installer
+    needs: windows-build
+    uses: ./.github/workflows/erethea_installer.yml

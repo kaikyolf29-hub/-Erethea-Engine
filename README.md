@@ -1,76 +1,68 @@
-# Godot Engine
+# Erethea Engine
 
 <p align="center">
-  <a href="https://godotengine.org">
-    <img src="misc/logo/logo_outlined.svg" width="400" alt="Godot Engine logo">
-  </a>
+  <img src="erethea/branding/logo.svg" width="420" alt="Erethea Engine">
 </p>
 
-## 2D and 3D cross-platform game engine
+**Erethea Engine** é uma engine de jogos 2D e 3D baseada na
+[Godot Engine](https://godotengine.org), com nome próprio, janela moderna no
+Windows e foco em gráficos 3D bonitos. Ela abre projetos da Godot
+(`project.godot`, GDScript e C#) sem conversão, para quem vem da Godot migrar
+em minutos.
 
-**[Godot Engine](https://godotengine.org) is a feature-packed, cross-platform
-game engine to create 2D and 3D games from a unified interface.** It provides a
-comprehensive set of [common tools](https://godotengine.org/features), so that
-users can focus on making games without having to reinvent the wheel. Games can
-be exported with one click to a number of platforms, including the major desktop
-platforms (Linux, macOS, Windows), mobile platforms (Android, iOS), as well as
-Web-based platforms and [consoles](https://godotengine.org/consoles).
+*Erethea Engine is a 2D and 3D game engine based on Godot Engine. It opens
+Godot projects as they are. It is not affiliated with the Godot Foundation.*
 
-## Free, open source and community-driven
+## Situação
 
-Godot is completely free and open source under the very permissive [MIT license](https://godotengine.org/license).
-No strings attached, no royalties, nothing. The users' games are theirs, down
-to the last line of engine code. Godot's development is fully independent and
-community-driven, empowering users to help shape their engine to match their
-expectations. It is supported by the [Godot Foundation](https://godot.foundation/)
-not-for-profit.
+O projeto está na **fase 0 (fork e marca)**: código da Godot 4.8 beta 4,
+nome, logo, ícone, splash e instalador próprios, e CI de Windows e Linux.
 
-Before being open sourced in [February 2014](https://github.com/godotengine/godot/commit/0b806ee0fc9097fa7bda7ac0109191c9c5e0a1ac),
-Godot had been developed by [Juan Linietsky](https://github.com/reduz) and
-[Ariel Manzur](https://github.com/punto-) for several years as an in-house
-engine, used to publish several work-for-hire titles.
+| Fase | O que entrega | Pronto quando |
+| --- | --- | --- |
+| 0 · Fork e marca | Nome, logo, script de renomear, CI, instalador | O instalador abre um projeto da Godot sem erro |
+| 1 · Janela nativa | Barra de título integrada no Windows 11, tema escuro nas bordas, executável assinado, atualização automática | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 |
+| 2 · Visual rápido | Presets de qualidade, pós-processamento, FSR 3.1 e 4, DLSS, XeSS | A cena de referência fica visivelmente melhor que na Godot, no mesmo FPS |
+| 3 · Ponte com a Fábrica | Painel de IA, servidor MCP, live link, importador do `game.project.json` | Um personagem vindo da Fábrica aparece na cena sozinho e anda |
+| 4 · Visual avançado | Ray tracing opcional, terreno, vegetação, materiais em camadas | A cena roda com ray tracing numa RTX e sem ele numa placa sem suporte |
+| 5 · Geometria densa | Meshlets e streaming de geometria | Um modelo de milhões de polígonos roda sem LOD feito à mão |
 
-![Screenshot of a 3D scene in the Godot Engine editor](https://raw.githubusercontent.com/godotengine/godot-design/master/screenshots/editor_tps_demo_1920x1080.jpg)
+## Compilar
 
-## Getting the engine
+Os passos são os mesmos da Godot
+([documentação](https://docs.godotengine.org/en/latest/engine_details/development/compiling/index.html)).
+O executável sai em `bin/` com o nome `erethea`:
 
-### Binary downloads
+```sh
+# Windows (Visual Studio 2022 e Python 3 com SCons)
+scons platform=windows target=editor
 
-Official binaries for the Godot editor and the export templates can be found
-[on the Godot website](https://godotengine.org/download).
+# Linux
+scons platform=linuxbsd target=editor
+```
 
-### Compiling from source
+O instalador do Windows é feito com [Inno Setup](https://jrsoftware.org/isinfo.php)
+a partir de `erethea/installer/erethea.iss`. O CI do GitHub já gera o
+instalador e testa se ele abre um projeto da Godot.
 
-[See the official docs](https://docs.godotengine.org/en/latest/engine_details/development/compiling)
-for compilation instructions for every supported platform.
+## Como o fork se mantém perto da Godot
 
-## Community and contributing
+- O branch `upstream` espelha a Godot; o `main` é a Erethea. A cada versão nova
+  da Godot, `upstream` é atualizado e juntado ao `main`.
+- A troca de nome, ícones e textos é feita pelo script
+  `erethea/tools/rebrand.py`, que roda de novo depois de cada atualização.
+- O código próprio da Erethea fica em `erethea/`, em módulos (`modules/`) e em
+  GDExtension, e o que precisa mexer no núcleo entra em commits pequenos.
 
-Godot is not only an engine but an ever-growing community of users and engine
-developers. The main community channels are listed [on the homepage](https://godotengine.org/community).
+Veja [erethea/README.md](erethea/README.md) para os detalhes.
 
-The best way to get in touch with the core engine developers is to join the
-[Godot Contributors Chat](https://chat.godotengine.org).
+## Licença
 
-To get started contributing to the project, see the [contributing guide](CONTRIBUTING.md).
-This document also includes guidelines for reporting bugs.
+A Erethea Engine é software livre sob a [licença MIT](LICENSE.txt), a mesma da
+Godot. O aviso de copyright da Godot e as licenças dos componentes de terceiros
+([COPYRIGHT.txt](COPYRIGHT.txt)) continuam valendo e aparecem na tela "Sobre"
+do editor.
 
-## Documentation and demos
-
-The official documentation is hosted on [Read the Docs](https://docs.godotengine.org).
-It is maintained by the Godot community in its own [GitHub repository](https://github.com/godotengine/godot-docs).
-
-The [class reference](https://docs.godotengine.org/en/latest/classes/)
-is also accessible from the Godot editor.
-
-We also maintain official demos in their own [GitHub repository](https://github.com/godotengine/godot-demo-projects)
-as well as the [Asset Store](https://store.godotengine.org/).
-
-There are also a number of other
-[learning resources](https://docs.godotengine.org/en/latest/community/tutorials.html)
-provided by the community, such as text and video tutorials, demos, etc.
-Consult the [community channels](https://godotengine.org/community)
-for more information.
-
-[![Code Triagers Badge](https://www.codetriage.com/godotengine/godot/badges/users.svg)](https://www.codetriage.com/godotengine/godot)
-[![Translate on Weblate](https://hosted.weblate.org/widgets/godot-engine/-/godot/svg-badge.svg)](https://hosted.weblate.org/engage/godot-engine/?utm_source=widget)
+"Godot" e o logo da Godot são marcas da Godot Foundation. A Erethea não usa o
+nome nem o logo da Godot como seus; ela é *baseada na Godot Engine*, e agradece
+a todos os [contribuidores da Godot](AUTHORS.md).
