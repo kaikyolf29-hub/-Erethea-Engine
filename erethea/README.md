@@ -56,6 +56,47 @@ instalada pelo instalador baixa o instalador novo, confere o SHA-256 que o
 GitHub informa, instala por cima sem perguntas e abre de novo. Builds de
 desenvolvimento (sem `BUILD_NAME=erethea-<versão>`) não procuram atualizações.
 
+## Assinatura do instalador
+
+Por enquanto o instalador sai sem assinatura digital. Ele funciona do mesmo
+jeito, mas quem baixa pelo navegador vê o aviso do Windows "O Windows protegeu
+o computador" e precisa clicar em "Mais informações" e "Executar assim mesmo".
+A atualização automática não mostra esse aviso: o editor baixa o instalador
+sozinho e confere o SHA-256.
+
+O workflow de release já tem os passos de assinatura com o
+[Azure Artifact Signing](https://learn.microsoft.com/azure/artifact-signing/quickstart)
+(antigo Trusted Signing), desligados. Com eles ligados, o release assina os
+dois executáveis do editor antes de montar o instalador, depois assina o
+próprio instalador, com carimbo de tempo, e confere as assinaturas antes de
+publicar. O desinstalador fica sem assinatura; como ele não é baixado da
+internet, o Windows não mostra o aviso para ele.
+
+Antes de pagar, confira se a conta é aceita: hoje a Microsoft só valida
+pessoa física nos Estados Unidos e no Canadá, e empresa numa lista de países
+que não inclui o Brasil. Se não for aceita, só os dois passos `Sign` do
+workflow mudam para outro serviço de assinatura.
+
+Para ligar:
+
+1. Na Azure, crie uma conta do Artifact Signing, faça a validação de
+   identidade e crie um perfil de certificado "Public Trust". Anote o endpoint
+   da região (por exemplo `https://brs.codesigning.azure.net/`), o nome da
+   conta e o nome do perfil.
+2. No Microsoft Entra ID, registre um aplicativo, crie um segredo para ele e
+   dê a ele o papel "Artifact Signing Certificate Profile Signer" no perfil de
+   certificado.
+3. No GitHub, em *Settings › Secrets and variables › Actions*, crie:
+   - em *Secrets*: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` e
+     `AZURE_CLIENT_SECRET`, do aplicativo;
+   - em *Variables*: `ARTIFACT_SIGNING_ENDPOINT`, `ARTIFACT_SIGNING_ACCOUNT`
+     e `ARTIFACT_SIGNING_PROFILE`.
+4. Rode o workflow `🔥 Erethea Release` à mão uma vez (não publica nada) e
+   confira o passo "Check the signatures".
+
+Os passos só rodam com a variável `ARTIFACT_SIGNING_ENDPOINT` preenchida. Para
+desligar de novo, apague essa variável.
+
 ## O que a marca troca e o que não troca
 
 Troca: nome da engine, nome curto (pasta de dados `%APPDATA%\Erethea`, nome do

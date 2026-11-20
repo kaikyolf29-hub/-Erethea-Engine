@@ -16,6 +16,10 @@ on:
 #
 # To release, push a tag "v<version>" on main, for example "v0.2.0". A version
 # with a dash ("v0.2.0-beta.1") is published as a prerelease.
+#
+# Code signing with Azure Artifact Signing is off until the repository variable
+# ARTIFACT_SIGNING_ENDPOINT is set. "Assinatura do instalador" in
+# erethea/README.md explains how to turn it on.
 
 permissions:
   contents: write
@@ -96,6 +100,25 @@ jobs:
             throw "The project's main scene did not run"
           }
 
+      - name: Sign the editor
+        if: vars.ARTIFACT_SIGNING_ENDPOINT != ''
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+          files: |
+            ${{ github.workspace }}\bin\erethea.windows.editor.x86_64.exe
+            ${{ github.workspace }}\bin\erethea.windows.editor.x86_64.console.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Erethea Engine
+          description-url: https://github.com/kaikyolf29-hub/-Erethea-Engine
+
       - name: Find or install Inno Setup
         shell: pwsh
         run: |
@@ -113,6 +136,43 @@ jobs:
           Copy-Item bin/erethea.windows.editor.x86_64.console.exe erethea/installer/erethea.console.exe
           & $env:ISCC "/DMyAppVersion=${{ steps.version.outputs.version }}" erethea/installer/erethea.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Sign the installer
+        if: vars.ARTIFACT_SIGNING_ENDPOINT != ''
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\erethea\installer\erethea-setup-x86_64.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Erethea Engine Setup
+          description-url: https://github.com/kaikyolf29-hub/-Erethea-Engine
+
+      - name: Check the signatures
+        if: vars.ARTIFACT_SIGNING_ENDPOINT != ''
+        shell: pwsh
+        run: |
+          $files = @(
+            "bin/erethea.windows.editor.x86_64.exe",
+            "bin/erethea.windows.editor.x86_64.console.exe",
+            "erethea/installer/erethea-setup-x86_64.exe"
+          )
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature $file
+            if ($signature.Status -ne "Valid") {
+              throw "$file is not signed correctly: $($signature.Status) $($signature.StatusMessage)"
+            }
+            if ($null -eq $signature.TimeStamperCertificate) {
+              throw "$file has no timestamp, its signature would expire with the certificate."
+            }
+            Write-Output "$file signed by $($signature.SignerCertificate.Subject)"
+          }
 
       - name: Install silently
         shell: pwsh
