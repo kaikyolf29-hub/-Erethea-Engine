@@ -76,6 +76,10 @@ skip = [
 	"editor/project_converter_3_to_4.cpp",
 	"platform/android/java/lib/src/main/java/com/*",
 	"platform/web/package-lock.json",
+	# Erethea: documentation written in Portuguese.
+	"CLAUDE.md",
+	"README.md",
+	"erethea/README.md",
 ]
 ignore-words-list = [
 	"breaked",
