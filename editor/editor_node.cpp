@@ -8534,6 +8534,11 @@ HashMap<String, Variant> EditorNode::get_initial_settings() {
 	// Erethea: New projects choose their quality preset from the graphics card
 	// (EretheaQuality::PRESET_AUTOMATIC). Godot projects keep it disabled.
 	settings["rendering/erethea/quality_preset"] = 4;
+	// Erethea: New projects stream the mipmaps of the textures used in 3D
+	// (modules/erethea_streaming). 2D and UI textures load as in Godot, and
+	// Godot projects keep texture streaming off.
+	settings["rendering/textures/streaming/enabled"] = true;
+	settings["rendering/erethea/stream_3d_textures"] = true;
 	return settings;
 }
 
