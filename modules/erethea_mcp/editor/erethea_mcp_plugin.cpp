@@ -54,9 +54,16 @@
 #include "scene/main/viewport.h"
 #include "servers/display/display_server.h"
 
+#include "modules/modules_enabled.gen.h" // For erethea_export_checks.
+#ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
+#include "editor/export/editor_export.h"
+
+#include "modules/erethea_export_checks/erethea_export_checks.h"
+#endif
+
 static const char *INSTRUCTIONS = "Erethea Engine editor (a fork of Godot 4). These tools act on the project open in this editor. "
 								  "Usual flow: get_editor_state, then open_scene or create_scene, get_scene_tree, create_node and set_node_properties, "
-								  "write_script and attach_script, save_scene, run_game, get_errors and take_screenshot, stop_game. "
+								  "write_script and attach_script, save_scene, run_game, get_errors and take_screenshot, stop_game; check_export before exporting. "
 								  "Node paths are relative to the root of the scene being edited, which is \".\". "
 								  "Scene changes are undoable in the editor (Ctrl+Z), and the person can see them as you make them.";
 
@@ -118,6 +125,11 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 	{ "rescan_files", "Rescan files", false, false,
 			"Makes the editor look for files added or changed outside it, such as assets from Fornalha, and import them.",
 			R"({"type": "object", "properties": {}})" },
+#ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
+	{ "check_export", "Check for export", true, false,
+			"Checks the project before export: models with too many triangles, textures that are too big, models with the wrong scale (such as centimeters instead of meters), and, in projects made with Fornalha, assets without a license receipt or made with a model that can't be sold. Errors are what shouldn't ship; warnings are worth fixing.",
+			R"({"type": "object", "properties": {"preset": {"type": "string", "description": "Name of an export preset, to check only what it exports (default: every file of the project)."}}})" },
+#endif
 };
 
 Vector<EretheaMcpTool> EretheaMcpPlugin::get_tools() const {
@@ -170,6 +182,10 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 		r_result = _get_errors(p_arguments);
 	} else if (p_name == "rescan_files") {
 		r_result = EretheaMcpSceneTools::rescan_files(p_arguments);
+#ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
+	} else if (p_name == "check_export") {
+		r_result = _check_export(p_arguments);
+#endif
 	} else {
 		r_result = EretheaMcpToolResult::error(vformat("Unknown tool: %s", p_name));
 	}
@@ -479,6 +495,29 @@ EretheaMcpToolResult EretheaMcpPlugin::_run_game(const Dictionary &p_arguments) 
 	result["errors_since"] = int64_t(log_since);
 	return EretheaMcpToolResult::object(result);
 }
+
+#ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
+EretheaMcpToolResult EretheaMcpPlugin::_check_export(const Dictionary &p_arguments) {
+	Ref<EditorExportPreset> preset;
+	const Variant preset_name = p_arguments.get("preset", Variant());
+	if (preset_name.get_type() == Variant::STRING && !String(preset_name).is_empty()) {
+		PackedStringArray names;
+		for (int i = 0; i < EditorExport::get_singleton()->get_export_preset_count(); i++) {
+			const Ref<EditorExportPreset> candidate = EditorExport::get_singleton()->get_export_preset(i);
+			names.push_back(candidate->get_name());
+			if (candidate->get_name() == String(preset_name)) {
+				preset = candidate;
+			}
+		}
+		if (preset.is_null()) {
+			return EretheaMcpToolResult::error(names.is_empty() ? String("The project has no export presets.") : vformat("No export preset \"%s\". The presets are: %s.", String(preset_name), String(", ").join(names)));
+		}
+	}
+	const Vector<String> files = preset.is_valid() ? EretheaExportChecks::get_files_to_export(preset) : EretheaExportChecks::get_project_files();
+	const EretheaExportChecks::Report report = EretheaExportChecks::check_files(files, EretheaExportCheckSettings::from_project_settings());
+	return EretheaMcpToolResult::object(report.to_dictionary());
+}
+#endif
 
 EretheaMcpToolResult EretheaMcpPlugin::_stop_game() {
 	EditorRunBar *run_bar = EditorRunBar::get_singleton();

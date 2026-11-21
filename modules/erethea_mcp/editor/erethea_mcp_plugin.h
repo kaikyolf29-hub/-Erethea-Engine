@@ -35,6 +35,8 @@
 #include "core/os/mutex.h"
 #include "editor/plugins/editor_plugin.h"
 
+#include "modules/modules_enabled.gen.h" // For erethea_export_checks.
+
 class Image;
 
 // Runs the MCP server inside the editor, so that agents such as Claude Code
@@ -102,6 +104,9 @@ private:
 	EretheaMcpToolResult _run_game(const Dictionary &p_arguments);
 	EretheaMcpToolResult _stop_game();
 	EretheaMcpToolResult _get_errors(const Dictionary &p_arguments);
+#ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
+	EretheaMcpToolResult _check_export(const Dictionary &p_arguments);
+#endif
 	bool _take_screenshot(const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id);
 
 protected:

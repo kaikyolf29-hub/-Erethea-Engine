@@ -556,3 +556,7 @@
 /modules/erethea_mcp/**/*.py                  @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_mcp/**/SCsub                 @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_mcp/tests/                   @kaikyolf29-hub @godotengine/tests
+/modules/erethea_export_checks/               @kaikyolf29-hub @godotengine/editor
+/modules/erethea_export_checks/**/*.py        @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_export_checks/**/SCsub       @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_export_checks/tests/         @kaikyolf29-hub @godotengine/tests

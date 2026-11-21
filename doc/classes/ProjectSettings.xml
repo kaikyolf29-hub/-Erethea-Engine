@@ -1137,6 +1137,30 @@
 			Directory that contains the [code].sln[/code] file. By default, the [code].sln[/code] files is in the root of the project directory, next to the [code]project.godot[/code] and [code].csproj[/code] files.
 			Change this value to set up a multi-project scenario where there are multiple [code].csproj[/code] files. Keep in mind that the Godot project is considered one of the C# projects in the workspace and its root directory should contain the [code]project.godot[/code] and [code].csproj[/code] files next to each other.
 		</member>
+		<member name="editor/erethea_export_checks/character_folders" type="PackedStringArray" setter="" getter="" default="PackedStringArray(&quot;res://Characters&quot;, &quot;res://Enemies&quot;)">
+			Folders whose models are characters or enemies. Their height is checked against [member editor/erethea_export_checks/character_height] and their triangles against [member editor/erethea_export_checks/max_character_triangles]. The defaults are the folders where the Fornalha puts characters and enemies. Erethea only.
+		</member>
+		<member name="editor/erethea_export_checks/character_height" type="Vector2" setter="" getter="" default="Vector2(0.3, 4)">
+			Smallest and largest height in meters of a character or enemy, checked before export. A model outside it was probably exported in other units, such as centimeters instead of meters. Erethea only.
+		</member>
+		<member name="editor/erethea_export_checks/license_receipts" type="bool" setter="" getter="" default="true">
+			If [code]true[/code], projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]) or with an [code]ai/recibos.jsonl[/code] file have every asset checked for a license receipt before export. In a commercial project, an asset without a receipt, or made with a model whose license doesn't allow selling it, is an error. Erethea only.
+		</member>
+		<member name="editor/erethea_export_checks/max_character_triangles" type="int" setter="" getter="" default="100000">
+			Most triangles a character or enemy model may have before the checks before export warn about it, counting the full detail mesh without the LODs generated on import. Erethea only.
+		</member>
+		<member name="editor/erethea_export_checks/max_model_triangles" type="int" setter="" getter="" default="500000">
+			Most triangles any other model may have before the checks before export warn about it, counting the full detail mesh without the LODs generated on import. Erethea only.
+		</member>
+		<member name="editor/erethea_export_checks/max_texture_size" type="int" setter="" getter="" default="4096">
+			Largest width or height in pixels of a texture before the checks before export warn about it. Textures inside model files are checked too. Erethea only.
+		</member>
+		<member name="editor/erethea_export_checks/model_size" type="Vector2" setter="" getter="" default="Vector2(0.005, 5000)">
+			Smallest and largest size in meters of the longest side of a model that isn't a character, checked before export. A model outside it was probably exported in other units. Erethea only.
+		</member>
+		<member name="editor/erethea_export_checks/run_on_export" type="int" setter="" getter="" default="1">
+			When the Erethea checks run during export: [code]Never[/code], only in projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), or in all projects. They list too many triangles, too big textures, wrong scale and missing license receipts in the export log. They can also be run with [b]Project &gt; Tools &gt; Check Project for Export...[/b]. Erethea only.
+		</member>
 		<member name="editor/export/convert_text_resources_to_binary" type="bool" setter="" getter="" default="true">
 			If [code]true[/code], text resource ([code]tres[/code]) and text scene ([code]tscn[/code]) files are converted to their corresponding binary format on export. This decreases file sizes and speeds up loading slightly.
 			[b]Note:[/b] Because a resource's file extension may change in an exported project, it is heavily recommended to use [method @GDScript.load] or [ResourceLoader] instead of [FileAccess] to load resources dynamically.
