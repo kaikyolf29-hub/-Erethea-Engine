@@ -200,6 +200,50 @@ cria a memória que só a placa enxerga como apelido da memória do lavapipe.
 **Não testado na placa:** a qualidade e o custo em FPS na RX 580 e na RTX 4060
 Ti/5060 Ti, e o FSR 4 (precisa de uma Radeon RX 6000 ou mais nova).
 
+## Streaming de texturas
+
+Com streaming, a placa de vídeo só guarda a resolução de textura que a câmera
+está pedindo: uma parede longe fica com uma versão menor, e a textura sobe
+para a resolução cheia quando a câmera chega perto. Isso economiza memória de
+vídeo em cenas grandes. É o streaming de mipmaps da própria Godot 4.8
+(`StreamedTexture2D`, ainda experimental na Godot); a Erethea só escolhe em
+quais texturas ele entra. O código fica em `modules/erethea_streaming/`.
+
+**Só nas texturas usadas em 3D.** A Godot só sabe a resolução que uma textura
+precisa quando ela aparece num material 3D. Uma textura de interface ou de 2D
+com streaming ficaria borrada, então essas continuam como na Godot. As texturas
+são importadas do jeito normal; quando o editor vê uma delas num material 3D,
+ela entra numa fila (o painel Saída avisa), e na próxima vez que o editor abrir
+ela passa para o importador *Texture2D Streamed*. A troca espera o editor
+reabrir porque trocar o tipo de um recurso aberto apagaria o histórico de
+desfazer.
+
+Uma textura só troca de importador se não usar nenhuma opção de importação que
+o *Texture2D Streamed* não tem (por exemplo, limite de tamanho, inverter o Y do
+normal map ou remapear canais), e se não tiver transparência: o importador de
+streaming não corrige as bordas transparentes, o que deixaria contorno em
+folhagem. O painel Saída diz por que uma textura ficou de fora.
+
+**Ligar e desligar.** Projetos novos criados na Erethea já começam com
+`rendering/textures/streaming/enabled` (da Godot) e
+`rendering/erethea/stream_3d_textures` ligados, menos os que usam o
+renderizador Compatibility, que não tem streaming. Projetos da Godot abrem com
+os dois desligados, como estavam. Desligar o da Godot para o streaming de
+todas as texturas (elas carregam inteiras); desligar o da Erethea só para de
+trocar texturas novas. Uma textura que já trocou volta para o importador normal
+no painel Importar (*Importar como › Texture2D*). Se a mesma imagem também
+aparece na interface ou num `Decal`, vale fazer isso com ela.
+
+**Teste.** `erethea/tests/texture_streaming` tem uma textura de tijolos num
+material 3D e um ícone na interface. O CI abre a cena no editor, confere que
+só os tijolos entraram na fila, reabre, e roda o projeto: os tijolos começam
+com 64 pixels de largura, sobem até os 512 com a câmera perto, ficam iguais à
+mesma imagem sem streaming (RMSE 0 no lavapipe) e descem quando somem da tela.
+O ícone continua como na Godot.
+
+Ainda não testado nas placas de referência: quanta memória de vídeo economiza
+num jogo de verdade e se a textura demora a ficar nítida quando a câmera corre.
+
 ## Lançar uma versão
 
 As versões da Erethea têm numeração própria (`0.2.0`, `0.2.0-beta.1`),

@@ -1,0 +1,15 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+
+[deps]
+
+source_file="res://brick_reference.png"
+
+[params]
+
+compress/mode=2
+mipmaps/generate=true
+process/fix_alpha_border=false
+detect_3d/compress_to=0
