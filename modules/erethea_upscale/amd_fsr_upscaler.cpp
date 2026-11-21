@@ -221,11 +221,13 @@ bool load_runtime() {
 
 	void *create_context = nullptr;
 	void *destroy_context = nullptr;
+	void *configure = nullptr;
 	void *query = nullptr;
 	void *dispatch = nullptr;
 	OS *os = OS::get_singleton();
 	if (os->get_dynamic_library_symbol_handle(library, "ffxCreateContext", create_context) != OK ||
 			os->get_dynamic_library_symbol_handle(library, "ffxDestroyContext", destroy_context) != OK ||
+			os->get_dynamic_library_symbol_handle(library, "ffxConfigure", configure) != OK ||
 			os->get_dynamic_library_symbol_handle(library, "ffxQuery", query) != OK ||
 			os->get_dynamic_library_symbol_handle(library, "ffxDispatch", dispatch) != OK) {
 		os->close_dynamic_library(library);
@@ -238,6 +240,19 @@ bool load_runtime() {
 	state->destroy_context = (PfnFfxDestroyContext)destroy_context;
 	state->query = (PfnFfxQuery)query;
 	state->dispatch = (PfnFfxDispatch)dispatch;
+
+	// The context only takes fpMessage once it exists, so problems while it's
+	// created would go to the debugger only. Send all of the runtime's
+	// messages to the log instead (warnings too with --verbose).
+	ffxConfigureDescGlobalDebug debug = {};
+	debug.header.type = FFX_API_CONFIGURE_DESC_TYPE_GLOBALDEBUG;
+	debug.effectId = FFX_API_EFFECT_ID_UPSCALE;
+	debug.fpMessage = message_callback;
+	debug.debugLevel = os->is_stdout_verbose() ? FFX_API_CONFIGURE_GLOBALDEBUG_LEVEL_VERBOSE : FFX_API_CONFIGURE_GLOBALDEBUG_LEVEL_ERRORS;
+	const ffxReturnCode_t debug_result = ((PfnFfxConfigure)configure)(nullptr, &debug.header);
+	if (debug_result != FFX_API_RETURN_OK) {
+		print_verbose(vformat("AMD FSR: the runtime's messages can't be sent to the log (error %d).", int(debug_result)));
+	}
 	return true;
 }
 
