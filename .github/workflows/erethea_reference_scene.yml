@@ -10,6 +10,9 @@ on:
 # Godot projects keep their look. The captures, side by side, are uploaded as
 # an artifact, and the job summary lists the differences and frame times.
 #
+# Then it captures the scene with each Erethea quality preset and compares it
+# with the default settings, without a limit: those differences are on purpose.
+#
 # The frame times come from a CPU renderer: they only compare one run with
 # another, they don't say how fast a game runs on a graphics card.
 
@@ -90,6 +93,30 @@ jobs:
             echo "Os tempos por quadro vêm do lavapipe, que desenha na CPU: servem só para comparar uma execução com outra."
           } >> "$GITHUB_STEP_SUMMARY"
           exit $status
+
+      - name: Capture the quality presets
+        if: always() && hashFiles('captures/erethea/results.json') != ''
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          {
+            echo "## Presets de qualidade da Erethea"
+            echo
+            echo "Cada preset comparado com a Erethea sem preset (as configurações padrão da Godot)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          for preset in low balanced cinematic; do
+            xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
+              --audio-driver Dummy --fixed-fps 30 -- --quality=$preset --capture="$PWD/captures/preset_$preset"
+            "$ERETHEA" --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
+              --baseline="$PWD/captures/erethea" --candidate="$PWD/captures/preset_$preset" \
+              --out="$PWD/captures/comparison_$preset"
+            {
+              echo
+              echo "### $preset"
+              echo
+              cat "captures/comparison_$preset/summary.md"
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
 
       - name: Upload the captures
         if: always()
