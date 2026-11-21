@@ -49,7 +49,7 @@ novas da Godot sem reescrever nada.
 | Janela, barra de título, Windows | `platform/windows/` (`display_server_windows.cpp`) |
 | Gráficos, renderizador | `servers/rendering/renderer_rd/` |
 | Presets de qualidade | `modules/erethea_quality/` |
-| Pós-processamento (LUT `.cube`, vinheta, grão) | `modules/erethea_post/` |
+| Pós-processamento (LUT `.cube`, lens flare, motion blur, grão) | `modules/erethea_post/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
 | CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`) |

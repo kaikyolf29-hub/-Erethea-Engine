@@ -125,16 +125,28 @@ correção de cor da Godot). A tabela é reamostrada para 65×65×65 do jeito qu
 renderizador lê, então uma LUT neutra não muda a imagem (na cena de referência,
 a diferença foi de 0,2 a 0,4 de 255).
 
-**Vinheta, aberração cromática e grão de filme (`EretheaPostEffect`).** É um
-`CompositorEffect`: crie um `Compositor` no `WorldEnvironment` ou na `Camera3D`,
-adicione um `EretheaPostEffect` e ajuste a intensidade de cada efeito (0
-desliga). Só funciona no Forward+; nos outros renderizadores não faz nada. Os
-efeitos entram antes do TAA, do upscaling e do tone mapping. Os detalhes estão
-na referência da classe, dentro do editor.
+**Lens flare, vinheta, aberração cromática e grão de filme
+(`EretheaPostEffect`).** É um `CompositorEffect`: crie um `Compositor` no
+`WorldEnvironment` ou na `Camera3D`, adicione um `EretheaPostEffect` e ajuste a
+intensidade de cada efeito (0 desliga). O lens flare faz reflexos coloridos
+(ghosts) e um anel (halo) a partir do que passa do limite de brilho, como
+lâmpadas e janelas acesas à noite.
+
+**Motion blur (`EretheaMotionBlur`).** Outro `CompositorEffect`, que borra
+cada pixel pelo movimento desde o quadro anterior: objetos que se mexem e o
+movimento da câmera, inclusive no céu. Coloque-o antes do `EretheaPostEffect`
+na lista do `Compositor`, para o grão não ser borrado. A intensidade é a
+fração do quadro em que o "obturador" fica aberto (0,5 = obturador de 180°).
+
+Os dois só funcionam no Forward+; nos outros renderizadores não fazem nada.
+Os efeitos entram antes do TAA, do upscaling e do tone mapping. Os detalhes
+estão na referência das classes, dentro do editor.
 
 Para ver na cena de referência, importe o projeto uma vez e acrescente
-`--post=all` (ou uma lista com `lut`, `vignette`, `aberration` e `grain`)
-depois do `--`:
+`--post=all` (ou uma lista com `lut`, `flare`, `vignette`, `aberration`,
+`grain` e `motion`) depois do `--`. Com `motion`, a câmera gira e o personagem
+vira de um lado para o outro, e os dois estão no lugar de sempre, em
+velocidade máxima, no quadro capturado:
 
 ```sh
 erethea --headless --import --path erethea/tests/reference_scene

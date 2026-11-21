@@ -125,8 +125,8 @@ jobs:
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
         run: |
           # The color correction LUT (luts/cinematic.cube) needs the project
-          # imported once.
-          "$ERETHEA" --headless --import --path "$RUNNER_TEMP/scene_erethea"
+          # imported once. The capture below fails if the LUT isn't there.
+          "$ERETHEA" --headless --import --path "$RUNNER_TEMP/scene_erethea" || true
           xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
             --audio-driver Dummy --fixed-fps 30 -- --post=all --capture="$PWD/captures/post_all" 2>&1 | tee post_all.log
           if grep -q "skipping the LUT" post_all.log; then
@@ -139,7 +139,7 @@ jobs:
           {
             echo "## Pós-processamento da Erethea"
             echo
-            echo "Erethea sem efeitos × com todos: LUT .cube (luts/cinematic.cube), vinheta, aberração cromática e grão de filme (EretheaPostEffect)."
+            echo "Erethea sem efeitos × com todos: LUT .cube (luts/cinematic.cube), lens flare, vinheta, aberração cromática e grão (EretheaPostEffect) e motion blur (EretheaMotionBlur, com a câmera e o personagem em movimento)."
             echo
             cat captures/comparison_post_all/summary.md
           } >> "$GITHUB_STEP_SUMMARY"
