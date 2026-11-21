@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+from misc.utility.scons_hints import *
+
+Import("env")
+Import("env_modules")
+
+env_erethea_upscale = env_modules.Clone()
+
+# AMD FSR runtime API (headers only, the runtime is loaded at run time).
+env_erethea_upscale.Prepend(CPPPATH=["#thirdparty/amd-fsr-api"])
+
+env_erethea_upscale.RD_GLSL("erethea_upscale_inputs.glsl")
+env_erethea_upscale.Depends(Glob("*.glsl.gen.h"), ["#glsl_builders.py"])
+
+module_obj = []
+
+env_erethea_upscale.add_source_files(module_obj, "*.cpp")
+if env.editor_build:
+    env_erethea_upscale.add_source_files(module_obj, "editor/*.cpp")
+
+env.modules_sources += module_obj

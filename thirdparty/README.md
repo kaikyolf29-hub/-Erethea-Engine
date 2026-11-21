@@ -29,6 +29,22 @@ Files extracted from upstream source:
 - `license.txt`
 
 
+## amd-fsr-api
+
+- Upstream: https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK
+- Version: 2.4.0 (7539ae8b6568ad29ed78a753404351daf3b5cca7, 2026)
+- License: MIT
+
+Files extracted from upstream source (used by the Erethea `erethea_upscale`
+module, which loads AMD's signed runtime DLLs at run time):
+
+- `Kits/FidelityFX/api/include/ffx_api.h` as `api/include/ffx_api.h`
+- `Kits/FidelityFX/api/include/ffx_api_types.h` as `api/include/ffx_api_types.h`
+- `Kits/FidelityFX/api/include/vk/ffx_api_vk.h` as `api/include/vk/ffx_api_vk.h`
+- `Kits/FidelityFX/upscalers/include/ffx_upscale.h` as `upscalers/include/ffx_upscale.h`
+- `LICENSE.txt` taken from the license header of these files
+
+
 ## amd-fsr2
 
 - Upstream: https://github.com/GPUOpen-Effects/FidelityFX-FSR2

@@ -50,6 +50,7 @@ novas da Godot sem reescrever nada.
 | Gráficos, renderizador | `servers/rendering/renderer_rd/` |
 | Presets de qualidade | `modules/erethea_quality/` |
 | Pós-processamento (LUT `.cube`, lens flare, motion blur, grão) | `modules/erethea_post/` |
+| Upscalers (AMD FSR 3.1/4; depois XeSS e DLSS) | `modules/erethea_upscale/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
 | CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`) |

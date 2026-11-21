@@ -541,3 +541,8 @@
 /modules/erethea_post/doc_classes/            @kaikyolf29-hub @godotengine/documentation
 /modules/erethea_post/editor/                 @kaikyolf29-hub @godotengine/editor @godotengine/asset-pipeline
 /modules/erethea_post/tests/                  @kaikyolf29-hub @godotengine/tests
+/modules/erethea_upscale/                     @kaikyolf29-hub @godotengine/rendering
+/modules/erethea_upscale/**/*.py              @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_upscale/**/SCsub             @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_upscale/editor/              @kaikyolf29-hub @godotengine/editor
+/modules/erethea_upscale/tests/               @kaikyolf29-hub @godotengine/tests
