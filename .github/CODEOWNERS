@@ -535,3 +535,9 @@
 /modules/erethea_quality/**/SCsub             @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_quality/doc_classes/         @kaikyolf29-hub @godotengine/documentation
 /modules/erethea_quality/tests/               @kaikyolf29-hub @godotengine/tests
+/modules/erethea_post/                        @kaikyolf29-hub @godotengine/rendering
+/modules/erethea_post/**/*.py                 @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_post/**/SCsub                @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_post/doc_classes/            @kaikyolf29-hub @godotengine/documentation
+/modules/erethea_post/editor/                 @kaikyolf29-hub @godotengine/editor @godotengine/asset-pipeline
+/modules/erethea_post/tests/                  @kaikyolf29-hub @godotengine/tests

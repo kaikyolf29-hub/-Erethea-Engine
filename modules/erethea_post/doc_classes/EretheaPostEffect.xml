@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaPostEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Lens and film effects: vignette, chromatic aberration and film grain.
+	</brief_description>
+	<description>
+		A [CompositorEffect] that adds lens and film effects to a 3D view. Add it to a [Compositor] and set that compositor on a [WorldEnvironment] or a [Camera3D]:
+		[codeblock]
+		var effect = EretheaPostEffect.new()
+		effect.vignette_intensity = 0.4
+		effect.film_grain_intensity = 0.2
+		var compositor = Compositor.new()
+		compositor.compositor_effects = [effect]
+		$WorldEnvironment.compositor = compositor
+		[/codeblock]
+		Every effect starts off. The effects are drawn on the scene's linear colors after the transparent pass, before temporal antialiasing, upscaling and tone mapping. With [member Viewport.use_taa] or FSR 2, the film grain also goes through the temporal accumulation, which can soften it.
+		[b]Note:[/b] This effect needs the Forward+ renderer. With the Mobile and Compatibility renderers it does nothing.
+		[b]Note:[/b] [member CompositorEffect.effect_callback_type] and the buffer settings of [CompositorEffect] don't apply to this effect, which always runs after the transparent pass.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="is_active" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if at least one effect is on. When none is, the effect costs nothing.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="chromatic_aberration" type="float" setter="set_chromatic_aberration" getter="get_chromatic_aberration" default="0.0">
+			How far apart the red and blue channels are pushed towards the edges of the screen, like a lens that bends colors differently. At [code]1.0[/code], they are 1% of the screen width apart in the corners. [code]0.0[/code] turns it off.
+		</member>
+		<member name="film_grain_intensity" type="float" setter="set_film_grain_intensity" getter="get_film_grain_intensity" default="0.0">
+			Strength of the film grain, a noise that changes every frame. It is applied as a relative change of the scene's colors, so it doesn't depend on exposure, and it fades out in highlights after tone mapping, like film. [code]0.0[/code] turns it off.
+		</member>
+		<member name="film_grain_size" type="float" setter="set_film_grain_size" getter="get_film_grain_size" default="1.5">
+			Size of the grain, in pixels of the 3D view (before upscaling).
+		</member>
+		<member name="vignette_intensity" type="float" setter="set_vignette_intensity" getter="get_vignette_intensity" default="0.0">
+			How much the corners of the screen are darkened. At [code]1.0[/code], the corners are black. [code]0.0[/code] turns it off.
+		</member>
+		<member name="vignette_smoothness" type="float" setter="set_vignette_smoothness" getter="get_vignette_smoothness" default="0.6">
+			How far towards the center the vignette fades in, from the corners. At [code]1.0[/code], it starts darkening at the center of the screen; lower values keep it closer to the corners.
+		</member>
+	</members>
+</class>

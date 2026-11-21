@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ResourceImporterCubeLUT" inherits="ResourceImporter" api_type="editor" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Imports a [code].cube[/code] color lookup table as a 3D texture for color correction.
+	</brief_description>
+	<description>
+		Imports color lookup tables (LUTs) in the [code].cube[/code] text format, which grading tools such as DaVinci Resolve, Adobe Photoshop and Premiere export. The result is a [CompressedTexture3D] that can be used directly as [member Environment.adjustment_color_correction] (with [member Environment.adjustment_enabled] on).
+		Both 3D tables ([code]LUT_3D_SIZE[/code]) and 1D tables ([code]LUT_1D_SIZE[/code]) are supported, as well as DaVinci Resolve's files with a 1D shaper before the 3D table, and [code]DOMAIN_MIN[/code], [code]DOMAIN_MAX[/code], [code]LUT_1D_INPUT_RANGE[/code] and [code]LUT_3D_INPUT_RANGE[/code].
+		The table is resampled into a 65×65×65 texture laid out the way the renderer samples it, so a neutral table leaves the image unchanged. Like other color correction textures, the table is applied after tone mapping, to sRGB-encoded colors between [code]0.0[/code] and [code]1.0[/code]: export the LUT from a grade made on the game's tone-mapped screenshots, in sRGB / Rec. 709. Outputs outside the [code]0.0[/code] to [code]1.0[/code] range are clipped, with a warning.
+	</description>
+	<tutorials>
+	</tutorials>
+</class>
