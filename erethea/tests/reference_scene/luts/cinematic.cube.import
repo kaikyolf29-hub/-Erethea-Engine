@@ -1,0 +1,13 @@
+[remap]
+
+importer="cube_lut"
+type="CompressedTexture3D"
+uid="uid://clolbl7iph3xw"
+path="res://.godot/imported/cinematic.cube-5561312d5b3cc61bbf496be1ff1dbccd.ctex3d"
+
+[deps]
+
+source_file="res://luts/cinematic.cube"
+dest_files=["res://.godot/imported/cinematic.cube-5561312d5b3cc61bbf496be1ff1dbccd.ctex3d"]
+
+[params]

@@ -15,7 +15,11 @@ extends Node3D
 ## capture (default 20) and --frames=<frames> measured after it (default 20).
 ##
 ## In Erethea, --quality=<low|balanced|cinematic|automatic> applies a quality
-## preset (EretheaQuality) first. Stock Godot ignores it with a warning.
+## preset (EretheaQuality) first, and --post=<effects> turns on post-processing:
+## "all", or a comma-separated list of lut (luts/cinematic.cube as color
+## correction, which needs the project imported once with --headless --import),
+## vignette, aberration and grain (EretheaPostEffect). Stock Godot ignores
+## both with a warning.
 
 const TIMES: Array[String] = ["dia", "noite"]
 const VIEWS := {
@@ -27,6 +31,8 @@ const VIEW_KEYS := {KEY_1: "vila", KEY_2: "floresta", KEY_3: "personagem"}
 # The values of EretheaQuality.Preset, written out so stock Godot can parse the
 # script.
 const QUALITY_PRESETS := {"low": 1, "balanced": 2, "cinematic": 3, "automatic": 4}
+const POST_EFFECTS: Array[String] = ["lut", "vignette", "aberration", "grain"]
+const LUT_PATH := "res://luts/cinematic.cube"
 const CAPTURE_SIZE := Vector2i(1280, 720)
 const SEED := 2026
 
@@ -59,6 +65,8 @@ func _ready() -> void:
 	var arguments := _get_user_arguments()
 	if arguments.has("quality"):
 		_apply_quality(arguments["quality"])
+	if arguments.has("post"):
+		_apply_post(arguments["post"])
 	if arguments.has("capture"):
 		await _capture(arguments["capture"], int(arguments.get("warmup", "20")), int(arguments.get("frames", "20")))
 		get_tree().quit()
@@ -133,6 +141,41 @@ func _apply_quality(preset: String) -> void:
 	print("Quality preset %s applied: %s" % [preset, quality.call("get_preset_settings", quality.call("get_active_preset"))])
 
 
+func _apply_post(effects_argument: String) -> void:
+	var effects: Array[String] = []
+	if effects_argument == "all":
+		effects = POST_EFFECTS
+	else:
+		effects.assign(effects_argument.split(","))
+	for effect_name in effects:
+		if effect_name not in POST_EFFECTS:
+			push_error("Unknown post effect '%s'. Use all or some of %s." % [effect_name, ",".join(POST_EFFECTS)])
+			return
+
+	if "lut" in effects:
+		if ResourceLoader.exists(LUT_PATH, "Texture3D"):
+			environment.adjustment_enabled = true
+			environment.adjustment_color_correction = load(LUT_PATH)
+		else:
+			push_warning("%s isn't imported (stock Godot can't import .cube, and Erethea needs --headless --import once), skipping the LUT." % LUT_PATH)
+
+	if effects.any(func(effect_name: String) -> bool: return effect_name != "lut"):
+		if not ClassDB.class_exists("EretheaPostEffect"):
+			push_warning("This engine has no EretheaPostEffect, ignoring --post=%s." % effects_argument)
+			return
+		var effect: CompositorEffect = ClassDB.instantiate("EretheaPostEffect")
+		if "vignette" in effects:
+			effect.set("vignette_intensity", 0.4)
+		if "aberration" in effects:
+			effect.set("chromatic_aberration", 0.3)
+		if "grain" in effects:
+			effect.set("film_grain_intensity", 0.2)
+		var compositor := Compositor.new()
+		compositor.compositor_effects = [effect]
+		camera.compositor = compositor
+	print("Post effects: %s" % ", ".join(effects))
+
+
 func _get_user_arguments() -> Dictionary:
 	var arguments := {}
 	for argument in OS.get_cmdline_user_args():
@@ -161,6 +204,7 @@ func _capture(folder: String, warmup: int, frames: int) -> void:
 		"api": RenderingServer.get_video_adapter_api_version(),
 		"size": [CAPTURE_SIZE.x, CAPTURE_SIZE.y],
 		"quality": _get_user_arguments().get("quality", "default"),
+		"post": _get_user_arguments().get("post", "none"),
 		"captures": [],
 	}
 	print("Reference scene on %s (%s)" % [results["adapter"], results["api"]])

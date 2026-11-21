@@ -39,7 +39,7 @@
 		<member name="effect_callback_type" type="int" setter="set_effect_callback_type" getter="get_effect_callback_type" enum="CompositorEffect.EffectCallbackType">
 			The type of effect that is implemented, determines at what stage of rendering the callback is called.
 		</member>
-		<member name="enabled" type="bool" setter="set_enabled" getter="get_enabled">
+		<member name="enabled" type="bool" setter="set_enabled" getter="get_enabled" default="true">
 			If [code]true[/code] this rendering effect is applied to any viewport it is added to.
 		</member>
 		<member name="needs_motion_vectors" type="bool" setter="set_needs_motion_vectors" getter="get_needs_motion_vectors">
