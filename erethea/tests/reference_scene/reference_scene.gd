@@ -18,8 +18,10 @@ extends Node3D
 ## preset (EretheaQuality) first, and --post=<effects> turns on post-processing:
 ## "all", or a comma-separated list of lut (luts/cinematic.cube as color
 ## correction, which needs the project imported once with --headless --import),
-## vignette, aberration and grain (EretheaPostEffect). Stock Godot ignores
-## both with a warning.
+## flare, vignette, aberration and grain (EretheaPostEffect), and motion
+## (EretheaMotionBlur: the camera pans and the character turns, and both are
+## back in their usual place, at full speed, on the captured frame). Stock
+## Godot ignores both with a warning.
 
 const TIMES: Array[String] = ["dia", "noite"]
 const VIEWS := {
@@ -31,7 +33,10 @@ const VIEW_KEYS := {KEY_1: "vila", KEY_2: "floresta", KEY_3: "personagem"}
 # The values of EretheaQuality.Preset, written out so stock Godot can parse the
 # script.
 const QUALITY_PRESETS := {"low": 1, "balanced": 2, "cinematic": 3, "automatic": 4}
-const POST_EFFECTS: Array[String] = ["lut", "vignette", "aberration", "grain"]
+const POST_EFFECTS: Array[String] = ["lut", "flare", "vignette", "aberration", "grain", "motion"]
+# Swing of the camera pan and of the character's turn, in degrees, for motion blur.
+const MOTION_PAN := 12.0
+const MOTION_TURN := 60.0
 const LUT_PATH := "res://luts/cinematic.cube"
 const CAPTURE_SIZE := Vector2i(1280, 720)
 const SEED := 2026
@@ -46,6 +51,13 @@ var window_material := StandardMaterial3D.new()
 var lantern_material := StandardMaterial3D.new()
 var current_time := "dia"
 var current_view := "vila"
+var character := Node3D.new()
+var camera_transform := Transform3D()
+var character_transform := Transform3D()
+# Motion for the motion blur: frames since the view changed, over one swing.
+var motion_enabled := false
+var motion_frame := 0
+var motion_period := 40
 
 
 func _ready() -> void:
@@ -74,6 +86,13 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	get_window().title = "Erethea Reference Scene: %s, %s, %d FPS" % [current_view, current_time, Engine.get_frames_per_second()]
+	if motion_enabled:
+		# A full swing per period: back in place, at full speed, every
+		# motion_period frames after the view changed.
+		motion_frame += 1
+		var swing := sin(TAU * motion_frame / motion_period)
+		camera.transform = camera_transform.rotated_local(Vector3.UP, deg_to_rad(MOTION_PAN) * swing)
+		character.transform = character_transform.rotated_local(Vector3.UP, deg_to_rad(MOTION_TURN) * swing)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -90,6 +109,9 @@ func set_view(view: String) -> void:
 	current_view = view
 	var position_and_target: Array = VIEWS[view]
 	camera.look_at_from_position(position_and_target[0], position_and_target[1])
+	camera_transform = camera.transform
+	character.transform = character_transform
+	motion_frame = 0
 
 
 func set_time(time: String) -> void:
@@ -164,14 +186,25 @@ func _apply_post(effects_argument: String) -> void:
 			push_warning("This engine has no EretheaPostEffect, ignoring --post=%s." % effects_argument)
 			return
 		var effect: CompositorEffect = ClassDB.instantiate("EretheaPostEffect")
+		if "flare" in effects:
+			effect.set("lens_flare_intensity", 0.5)
 		if "vignette" in effects:
 			effect.set("vignette_intensity", 0.4)
 		if "aberration" in effects:
 			effect.set("chromatic_aberration", 0.3)
 		if "grain" in effects:
 			effect.set("film_grain_intensity", 0.2)
+		var compositor_effects: Array[CompositorEffect] = []
+		if "motion" in effects:
+			# Before the other effects, so the grain isn't blurred.
+			if ClassDB.class_exists("EretheaMotionBlur"):
+				compositor_effects.append(ClassDB.instantiate("EretheaMotionBlur"))
+				motion_enabled = true
+			else:
+				push_warning("This engine has no EretheaMotionBlur, ignoring motion.")
+		compositor_effects.append(effect)
 		var compositor := Compositor.new()
-		compositor.compositor_effects = [effect]
+		compositor.compositor_effects = compositor_effects
 		camera.compositor = compositor
 	print("Post effects: %s" % ", ".join(effects))
 
@@ -194,6 +227,7 @@ func _capture(folder: String, warmup: int, frames: int) -> void:
 		folder = ProjectSettings.globalize_path("res://").path_join(folder)
 	DirAccess.make_dir_recursive_absolute(folder)
 	get_window().size = CAPTURE_SIZE
+	motion_period = maxi(warmup + frames, 1)
 	var viewport_rid := get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(viewport_rid, true)
 
@@ -511,9 +545,9 @@ func _build_character() -> void:
 	var eyes := _material(Color(0.03, 0.03, 0.03), 0.2)
 	var wood := _material(Color(0.35, 0.24, 0.14), 0.7)
 
-	var character := Node3D.new()
 	character.position = Vector3(1.5, 0.0, 3.0)
 	character.rotation_degrees.y = 25.0
+	character_transform = character.transform
 	add_child(character)
 	for side in [-1.0, 1.0]:
 		_add_mesh(_capsule(0.11, 0.9), trousers, Transform3D(Basis.IDENTITY, Vector3(side * 0.12, 0.5, 0.0)), character)

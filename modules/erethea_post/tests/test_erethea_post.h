@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  test_cube_lut.h                                                       */
+/*  test_erethea_post.h                                                   */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -31,6 +31,7 @@
 #pragma once
 
 #include "../cube_lut.h"
+#include "../erethea_motion_blur.h"
 #include "../erethea_post_effect.h"
 
 #include "tests/test_macros.h"
@@ -173,6 +174,30 @@ TEST_CASE("[Modules][EretheaPostEffect] Starts with every effect off") {
 	CHECK(effect->get_vignette_intensity() == doctest::Approx(1.0));
 	effect->set_film_grain_size(0.0);
 	CHECK(effect->get_film_grain_size() == doctest::Approx(1.0));
+
+	// The lens flare alone also turns the effect on.
+	Ref<EretheaPostEffect> flare;
+	flare.instantiate();
+	flare->set_lens_flare_intensity(0.5);
+	CHECK(flare->is_active());
+	flare->set_lens_flare_ghosts(20);
+	CHECK(flare->get_lens_flare_ghosts() == 8);
+	flare->set_lens_flare_threshold(-1.0);
+	CHECK(flare->get_lens_flare_threshold() == doctest::Approx(0.0));
+}
+
+TEST_CASE("[Modules][EretheaMotionBlur] Asks for motion vectors") {
+	Ref<EretheaMotionBlur> blur;
+	blur.instantiate();
+	CHECK(blur->get_needs_motion_vectors());
+	CHECK(blur->get_effect_callback_type() == CompositorEffect::EFFECT_CALLBACK_TYPE_POST_TRANSPARENT);
+	CHECK(blur->get_intensity() == doctest::Approx(0.5));
+
+	// Values are kept in range.
+	blur->set_samples(100);
+	CHECK(blur->get_samples() == 32);
+	blur->set_max_length(0.0);
+	CHECK(blur->get_max_length() == doctest::Approx(0.01));
 }
 
 } // namespace TestEretheaPostEffect

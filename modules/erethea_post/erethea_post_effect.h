@@ -32,7 +32,7 @@
 
 #include "scene/resources/compositor.h"
 
-// Lens and film effects (vignette, chromatic aberration and film grain),
+// Lens and film effects (lens flare, vignette, chromatic aberration and film grain),
 // drawn after the transparent pass, before TAA, upscaling and tone mapping.
 // It needs the Forward+ renderer and does nothing elsewhere.
 class EretheaPostEffect : public CompositorEffect {
@@ -43,6 +43,11 @@ class EretheaPostEffect : public CompositorEffect {
 	float chromatic_aberration = 0.0;
 	float film_grain_intensity = 0.0;
 	float film_grain_size = 1.5;
+	float lens_flare_intensity = 0.0;
+	float lens_flare_threshold = 1.0;
+	int lens_flare_ghosts = 4;
+	float lens_flare_ghost_spacing = 0.35;
+	float lens_flare_halo_width = 0.45;
 
 	void _render(int p_effect_callback_type, const RenderData *p_render_data);
 	static void _free_render_resources();
@@ -66,6 +71,21 @@ public:
 
 	void set_film_grain_size(float p_size);
 	float get_film_grain_size() const;
+
+	void set_lens_flare_intensity(float p_intensity);
+	float get_lens_flare_intensity() const;
+
+	void set_lens_flare_threshold(float p_threshold);
+	float get_lens_flare_threshold() const;
+
+	void set_lens_flare_ghosts(int p_ghosts);
+	int get_lens_flare_ghosts() const;
+
+	void set_lens_flare_ghost_spacing(float p_spacing);
+	float get_lens_flare_ghost_spacing() const;
+
+	void set_lens_flare_halo_width(float p_width);
+	float get_lens_flare_halo_width() const;
 
 	// True when at least one effect is on.
 	bool is_active() const;

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <class name="EretheaPostEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
-		Lens and film effects: vignette, chromatic aberration and film grain.
+		Lens and film effects: lens flare, vignette, chromatic aberration and film grain.
 	</brief_description>
 	<description>
-		A [CompositorEffect] that adds lens and film effects to a 3D view. Add it to a [Compositor] and set that compositor on a [WorldEnvironment] or a [Camera3D]:
+		A [CompositorEffect] that adds lens and film effects to a 3D view. The lens flare is drawn at a quarter of the resolution, in four passes; the other effects share one pass. Add it to a [Compositor] and set that compositor on a [WorldEnvironment] or a [Camera3D]:
 		[codeblock]
 		var effect = EretheaPostEffect.new()
 		effect.vignette_intensity = 0.4
@@ -36,6 +36,21 @@
 		</member>
 		<member name="film_grain_size" type="float" setter="set_film_grain_size" getter="get_film_grain_size" default="1.5">
 			Size of the grain, in pixels of the 3D view (before upscaling).
+		</member>
+		<member name="lens_flare_ghost_spacing" type="float" setter="set_lens_flare_ghost_spacing" getter="get_lens_flare_ghost_spacing" default="0.35">
+			Distance between the ghosts, along the line from the bright spot through the center of the screen.
+		</member>
+		<member name="lens_flare_ghosts" type="int" setter="set_lens_flare_ghosts" getter="get_lens_flare_ghosts" default="4">
+			Number of ghosts, the colored reflections of bright spots mirrored through the center of the screen.
+		</member>
+		<member name="lens_flare_halo_width" type="float" setter="set_lens_flare_halo_width" getter="get_lens_flare_halo_width" default="0.45">
+			Radius of the halo, a ring around the center of the screen lit by bright spots, as a fraction of the screen height. [code]0.0[/code] hides it.
+		</member>
+		<member name="lens_flare_intensity" type="float" setter="set_lens_flare_intensity" getter="get_lens_flare_intensity" default="0.0">
+			Strength of the lens flare: ghosts and a halo made from the parts of the image brighter than [member lens_flare_threshold], as reflections inside a camera lens. [code]0.0[/code] turns it off.
+		</member>
+		<member name="lens_flare_threshold" type="float" setter="set_lens_flare_threshold" getter="get_lens_flare_threshold" default="1.0">
+			Brightness, in the scene's linear colors before tone mapping, above which a pixel makes flares, like [member Environment.glow_hdr_threshold]. Lights, emissive materials and the sun usually go over [code]1.0[/code].
 		</member>
 		<member name="vignette_intensity" type="float" setter="set_vignette_intensity" getter="get_vignette_intensity" default="0.0">
 			How much the corners of the screen are darkened. At [code]1.0[/code], the corners are black. [code]0.0[/code] turns it off.

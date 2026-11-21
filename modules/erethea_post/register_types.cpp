@@ -30,6 +30,7 @@
 
 #include "register_types.h"
 
+#include "erethea_motion_blur.h"
 #include "erethea_post_effect.h"
 
 #include "core/object/class_db.h"
@@ -48,6 +49,7 @@ static void _editor_init() {
 
 void initialize_erethea_post_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		GDREGISTER_CLASS(EretheaMotionBlur);
 		GDREGISTER_CLASS(EretheaPostEffect);
 	}
 
@@ -61,6 +63,7 @@ void initialize_erethea_post_module(ModuleInitializationLevel p_level) {
 
 void uninitialize_erethea_post_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		EretheaMotionBlur::finish();
 		EretheaPostEffect::finish();
 	}
 }
