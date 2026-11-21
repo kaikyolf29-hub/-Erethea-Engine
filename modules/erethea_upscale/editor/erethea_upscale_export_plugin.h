@@ -30,12 +30,16 @@
 
 #pragma once
 
+#include "editor/export/editor_export_platform.h"
 #include "editor/export/editor_export_plugin.h"
 
-// Ships the runtime of the upscaler (AMD FSR or XeSS) with Windows exports of
-// projects that use it, taken from the folder of the editor's executable.
+// Ships the runtime of the upscaler (AMD FSR, XeSS or DLSS) with Windows
+// exports of projects that use it, taken from the folder of the editor's
+// executable.
 class EretheaUpscaleExportPlugin : public EditorExportPlugin {
 	GDCLASS(EretheaUpscaleExportPlugin, EditorExportPlugin);
+
+	void _add_message(EditorExportPlatform::ExportMessageType p_type, const String &p_category, const String &p_message);
 
 protected:
 	virtual void _export_begin(const HashSet<String> &p_features, bool p_debug, const String &p_path, int p_flags) override;

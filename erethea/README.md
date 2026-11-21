@@ -156,7 +156,7 @@ erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --post=all --capt
 O CI captura a cena com todos os efeitos e mostra a diferença para o padrão.
 Ainda não medido nas placas de referência: o custo de cada efeito em FPS.
 
-## Upscaling (AMD FSR 3.1 e 4, XeSS)
+## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por
 meio do runtime oficial da AMD (FSR SDK 2.4.0, licença MIT): o runtime escolhe o
@@ -230,6 +230,56 @@ que escolhe o XeSS antes de abrir; veja o comentário em
 Direct3D 12 do WARP e compara com o FSR 2.2. **Não testado na placa:** a
 qualidade e o custo em FPS na RX 580 e na RTX 4060 Ti/5060 Ti, e numa placa
 Intel.
+
+### DLSS
+
+A terceira opção é o **DLSS** da NVIDIA (DLSS Super Resolution), pelo
+Streamline da própria NVIDIA (versão 2.14.16): *Temporal Upscaler* = `DLSS`,
+com o modo `FSR 2.2` no Viewport como nos outros. Só roda nas placas NVIDIA RTX
+(a RTX 4060 Ti/5060 Ti sim, a RX 580 não). A Erethea escolhe o modo do DLSS
+(DLAA, Qualidade, Equilibrado, Desempenho, Ultra Desempenho) pela escala do
+Viewport; fora das escalas do DLSS ela usa o FSR 2.2.
+
+Por enquanto só no **Direct3D 12** (o padrão dos projetos novos no Windows); no
+Vulkan avisa e usa o FSR 2.2. O Streamline tem que começar antes do dispositivo
+da placa, então, como o XeSS no Vulkan, trocar para o DLSS com o projeto aberto
+só vale depois de abrir de novo.
+
+**A Erethea não vem com os arquivos do DLSS.** O código da integração e os
+cabeçalhos do Streamline são MIT e estão aqui, mas as DLLs
+(`sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll` e `nvngx_dlss.dll`) são da
+NVIDIA, sob a licença *NVIDIA RTX SDKs License*, que só deixa distribuí-las
+dentro do jogo de quem aceitou a licença. Então cada dev que quiser DLSS baixa
+da NVIDIA, lendo e aceitando a licença:
+
+```sh
+python erethea/tools/fetch_streamline.py <pasta do erethea.exe> --accept-nvidia-license
+```
+
+Sem `--accept-nvidia-license`, o script só mostra o resumo da licença. Ele
+baixa o pacote oficial da NVIDIA (280 MB), confere o SHA-256 de cada arquivo e
+grava a licença ao lado (`nvngx_dlss.license.txt`). Com os arquivos ao lado do
+editor, o projeto rodado pelo editor usa o DLSS, e a exportação para Windows
+copia os arquivos para o jogo, avisando das obrigações da licença. Sem eles, a
+exportação avisa e o jogo usa o FSR 2.2. A Erethea confere a assinatura da
+NVIDIA no `sl.interposer.dll` antes de carregar.
+
+Um jogo que sai com o DLSS tem que, segundo a licença da NVIDIA (leia a
+licença inteira, isto é só um resumo):
+
+- distribuir os arquivos só dentro do jogo, nunca sozinhos;
+- citar o DLSS e pôr as marcas da NVIDIA na tela de abertura, no "Sobre" (se
+  houver) e nos créditos;
+- avisar a NVIDIA antes do lançamento comercial
+  (<https://developer.nvidia.com/sw-notification>).
+
+Na cena de referência, `--upscaler=dlss` com um `override.cfg` que escolhe o
+DLSS antes de abrir (veja o comentário em `reference_scene.gd`). O CI baixa o
+Streamline só para o teste, roda a cena no Direct3D 12 do WARP e confere que a
+Erethea carrega o Streamline, que ele responde que a placa não tem DLSS, que a
+Erethea volta para o FSR 2.2 com a mesma imagem e que fecha sem erro; os
+arquivos da NVIDIA não vão para o artefato. **Não testado na placa:** o DLSS
+reconstruindo de fato, a qualidade e o custo em FPS na RTX 4060 Ti/5060 Ti.
 
 ## Streaming de texturas
 

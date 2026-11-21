@@ -23,12 +23,13 @@ extends Node3D
 ## back in their usual place, at full speed, on the captured frame). Stock
 ## Godot ignores both with a warning.
 ##
-## --upscaler=<fsr2|amd_fsr|xess> renders at 67% of the resolution and upscales
-## with Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 or XeSS (Windows,
-## Vulkan or Direct3D 12); both fall back to FSR 2.2 elsewhere. On Vulkan, XeSS
-## also needs the project setting before Erethea starts: put
-## "[rendering]\nerethea/temporal_upscaler=2" in an override.cfg next to
-## project.godot. --upscale-scale=<0.25..1> changes the 67%.
+## --upscaler=<fsr2|amd_fsr|xess|dlss> renders at 67% of the resolution and
+## upscales with Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 or XeSS
+## (Windows, Vulkan or Direct3D 12) or DLSS (Windows, Direct3D 12, NVIDIA RTX);
+## they fall back to FSR 2.2 elsewhere. XeSS on Vulkan and DLSS also need the
+## project setting before Erethea starts: put
+## "[rendering]\nerethea/temporal_upscaler=2" (3 for DLSS) in an override.cfg
+## next to project.godot. --upscale-scale=<0.25..1> changes the 67%.
 
 const TIMES: Array[String] = ["dia", "noite"]
 const VIEWS := {
@@ -46,7 +47,7 @@ const MOTION_PAN := 12.0
 const MOTION_TURN := 60.0
 const LUT_PATH := "res://luts/cinematic.cube"
 # The values of the Erethea setting rendering/erethea/temporal_upscaler.
-const UPSCALERS := {"fsr2": 0, "amd_fsr": 1, "xess": 2}
+const UPSCALERS := {"fsr2": 0, "amd_fsr": 1, "xess": 2, "dlss": 3}
 const UPSCALER_SETTING := "rendering/erethea/temporal_upscaler"
 const CAPTURE_SIZE := Vector2i(1280, 720)
 const SEED := 2026

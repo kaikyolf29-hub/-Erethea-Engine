@@ -35,7 +35,7 @@
 #include "servers/rendering/rendering_server.h"
 
 void EretheaUpscaler::register_project_settings() {
-	GLOBAL_DEF(PropertyInfo(Variant::INT, PROJECT_SETTING, PROPERTY_HINT_ENUM, "FSR 2.2,AMD FSR,XeSS"), MODE_FSR2);
+	GLOBAL_DEF(PropertyInfo(Variant::INT, PROJECT_SETTING, PROPERTY_HINT_ENUM, "FSR 2.2,AMD FSR,XeSS,DLSS"), MODE_FSR2);
 }
 
 EretheaUpscaler::Mode EretheaUpscaler::get_project_mode() {
@@ -44,13 +44,21 @@ EretheaUpscaler::Mode EretheaUpscaler::get_project_mode() {
 }
 
 void EretheaUpscaler::prepare_rendering_driver() {
-	if (get_project_mode() == MODE_XESS) {
-		XessUpscaler::prepare_rendering_driver();
+	switch (get_project_mode()) {
+		case MODE_XESS:
+			XessUpscaler::prepare_rendering_driver();
+			break;
+		case MODE_DLSS:
+			DlssUpscaler::prepare_rendering_driver();
+			break;
+		default:
+			break;
 	}
 }
 
 void EretheaUpscaler::finish_rendering_driver() {
 	XessUpscaler::finish_rendering_driver();
+	DlssUpscaler::finish_rendering_driver();
 }
 
 void EretheaUpscaler::_update_from_project_settings() {
@@ -106,11 +114,16 @@ bool EretheaUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers,
 	if (current != MODE_XESS) {
 		xess.release(p_render_buffers);
 	}
+	if (current != MODE_DLSS) {
+		dlss.release(p_render_buffers);
+	}
 	switch (current) {
 		case MODE_AMD_FSR:
 			return amd_fsr.upscale(p_render_buffers, p_render_data, p_time_step);
 		case MODE_XESS:
 			return xess.upscale(p_render_buffers, p_render_data, p_time_step);
+		case MODE_DLSS:
+			return dlss.upscale(p_render_buffers, p_render_data, p_time_step);
 		default:
 			return false;
 	}

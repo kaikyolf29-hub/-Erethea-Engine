@@ -31,6 +31,7 @@
 #include "erethea_upscale_export_plugin.h"
 
 #include "../amd_fsr_upscaler.h"
+#include "../dlss_upscaler.h"
 #include "../erethea_upscaler.h"
 #include "../xess_upscaler.h"
 
@@ -56,6 +57,10 @@ void EretheaUpscaleExportPlugin::_export_begin(const HashSet<String> &p_features
 			libraries = XessUpscaler::get_runtime_libraries(driver);
 			upscaler = "XeSS";
 			break;
+		case EretheaUpscaler::MODE_DLSS:
+			libraries = DlssUpscaler::get_runtime_libraries(driver);
+			upscaler = "DLSS";
+			break;
 		default:
 			break;
 	}
@@ -67,17 +72,30 @@ void EretheaUpscaleExportPlugin::_export_begin(const HashSet<String> &p_features
 	for (const String &library : libraries) {
 		const String path = folder.path_join(library);
 		if (!FileAccess::exists(path)) {
-			const String message = vformat(TTR("\"%s\" isn't next to the editor's executable, so the exported game will use FSR 2.2 instead of %s."), library, upscaler);
-			Ref<EditorExportPlatform> platform = get_export_platform();
-			if (platform.is_valid()) {
-				platform->add_message(EditorExportPlatform::EXPORT_MESSAGE_WARNING, upscaler, message);
-			} else {
-				WARN_PRINT(message);
+			String message = vformat(TTR("\"%s\" isn't next to the editor's executable, so the exported game will use FSR 2.2 instead of %s."), library, upscaler);
+			if (upscaler == "DLSS") {
+				// NVIDIA's license doesn't let Erethea ship them.
+				message += " " + TTR("Erethea doesn't include NVIDIA's DLSS files: download them from NVIDIA as explained in Erethea's README.");
 			}
+			_add_message(EditorExportPlatform::EXPORT_MESSAGE_WARNING, upscaler, message);
 			return;
 		}
 	}
 	for (const String &library : libraries) {
 		add_shared_object(folder.path_join(library), Vector<String>());
+	}
+	if (upscaler == "DLSS") {
+		_add_message(EditorExportPlatform::EXPORT_MESSAGE_INFO, upscaler, TTR("The game ships NVIDIA's DLSS files, under NVIDIA's license: it asks for NVIDIA's attribution in the game's credits and for NVIDIA to be told before a commercial release. See \"DLSS\" in Erethea's README."));
+	}
+}
+
+void EretheaUpscaleExportPlugin::_add_message(EditorExportPlatform::ExportMessageType p_type, const String &p_category, const String &p_message) {
+	Ref<EditorExportPlatform> platform = get_export_platform();
+	if (platform.is_valid()) {
+		platform->add_message(p_type, p_category, p_message);
+	} else if (p_type == EditorExportPlatform::EXPORT_MESSAGE_INFO) {
+		print_line(p_message);
+	} else {
+		WARN_PRINT(p_message);
 	}
 }
