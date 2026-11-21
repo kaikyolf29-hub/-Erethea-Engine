@@ -50,7 +50,14 @@
 #include <mutex>
 #include <unordered_map>
 
-#ifdef _WIN32
+#if defined(_MSC_VER)
+// vk_layer.h declares vkNegotiateLoaderLayerInterfaceVersion without
+// dllexport, and MSVC won't let the definition add it, so export by name.
+#define LAYER_EXPORT extern "C"
+#pragma comment(linker, "/EXPORT:vkNegotiateLoaderLayerInterfaceVersion")
+#pragma comment(linker, "/EXPORT:vkGetInstanceProcAddr")
+#pragma comment(linker, "/EXPORT:vkGetDeviceProcAddr")
+#elif defined(_WIN32)
 #define LAYER_EXPORT extern "C" __declspec(dllexport)
 #else
 #define LAYER_EXPORT extern "C" __attribute__((visibility("default")))
