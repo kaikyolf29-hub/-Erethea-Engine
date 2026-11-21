@@ -1,0 +1,78 @@
+name: 🔥 Erethea MCP
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Starts the editor with its MCP server on (modules/erethea_mcp) and drives it
+# as an agent such as Claude Code would, with erethea/tests/mcp/test_mcp.py: it
+# creates scenes, nodes and a script, saves, runs the game, reads the game's
+# errors and prints, and takes screenshots.
+#
+# On Linux it runs twice: with --headless, and with a window under Xvfb, drawn
+# on the CPU by Mesa's lavapipe Vulkan driver, where the screenshots must be
+# real images. On Windows it runs with --headless.
+
+jobs:
+  mcp-linux:
+    runs-on: ubuntu-24.04
+    name: MCP server on Linux
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the lavapipe Vulkan driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Headless editor
+        run: |
+          chmod +x bin/erethea.*
+          python3 erethea/tests/mcp/test_mcp.py bin/erethea.linuxbsd.editor.x86_64.mono --out "$PWD/mcp/linux-headless"
+
+      - name: Editor with a window
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" \
+            python3 erethea/tests/mcp/test_mcp.py bin/erethea.linuxbsd.editor.x86_64.mono --window --out "$PWD/mcp/linux-window"
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-mcp-linux
+          path: mcp
+          retention-days: 14
+
+  mcp-windows:
+    runs-on: windows-latest
+    name: MCP server on Windows
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Headless editor
+        run: python erethea/tests/mcp/test_mcp.py bin/erethea.windows.editor.x86_64.exe --out "${{ github.workspace }}/mcp/windows-headless"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-mcp-windows
+          path: mcp
+          retention-days: 14
