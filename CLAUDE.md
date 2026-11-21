@@ -50,7 +50,7 @@ novas da Godot sem reescrever nada.
 | Gráficos, renderizador | `servers/rendering/renderer_rd/` |
 | Presets de qualidade | `modules/erethea_quality/` |
 | Pós-processamento (LUT `.cube`, lens flare, motion blur, grão) | `modules/erethea_post/` |
-| Upscalers (AMD FSR 3.1/4 e XeSS; depois DLSS) | `modules/erethea_upscale/` |
+| Upscalers (AMD FSR 3.1/4, XeSS e DLSS) | `modules/erethea_upscale/` |
 | Streaming de texturas 3D | `modules/erethea_streaming/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
