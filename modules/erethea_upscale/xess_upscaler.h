@@ -40,19 +40,26 @@ class RenderSceneBuffersRD;
 // Upscales with Intel XeSS Super Resolution through Intel's libxess.dll next
 // to the executable. It runs on Intel Arc and Iris Xe graphics, and on other
 // graphics cards with Shader Model 6.4 (DP4a) through its cross-vendor path.
-// Needs Windows, the Forward+ renderer and, for now, the Direct3D 12 rendering
-// driver. Only touched on the rendering thread.
+// Needs Windows, the Forward+ renderer and the Direct3D 12 or Vulkan
+// rendering driver. Only touched on the rendering thread, except for
+// prepare_rendering_driver() and finish_rendering_driver().
 class XessUpscaler {
 public:
 	static constexpr const char *LIBRARY = "libxess.dll";
 
-	// The runtime for a rendering driver ("d3d12"), or nothing for the drivers
-	// XeSS doesn't support here yet.
+	// The runtime for a rendering driver ("d3d12" or "vulkan"), or nothing for
+	// the drivers XeSS doesn't support.
 	static Vector<String> get_runtime_libraries(const String &p_rendering_driver);
 
 	// Whether this build can run XeSS with a rendering driver (Windows, and
 	// the driver built in).
 	static bool is_supported_by_build(const String &p_rendering_driver);
+
+	// On Vulkan, XeSS needs extensions and features enabled when the device is
+	// created. For projects that use XeSS, called before the rendering device
+	// is created, on the main thread.
+	static void prepare_rendering_driver();
+	static void finish_rendering_driver();
 
 	// Returns false when XeSS can't run, so that FSR 2.2 runs instead.
 	bool upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step);

@@ -1420,6 +1420,7 @@ the Intel Simplified Software License and isn't in the repository):
 
 - `inc/xess/xess.h`
 - `inc/xess/xess_d3d12.h`
+- `inc/xess/xess_vk.h`
 - `LICENSE.txt` taken from the license header of these files
 
 

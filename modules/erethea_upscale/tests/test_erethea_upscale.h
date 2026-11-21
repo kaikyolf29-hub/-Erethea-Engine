@@ -90,20 +90,24 @@ TEST_CASE("[Modules][EretheaUpscale] AMD FSR runtime") {
 }
 
 TEST_CASE("[Modules][EretheaUpscale] XeSS runtime") {
-	const Vector<String> d3d12 = XessUpscaler::get_runtime_libraries("d3d12");
-	REQUIRE(d3d12.size() == 1);
-	CHECK(d3d12[0] == "libxess.dll");
+	for (const String driver : { "d3d12", "vulkan" }) {
+		const Vector<String> libraries = XessUpscaler::get_runtime_libraries(driver);
+		REQUIRE(libraries.size() == 1);
+		CHECK(libraries[0] == "libxess.dll");
+	}
 
-	// Not on Vulkan yet: it needs extensions at device creation.
-	CHECK(XessUpscaler::get_runtime_libraries("vulkan").is_empty());
-	CHECK_FALSE(XessUpscaler::is_supported_by_build("vulkan"));
 	CHECK(XessUpscaler::get_runtime_libraries("opengl3").is_empty());
 	CHECK_FALSE(XessUpscaler::is_supported_by_build("opengl3"));
 
-#if defined(WINDOWS_ENABLED) && defined(D3D12_ENABLED)
+#if defined(WINDOWS_ENABLED) && defined(RD_ENABLED) && defined(D3D12_ENABLED)
 	CHECK(XessUpscaler::is_supported_by_build("d3d12"));
 #else
 	CHECK_FALSE(XessUpscaler::is_supported_by_build("d3d12"));
+#endif
+#if defined(WINDOWS_ENABLED) && defined(RD_ENABLED) && defined(VULKAN_ENABLED)
+	CHECK(XessUpscaler::is_supported_by_build("vulkan"));
+#else
+	CHECK_FALSE(XessUpscaler::is_supported_by_build("vulkan"));
 #endif
 }
 
