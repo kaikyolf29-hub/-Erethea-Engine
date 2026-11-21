@@ -156,7 +156,7 @@ erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --post=all --capt
 O CI captura a cena com todos os efeitos e mostra a diferença para o padrão.
 Ainda não medido nas placas de referência: o custo de cada efeito em FPS.
 
-## Upscaling (AMD FSR 3.1 e 4)
+## Upscaling (AMD FSR 3.1 e 4, XeSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por
 meio do runtime oficial da AMD (FSR SDK 2.4.0, licença MIT): o runtime escolhe o
@@ -199,6 +199,33 @@ lavapipe, uma camada de teste (`erethea/tests/vulkan_memory_alias`, só do CI)
 cria a memória que só a placa enxerga como apelido da memória do lavapipe.
 **Não testado na placa:** a qualidade e o custo em FPS na RX 580 e na RTX 4060
 Ti/5060 Ti, e o FSR 4 (precisa de uma Radeon RX 6000 ou mais nova).
+
+### XeSS
+
+A outra opção é o **XeSS** da Intel (XeSS Super Resolution 2.0, do XeSS 3 SDK),
+pelo `libxess.dll` da própria Intel: *Temporal Upscaler* = `XeSS`, com o modo
+`FSR 2.2` no Viewport como no AMD FSR. Ele roda nas placas Intel Arc e Iris Xe
+e, pelo caminho para outras marcas, em qualquer placa com Shader Model 6.4
+(DP4a), o que inclui a RX 580 e as GeForce. A Erethea escolhe o preset de
+qualidade do XeSS pela escala do Viewport; abaixo de 1/3 (33%) o XeSS não
+reconstrói e a Erethea usa o FSR 2.2.
+
+Por enquanto só no **Direct3D 12** (o padrão dos projetos novos no Windows):
+no Vulkan o XeSS precisa ligar extensões na criação do dispositivo, o que a
+Erethea ainda não faz, e aí avisa e usa o FSR 2.2. O instalador coloca o
+`libxess.dll` (78 MB) e a licença da Intel (`XESS_LICENSE.txt`, que deixa
+redistribuir o arquivo sem modificação), e a exportação para Windows copia o
+arquivo para o jogo quando o projeto usa o XeSS com o Direct3D 12. Num build
+próprio:
+
+```sh
+python erethea/tools/fetch_xess.py bin
+```
+
+Na cena de referência, `--upscaler=xess`. O CI roda a cena com o XeSS no
+Direct3D 12 do WARP e compara com o FSR 2.2. **Não testado na placa:** a
+qualidade e o custo em FPS na RX 580 e na RTX 4060 Ti/5060 Ti, e numa placa
+Intel.
 
 ## Streaming de texturas
 

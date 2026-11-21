@@ -32,8 +32,8 @@
 
 #include "editor/export/editor_export_plugin.h"
 
-// Ships AMD's FSR runtime with Windows exports of projects that use it, taken
-// from the folder of the editor's executable.
+// Ships the runtime of the upscaler (AMD FSR or XeSS) with Windows exports of
+// projects that use it, taken from the folder of the editor's executable.
 class EretheaUpscaleExportPlugin : public EditorExportPlugin {
 	GDCLASS(EretheaUpscaleExportPlugin, EditorExportPlugin);
 

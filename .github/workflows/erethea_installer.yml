@@ -40,6 +40,8 @@ jobs:
           Copy-Item bin/erethea.windows.editor.x86_64.exe erethea/installer/erethea.exe
           python erethea/tools/fetch_amd_fsr.py erethea/installer
           if ($LASTEXITCODE -ne 0) { throw "Couldn't download AMD's FSR runtime" }
+          python erethea/tools/fetch_xess.py erethea/installer
+          if ($LASTEXITCODE -ne 0) { throw "Couldn't download Intel's XeSS runtime" }
           $version = python -c "import version; print(f'{version.major}.{version.minor}')"
           & $env:ISCC "/DMyAppVersion=$version" erethea/installer/erethea.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
@@ -55,6 +57,7 @@ jobs:
           foreach ($dll in "amd_fidelityfx_upscaler_vk.dll", "amd_fidelityfx_upscaler_dx12.dll") {
             if (-not (Test-Path "$dir/$dll")) { throw "AMD's FSR runtime ($dll) was not installed" }
           }
+          if (-not (Test-Path "$dir/libxess.dll")) { throw "Intel's XeSS runtime (libxess.dll) was not installed" }
           "ERETHEA_DIR=$dir" >> $env:GITHUB_ENV
 
       - name: Open a Godot project with the installed editor

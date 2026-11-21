@@ -71,6 +71,10 @@ Source: "amd_fidelityfx_upscaler_vk.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "amd_fidelityfx_loader_dx12.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "amd_fidelityfx_upscaler_dx12.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "AMD_FSR_LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
+; XeSS runtime for the erethea_upscale module, downloaded by
+; erethea/tools/fetch_xess.py.
+Source: "libxess.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "XESS_LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

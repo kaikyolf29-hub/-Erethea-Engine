@@ -1,0 +1,113 @@
+name: 🔥 Erethea XeSS
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Upscales the reference scene with Intel XeSS (modules/erethea_upscale) in the
+# Windows editor built by windows_builds.yml, on Direct3D 12 with Microsoft's
+# WARP standing in for a graphics card. XeSS then runs its cross-vendor path
+# (Shader Model 6.4), as on graphics cards that aren't Intel's. The job checks
+# that the runtime loads, that XeSS upscales without errors, and that its image
+# stays close to FSR 2.2's from the same frames. The captures, side by side, are
+# uploaded as an artifact.
+#
+# This proves the integration, not the quality or speed on a graphics card: see
+# "Não testado na placa" in erethea/README.md.
+
+env:
+  # WARP from NuGet (https://www.nuget.org/packages/Microsoft.Direct3D.WARP).
+  WARP_VERSION: 1.0.22
+  # Largest allowed difference with FSR 2.2, as luminance RMSE (0 to 255). Two
+  # upscalers never match, this only catches a broken image.
+  MAX_RMSE: 12.0
+
+jobs:
+  xess:
+    runs-on: windows-latest
+    name: XeSS on Direct3D 12 (WARP)
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Download Intel's XeSS runtime
+        run: python erethea/tools/fetch_xess.py bin
+
+      - name: Install a recent WARP
+        shell: pwsh
+        run: |
+          # The runner's own WARP crashes compiling some compute shaders. Use
+          # Microsoft's current one, which Direct3D 12 loads from the
+          # executable's folder.
+          $package = "microsoft.direct3d.warp.$env:WARP_VERSION.nupkg"
+          Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.direct3d.warp/$env:WARP_VERSION/$package" -OutFile warp.zip
+          Expand-Archive warp.zip -DestinationPath warp -Force
+          Copy-Item warp/build/native/bin/x64/d3d10warp.dll bin/
+          Write-Output "WARP: $((Get-Item bin/d3d10warp.dll).VersionInfo.FileVersion)"
+
+      - name: Capture with FSR 2.2 and XeSS
+        shell: pwsh
+        run: |
+          $exe = "bin/erethea.windows.editor.x86_64.exe"
+          $project = "erethea/tests/reference_scene"
+          foreach ($upscaler in "fsr2", "xess") {
+            & $exe --path $project --rendering-driver d3d12 --fixed-fps 30 -- `
+              "--capture=$PWD/captures/$upscaler" "--upscaler=$upscaler" --warmup=12 --frames=4 2>&1 | Tee-Object -FilePath "$upscaler.log"
+            if ($LASTEXITCODE -ne 0) { throw "The $upscaler capture failed with exit code $LASTEXITCODE" }
+          }
+          Select-String -Path xess.log -Pattern "D3D12|Direct3D|WARP|Basic Render|XeSS|FSR 2.2" | Select-Object -First 20
+
+          if (Select-String -Path xess.log -Pattern "Using FSR 2.2|XeSS couldn't|^ERROR:.*XeSS" -Quiet) {
+            throw "XeSS didn't upscale, see xess.log above"
+          }
+          if (-not (Select-String -Path xess.log -Pattern "Erethea: upscaling with XeSS" -Quiet)) {
+            throw "XeSS didn't start"
+          }
+
+      # Runs a short XeSS capture again with all of XeSS's messages and the
+      # Direct3D 12 debug layer, under the console debugger, which prints where
+      # it crashed.
+      - name: Show where XeSS failed
+        if: failure()
+        shell: pwsh
+        run: |
+          $exe = "bin/erethea.windows.editor.x86_64.exe"
+          $arguments = @("--path", "erethea/tests/reference_scene", "--rendering-driver", "d3d12", "--fixed-fps", "30", "--verbose", "--gpu-validation", "--",
+            "--capture=$PWD/captures/xess_debug", "--upscaler=xess", "--warmup=1", "--frames=1")
+          $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($cdb) {
+            $env:_NT_SYMBOL_PATH = "srv*$env:RUNNER_TEMP\symbols*https://msdl.microsoft.com/download/symbols"
+            & $cdb.FullName -g -G -lines -c "!gle; .ecxr; kn 60; q" $exe @arguments 2>&1 | Tee-Object -FilePath xess_debug.log
+          } else {
+            & $exe @arguments 2>&1 | Tee-Object -FilePath xess_debug.log
+          }
+          Write-Output "== XeSS messages"
+          Select-String -Path xess_debug.log -Pattern "XeSS|D3D12 ERROR|D3D12 WARNING" | Select-Object -First 60
+          exit 0
+
+      - name: Compare XeSS with FSR 2.2
+        shell: pwsh
+        run: |
+          & bin/erethea.windows.editor.x86_64.exe --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- `
+            "--baseline=$PWD/captures/fsr2" "--candidate=$PWD/captures/xess" "--out=$PWD/captures/comparison" "--max-rmse=$env:MAX_RMSE" 2>&1 | Tee-Object -FilePath compare.log
+          $code = $LASTEXITCODE
+          "## XeSS contra FSR 2.2 (Direct3D 12 no WARP, Windows)" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content captures/comparison/summary.md -ErrorAction SilentlyContinue >> $env:GITHUB_STEP_SUMMARY
+          if ($code -ne 0) { throw "XeSS's image differs from FSR 2.2's more than $env:MAX_RMSE" }
+
+      - name: Upload captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-xess-captures
+          path: |
+            captures
+            *.log
+          retention-days: 14
