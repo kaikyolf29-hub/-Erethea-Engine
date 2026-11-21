@@ -55,4 +55,18 @@ void *AmdFsrBackends::get_command_list_vulkan(RenderingDeviceDriver::CommandBuff
 	return RenderingDeviceDriverVulkan::command_buffer_get_vk_handle(p_command_buffer);
 }
 
+bool AmdFsrBackends::has_device_only_memory_vulkan() {
+	RenderingDevice *rd = RenderingDevice::get_singleton();
+	VkPhysicalDevice physical_device = (VkPhysicalDevice)rd->get_driver_resource(RD::DRIVER_RESOURCE_PHYSICAL_DEVICE);
+	VkPhysicalDeviceMemoryProperties properties = {};
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &properties);
+	for (uint32_t i = 0; i < properties.memoryTypeCount; i++) {
+		const VkMemoryPropertyFlags flags = properties.memoryTypes[i].propertyFlags;
+		if ((flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) && !(flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 #endif // defined(WINDOWS_ENABLED) && defined(VULKAN_ENABLED)

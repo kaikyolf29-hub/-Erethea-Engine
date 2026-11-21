@@ -197,6 +197,14 @@ Backend choose_backend() {
 		}
 		return Backend::D3D12;
 	}
+#ifdef VULKAN_ENABLED
+	if (!AmdFsrBackends::has_device_only_memory_vulkan()) {
+		// AMD's Vulkan backend only puts its textures in device-local memory
+		// that the CPU can't see, and fails to start without it.
+		WARN_PRINT(vformat("AMD FSR on Vulkan needs video memory of its own, which this device (%s) doesn't have, as with software renderers. Using FSR 2.2.", RenderingDevice::get_singleton()->get_device_name()));
+		return Backend::NONE;
+	}
+#endif
 	return Backend::VULKAN;
 }
 

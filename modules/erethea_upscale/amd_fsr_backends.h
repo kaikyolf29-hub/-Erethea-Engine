@@ -47,6 +47,10 @@ namespace AmdFsrBackends {
 ffxReturnCode_t create_context_vulkan(PfnFfxCreateContext p_create_context, ffxContext *r_context, ffxCreateContextDescHeader *p_desc, ffxApiHeader *p_chain_end);
 // The command buffer for FSR to record into, inside a driver callback.
 void *get_command_list_vulkan(RenderingDeviceDriver::CommandBufferID p_command_buffer);
+// Whether the device has a memory type that is device-local without being
+// visible to the CPU. AMD's Vulkan backend puts its textures only there, so
+// devices with shared memory only (software renderers) can't run FSR.
+bool has_device_only_memory_vulkan();
 
 ffxReturnCode_t create_context_d3d12(PfnFfxCreateContext p_create_context, ffxContext *r_context, ffxCreateContextDescHeader *p_desc, ffxApiHeader *p_chain_end);
 void *get_command_list_d3d12(RenderingDeviceDriver::CommandBufferID p_command_buffer);
