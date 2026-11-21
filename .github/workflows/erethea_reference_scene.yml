@@ -10,8 +10,9 @@ on:
 # Godot projects keep their look. The captures, side by side, are uploaded as
 # an artifact, and the job summary lists the differences and frame times.
 #
-# Then it captures the scene with each Erethea quality preset and compares it
-# with the default settings, without a limit: those differences are on purpose.
+# Then it captures the scene with each Erethea quality preset, and with the
+# post-processing effects, and compares them with the default settings, without
+# a limit: those differences are on purpose.
 #
 # The frame times come from a CPU renderer: they only compare one run with
 # another, they don't say how fast a game runs on a graphics card.
@@ -117,6 +118,31 @@ jobs:
               cat "captures/comparison_$preset/summary.md"
             } >> "$GITHUB_STEP_SUMMARY"
           done
+
+      - name: Capture the post-processing effects
+        if: always() && hashFiles('captures/erethea/results.json') != ''
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          # The color correction LUT (luts/cinematic.cube) needs the project
+          # imported once.
+          "$ERETHEA" --headless --import --path "$RUNNER_TEMP/scene_erethea"
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
+            --audio-driver Dummy --fixed-fps 30 -- --post=all --capture="$PWD/captures/post_all" 2>&1 | tee post_all.log
+          if grep -q "skipping the LUT" post_all.log; then
+            echo "The .cube LUT was not imported."
+            exit 1
+          fi
+          "$ERETHEA" --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
+            --baseline="$PWD/captures/erethea" --candidate="$PWD/captures/post_all" \
+            --out="$PWD/captures/comparison_post_all"
+          {
+            echo "## Pós-processamento da Erethea"
+            echo
+            echo "Erethea sem efeitos × com todos: LUT .cube (luts/cinematic.cube), vinheta, aberração cromática e grão de filme (EretheaPostEffect)."
+            echo
+            cat captures/comparison_post_all/summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the captures
         if: always()

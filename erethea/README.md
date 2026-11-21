@@ -111,6 +111,39 @@ Ainda não testado nas placas de referência: a escolha do Automático (a RX 580
 deve cair em Balanced, e a RTX 4060 Ti ou 5060 Ti em Cinematic) e o FPS de
 cada preset.
 
+## Pós-processamento
+
+O código fica em `modules/erethea_post/`. Tudo começa desligado.
+
+**LUT de cor (`.cube`).** A Erethea importa arquivos `.cube`, o formato que o
+DaVinci Resolve, o Photoshop e o Premiere exportam. O arquivo vira uma textura
+3D que vai direto em *Environment › Adjustments › Color Correction* (com
+*Adjustments* ligado). Funciona nos três renderizadores. Para fazer uma LUT:
+tire um print do jogo, faça a correção de cor no programa e exporte a LUT em
+sRGB / Rec. 709 (a LUT entra depois do tone mapping, como as outras texturas de
+correção de cor da Godot). A tabela é reamostrada para 65×65×65 do jeito que o
+renderizador lê, então uma LUT neutra não muda a imagem (na cena de referência,
+a diferença foi de 0,2 a 0,4 de 255).
+
+**Vinheta, aberração cromática e grão de filme (`EretheaPostEffect`).** É um
+`CompositorEffect`: crie um `Compositor` no `WorldEnvironment` ou na `Camera3D`,
+adicione um `EretheaPostEffect` e ajuste a intensidade de cada efeito (0
+desliga). Só funciona no Forward+; nos outros renderizadores não faz nada. Os
+efeitos entram antes do TAA, do upscaling e do tone mapping. Os detalhes estão
+na referência da classe, dentro do editor.
+
+Para ver na cena de referência, importe o projeto uma vez e acrescente
+`--post=all` (ou uma lista com `lut`, `vignette`, `aberration` e `grain`)
+depois do `--`:
+
+```sh
+erethea --headless --import --path erethea/tests/reference_scene
+erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --post=all --capture="$PWD/capturas/pos"
+```
+
+O CI captura a cena com todos os efeitos e mostra a diferença para o padrão.
+Ainda não medido nas placas de referência: o custo de cada efeito em FPS.
+
 ## Lançar uma versão
 
 As versões da Erethea têm numeração própria (`0.2.0`, `0.2.0-beta.1`),
