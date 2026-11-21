@@ -31,6 +31,7 @@
 #include "render_forward_clustered.h"
 
 #include "core/config/project_settings.h"
+#include "servers/rendering/renderer_rd/effects/temporal_upscaler.h" // Erethea
 #include "servers/rendering/renderer_rd/environment/fog.h"
 #include "servers/rendering/renderer_rd/framebuffer_cache_rd.h"
 #include "servers/rendering/renderer_rd/storage_rd/light_storage.h"
@@ -2562,7 +2563,11 @@ void RenderForwardClustered::_render_scene(RenderDataRD *p_render_data, const Co
 		_process_compositor_effects(RSE::COMPOSITOR_EFFECT_CALLBACK_TYPE_POST_TRANSPARENT, p_render_data);
 	}
 
-	if (rb_data.is_valid() && (using_upscaling || using_taa)) {
+	// Erethea: A module can replace FSR 2.2 with another temporal upscaler.
+	RendererRD::TemporalUpscaler *temporal_upscaler = RendererRD::TemporalUpscaler::get_singleton();
+	bool upscaled_by_module = rb_data.is_valid() && scale_type == SCALE_FSR2 && temporal_upscaler && temporal_upscaler->upscale(rb, p_render_data, time_step);
+
+	if (rb_data.is_valid() && (using_upscaling || using_taa) && !upscaled_by_module) {
 		if (scale_type == SCALE_FSR2) {
 			rb_data->ensure_fsr2(fsr2_effect);
 

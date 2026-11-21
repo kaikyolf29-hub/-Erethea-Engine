@@ -420,6 +420,9 @@ public:
 	virtual void command_buffer_end(CommandBufferID p_cmd_buffer) override final;
 	virtual void command_buffer_execute_secondary(CommandBufferID p_cmd_buffer, VectorView<CommandBufferID> p_secondary_cmd_buffers) override final;
 
+	// Erethea: Lets native upscalers (AMD FSR) record into the command buffer given to a driver callback.
+	static VkCommandBuffer command_buffer_get_vk_handle(CommandBufferID p_cmd_buffer) { return ((const CommandBufferInfo *)p_cmd_buffer.id)->vk_command_buffer; }
+
 	/********************/
 	/**** SWAP CHAIN ****/
 	/********************/

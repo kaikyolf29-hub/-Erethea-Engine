@@ -1,0 +1,11 @@
+{
+    "file_format_version": "1.2.0",
+    "layer": {
+        "name": "VK_LAYER_ERETHEA_memory_alias",
+        "type": "GLOBAL",
+        "library_path": ".\\VkLayer_erethea_memory_alias.dll",
+        "api_version": "1.4.0",
+        "implementation_version": "1",
+        "description": "Erethea CI only: gives software renderers a device-local memory type the CPU can't see"
+    }
+}

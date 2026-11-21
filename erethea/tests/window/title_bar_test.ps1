@@ -51,6 +51,32 @@ public static class Win {
 	[DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint action, uint param, ref int value, uint winIni);
 	[DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint action, uint param, IntPtr value, uint winIni);
 	[DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out RECT rect, int size);
+	[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+	[DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+	[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+	[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
+	public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+	[DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+	// The top-level windows of a process, front to back.
+	public static IntPtr[] ProcessWindows(uint processId) {
+		var windows = new System.Collections.Generic.List<IntPtr>();
+		EnumWindows((hWnd, lParam) => {
+			uint owner;
+			GetWindowThreadProcessId(hWnd, out owner);
+			if (owner == processId) {
+				windows.Add(hWnd);
+			}
+			return true;
+		}, IntPtr.Zero);
+		return windows.ToArray();
+	}
+
+	public static string WindowTitle(IntPtr hWnd) {
+		var text = new System.Text.StringBuilder(512);
+		GetWindowText(hWnd, text, text.Capacity);
+		return text.ToString();
+	}
 
 	public static IntPtr MakePoint(int x, int y) {
 		return (IntPtr)((y << 16) | (x & 0xFFFF));
@@ -192,6 +218,34 @@ function Wait-MainWindow($process, [int]$timeoutSeconds) {
 		Start-Sleep -Milliseconds 500
 	}
 	throw "No window after $timeoutSeconds seconds."
+}
+
+# Lists the top-level windows of a process, to tell them apart in the log.
+function Write-ProcessWindows($process) {
+	foreach ($hwnd in [Win]::ProcessWindows([uint32]$process.Id)) {
+		Write-Host ("      window {0}: `"{1}`", visible: {2}, owner: {3}" -f $hwnd, [Win]::WindowTitle($hwnd), [Win]::IsWindowVisible($hwnd), [Win]::GetWindow($hwnd, 4)) # GW_OWNER
+	}
+}
+
+# The editor's main window: the visible one with the project's name in its
+# title. While the editor starts, it shows other windows too (such as the
+# progress of the first import), and the first one isn't always the one that
+# stays.
+function Wait-EditorWindow($process, [string]$projectName, [int]$timeoutSeconds) {
+	$deadline = (Get-Date).AddSeconds($timeoutSeconds)
+	while ((Get-Date) -lt $deadline) {
+		if ($process.HasExited) {
+			throw "The editor exited with code $($process.ExitCode) before showing its window."
+		}
+		foreach ($hwnd in [Win]::ProcessWindows([uint32]$process.Id)) {
+			if ([Win]::IsWindowVisible($hwnd) -and [Win]::WindowTitle($hwnd).Contains($projectName)) {
+				return $hwnd
+			}
+		}
+		Start-Sleep -Milliseconds 500
+	}
+	Write-ProcessWindows $process
+	throw "No editor window with `"$projectName`" in its title after $timeoutSeconds seconds."
 }
 
 # Whether the window has no caption. A maximized window has its borders
@@ -393,17 +447,18 @@ if (-not $pm.HasExited) { Stop-Process -Id $pm.Id -Force }
 
 # Editor, with a plain Godot project.
 $editorProcess = Start-Engine (@("--editor", "--path", $Project) + $renderer) "editor"
-$editorHwnd = Wait-MainWindow $editorProcess 180
+$projectName = (Select-String -Path (Join-Path $Project "project.godot") -Pattern '^config/name="(.*)"').Matches[0].Groups[1].Value
+$editorHwnd = Wait-EditorWindow $editorProcess $projectName 180
 Check "Editor extends to the title" (Wait-Extended $editorHwnd 120)
+# Let the first import finish, then make sure that the window is still the
+# editor's.
 Start-Sleep -Seconds 10
-# The first window may not be the one that stays: say so, and look for the
-# editor's window again.
-if (-not [Win]::IsWindow($editorHwnd)) {
-	Write-Output "      The editor's first window ($editorHwnd) is gone. Exited: $($editorProcess.HasExited)."
-	$editorProcess.Refresh()
-	$editorHwnd = Wait-MainWindow $editorProcess 60
-	Write-Output "      Editor window now: $editorHwnd"
+$editorHwndNow = Wait-EditorWindow $editorProcess $projectName 60
+if ($editorHwndNow -ne $editorHwnd) {
+	Write-Output "      The editor's window changed from $editorHwnd to $editorHwndNow."
+	$editorHwnd = $editorHwndNow
 }
+Write-ProcessWindows $editorProcess
 Place-Window $editorHwnd
 Save-Screenshot "editor"
 Test-TitleBar $editorHwnd "Editor"

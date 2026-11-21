@@ -64,6 +64,13 @@ Source: "{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "erethea.console.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\..\LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\COPYRIGHT.txt"; DestDir: "{app}"; Flags: ignoreversion
+; AMD FSR runtime for the erethea_upscale module, downloaded by
+; erethea/tools/fetch_amd_fsr.py.
+Source: "amd_fidelityfx_loader_vk.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "amd_fidelityfx_upscaler_vk.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "amd_fidelityfx_loader_dx12.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "amd_fidelityfx_upscaler_dx12.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "AMD_FSR_LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
