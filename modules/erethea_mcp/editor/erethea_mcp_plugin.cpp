@@ -54,16 +54,20 @@
 #include "scene/main/viewport.h"
 #include "servers/display/display_server.h"
 
-#include "modules/modules_enabled.gen.h" // For erethea_export_checks.
+#include "modules/modules_enabled.gen.h" // For erethea_export_checks and erethea_fornalha.
 #ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
 #include "editor/export/editor_export.h"
 
 #include "modules/erethea_export_checks/erethea_export_checks.h"
 #endif
+#ifdef MODULE_ERETHEA_FORNALHA_ENABLED
+#include "modules/erethea_fornalha/erethea_fornalha_import.h"
+#endif
 
 static const char *INSTRUCTIONS = "Erethea Engine editor (a fork of Godot 4). These tools act on the project open in this editor. "
 								  "Usual flow: get_editor_state, then open_scene or create_scene, get_scene_tree, create_node and set_node_properties, "
 								  "write_script and attach_script, save_scene, run_game, get_errors and take_screenshot, stop_game; check_export before exporting. "
+								  "In projects made with Fornalha, build_fornalha_scenes builds the game's scenes from game.project.json. "
 								  "Node paths are relative to the root of the scene being edited, which is \".\". "
 								  "Scene changes are undoable in the editor (Ctrl+Z), and the person can see them as you make them.";
 
@@ -130,6 +134,11 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 			"Checks the project before export: models with too many triangles, textures that are too big, models with the wrong scale (such as centimeters instead of meters), and, in projects made with Fornalha, assets without a license receipt or made with a model that can't be sold. Errors are what shouldn't ship; warnings are worth fixing.",
 			R"({"type": "object", "properties": {"preset": {"type": "string", "description": "Name of an export preset, to check only what it exports (default: every file of the project)."}}})" },
 #endif
+#ifdef MODULE_ERETHEA_FORNALHA_ENABLED
+	{ "build_fornalha_scenes", "Build scenes from game.project.json", false, false,
+			"In a project made with Fornalha, builds the game's scenes from game.project.json and the assets: one per character (the player with its camera, enemies with their AI), one per area of the blockout (World/areas/, with its enemies), the world and res://principal.tscn. A scene changed since it was built, or made elsewhere, is kept unless force is true; then a copy of the old one goes to res://.erethea/backup/. Call rescan_files first if Fornalha just added assets.",
+			R"({"type": "object", "properties": {"force": {"type": "boolean", "description": "Also replace the scenes that were kept (default false)."}}})" },
+#endif
 };
 
 Vector<EretheaMcpTool> EretheaMcpPlugin::get_tools() const {
@@ -185,6 +194,11 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 #ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
 	} else if (p_name == "check_export") {
 		r_result = _check_export(p_arguments);
+#endif
+#ifdef MODULE_ERETHEA_FORNALHA_ENABLED
+	} else if (p_name == "build_fornalha_scenes") {
+		const EretheaFornalhaImport::Report report = EretheaFornalhaImport::build(p_arguments.get("force", false));
+		r_result = report.error.is_empty() ? EretheaMcpToolResult::object(report.to_dictionary()) : EretheaMcpToolResult::error(report.error);
 #endif
 	} else {
 		r_result = EretheaMcpToolResult::error(vformat("Unknown tool: %s", p_name));

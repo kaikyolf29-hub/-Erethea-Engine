@@ -560,3 +560,7 @@
 /modules/erethea_export_checks/**/*.py        @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_export_checks/**/SCsub       @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_export_checks/tests/         @kaikyolf29-hub @godotengine/tests
+/modules/erethea_fornalha/                     @kaikyolf29-hub @godotengine/editor @godotengine/asset-pipeline
+/modules/erethea_fornalha/**/*.py              @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_fornalha/**/SCsub             @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_fornalha/tests/               @kaikyolf29-hub @godotengine/tests
