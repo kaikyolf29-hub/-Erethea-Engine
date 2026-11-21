@@ -163,12 +163,14 @@ jobs:
 
             # Trace AMD's runtime while it creates the upscaler, with the
             # value each function returns, to see where its error comes from.
+            # The trace starts in the upscaler's own library, which the loader
+            # library loads before (a library loading during "wt" ends it).
             Remove-Item env:VK_INSTANCE_LAYERS, env:VK_LOADER_LAYERS_ENABLE, env:VK_LOADER_DEBUG -ErrorAction SilentlyContinue
             $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($cdb) {
               # No -g: the commands run at the initial breakpoint, and each one
               # after a "g" runs at the next stop.
-              $commands = "sxe ld:amd_fidelityfx_loader_vk; g; bp amd_fidelityfx_loader_vk!ffxCreateContext; g; wt -l 12 -or; q"
+              $commands = "sxe ld:amd_fidelityfx_upscaler_vk; g; bp amd_fidelityfx_upscaler_vk!ffxCreateContext; sxd ld; g; wt -l 10 -or; q"
               $cdbArguments = @("-G", "-c", "`"$commands`"", $exe) + $arguments
               $process = Start-Process -FilePath $cdb.FullName -ArgumentList $cdbArguments -RedirectStandardOutput amd_fsr_trace.log -RedirectStandardError amd_fsr_trace_err.log -NoNewWindow -PassThru
               if (-not $process.WaitForExit(600000)) {
@@ -176,10 +178,15 @@ jobs:
                 Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
               }
               $trace = Get-Content amd_fsr_trace.log
-              Write-Output "== Trace of ffxCreateContext ($($trace.Count) lines): calls out of AMD's runtime"
-              $trace | Select-String -Pattern "vulkan_1!|LoadLibrary|GetProcAddress|GetModuleHandle|GetFileVersion|D3DKMT|GDI32!|amdihk|eax = " | Select-Object -First 200
-              Write-Output "== End of the trace"
-              $trace | Select-Object -Last 120
+              $summary = ($trace | Select-String -Pattern "instructions were executed" | Select-Object -First 1).LineNumber
+              if (-not $summary) { $summary = $trace.Count }
+              $callPattern = "^\s*\d+\s+\d+\s+\[\s*\d+\]"
+              Write-Output "== Debugger messages ($($trace.Count) lines in all)"
+              $trace[0..($summary - 1)] | Where-Object { $_ -notmatch $callPattern -and $_ -notmatch "^ModLoad:" } | Select-Object -Last 80
+              Write-Output "== Calls in AMD's libraries and out of them, with their results"
+              $trace[0..($summary - 1)] | Where-Object { $_ -match $callPattern -and $_ -match "amd_fidelityfx|vulkan_1|KERNEL32!|KERNELBASE!(LoadLibrary|GetProcAddress|GetModule|OutputDebug)|VERSION!|ucrtbase!getenv" } | Select-Object -First 1500
+              Write-Output "== Summary of the trace"
+              $trace[($summary - 1)..($trace.Count - 1)] | Where-Object { $_ -notmatch "^ntdll!|^ucrtbase!|^KERNELBASE!" }
             }
           } else {
             $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -225,32 +232,21 @@ jobs:
               print(f"\n== {name} returned {result}, line {number + 1}:")
               print("\n".join(lines[max(0, number - 20) : number + 80]))
 
-          # AMD's runtime starts by listing the device's extensions, which
-          # Erethea only does before it creates the device.
+          # AMD's runtime asks about the device with functions that Erethea
+          # only calls before it creates the device: print those calls, with
+          # their parameters and results.
+          queries = {"vkEnumerateDeviceExtensionProperties", "vkGetPhysicalDeviceProperties", "vkGetPhysicalDeviceProperties2",
+                  "vkGetPhysicalDeviceFeatures2", "vkGetPhysicalDeviceMemoryProperties"}
           device = next((number for number, name, _ in calls if name == "vkCreateDevice"), None)
-          start = next((index for index, (number, name, _) in enumerate(calls) if device is not None and number > device and name == "vkEnumerateDeviceExtensionProperties"), None)
-          if start is None:
-              print("\nNo call from AMD's runtime found.")
-          else:
-              print(f"\n== Calls from line {calls[start][0] + 1}:")
-              for number, name, result in calls[start : start + 600]:
-                  print(number + 1, name, result)
-
-          # Without that start, list the queries and creations after the first
-          # frame: Erethea's are few, and AMD's runtime would add its own.
-          present = next((index for index, (_, name, _) in enumerate(calls) if name == "vkQueuePresentKHR"), None)
-          if present is not None:
-              print("\n== Queries and creations after the first frame:")
-              wanted = re.compile(r"vk(GetPhysicalDevice|Enumerate|Create|Allocate|Bind|GetDeviceQueue|GetBufferMemory|GetImageMemory)")
-              shown = 0
-              previous = None
-              for number, name, result in calls[present:]:
-                  if wanted.match(name) and (name, result) != previous:
-                      print(number + 1, name, result)
-                      previous = (name, result)
-                      shown += 1
-                      if shown >= 300:
-                          break
+          later = [index for index, (number, name, _) in enumerate(calls) if device is not None and number > device and name in queries]
+          print(f"\n== {len(later)} device queries after vkCreateDevice")
+          for index in later[:12]:
+              number = calls[index][0]
+              end = calls[index + 1][0] if index + 1 < len(calls) else len(lines)
+              print("\n".join(lines[number : min(end, number + 150)]))
+              print(f"== The 30 calls after line {number + 1}:")
+              for later_number, name, result in calls[index + 1 : index + 31]:
+                  print(later_number + 1, name, result)
 
       - name: Compare AMD FSR with FSR 2.2
         shell: pwsh
