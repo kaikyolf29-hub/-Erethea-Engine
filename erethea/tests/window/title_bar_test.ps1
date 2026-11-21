@@ -396,6 +396,14 @@ $editorProcess = Start-Engine (@("--editor", "--path", $Project) + $renderer) "e
 $editorHwnd = Wait-MainWindow $editorProcess 180
 Check "Editor extends to the title" (Wait-Extended $editorHwnd 120)
 Start-Sleep -Seconds 10
+# The first window may not be the one that stays: say so, and look for the
+# editor's window again.
+if (-not [Win]::IsWindow($editorHwnd)) {
+	Write-Output "      The editor's first window ($editorHwnd) is gone. Exited: $($editorProcess.HasExited)."
+	$editorProcess.Refresh()
+	$editorHwnd = Wait-MainWindow $editorProcess 60
+	Write-Output "      Editor window now: $editorHwnd"
+}
 Place-Window $editorHwnd
 Save-Screenshot "editor"
 Test-TitleBar $editorHwnd "Editor"
@@ -411,6 +419,12 @@ if ($errors) {
 
 Write-Output ""
 if ($script:failures -gt 0) {
+	# The artifact isn't always reachable, so the end of each log goes to the
+	# job's output too.
+	foreach ($log in Get-ChildItem -Path $OutDir -Filter "*.log") {
+		Write-Output "----- $($log.Name) (last 40 lines) -----"
+		Get-Content $log.FullName -Tail 40
+	}
 	Write-Output "$($script:failures) check(s) failed. Screenshots and logs: $OutDir"
 	exit 1
 }
