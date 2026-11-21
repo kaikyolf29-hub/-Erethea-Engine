@@ -67,15 +67,13 @@ bool AmdFsrUpscaler::is_supported_by_build(const String &p_rendering_driver) {
 #ifdef ERETHEA_AMD_FSR_ENABLED
 
 #include "amd_fsr_backends.h"
-#include "erethea_upscale_inputs.glsl.gen.h"
+#include "erethea_upscale_inputs.h"
 
 #include "core/io/file_access.h"
 #include "core/os/os.h"
-#include "servers/rendering/renderer_rd/storage_rd/material_storage.h"
 #include "servers/rendering/renderer_rd/storage_rd/render_data_rd.h"
 #include "servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.h"
 #include "servers/rendering/renderer_rd/storage_rd/render_scene_data_rd.h"
-#include "servers/rendering/renderer_rd/uniform_set_cache_rd.h"
 #include "servers/rendering/rendering_device.h"
 
 #include <thirdparty/amd-fsr-api/upscalers/include/ffx_upscale.h>
@@ -86,27 +84,6 @@ const StringName &buffers_name() {
 	static const StringName name = "erethea_amd_fsr";
 	return name;
 }
-
-const StringName &depth_name() {
-	static const StringName name = "depth";
-	return name;
-}
-
-const StringName &velocity_name() {
-	static const StringName name = "velocity";
-	return name;
-}
-
-const StringName &reactive_name() {
-	static const StringName name = "reactive";
-	return name;
-}
-
-struct PushConstant {
-	float reprojection[16];
-	int32_t size[2];
-	float pad[2];
-};
 
 enum class Backend {
 	NONE,
@@ -130,9 +107,7 @@ struct State {
 	PfnFfxQuery query = nullptr;
 	PfnFfxDispatch dispatch = nullptr;
 
-	EretheaUpscaleInputsShaderRD shader;
-	RID shader_version;
-	RID pipeline;
+	EretheaUpscaleInputs inputs;
 
 	// FSR contexts waiting for the frames that use them to finish on the GPU.
 	struct PendingContext {
@@ -479,58 +454,15 @@ bool AmdFsrUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, 
 		buffers->reset = true;
 	}
 
-	if (state->shader_version.is_null()) {
-		state->shader.initialize(Vector<String>({ "" }));
-		state->shader_version = state->shader.version_create();
-		state->pipeline = rd->compute_pipeline_create(state->shader.version_get_shader(state->shader_version, 0));
-	}
-
 	// FSR reads the depth, motion vectors and reactive mask from textures of
 	// its own formats. Copying them also fills in the motion of the sky, which
 	// Godot leaves to the upscaler, as its FSR 2.2 does.
-	const uint32_t usage = RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_STORAGE_BIT;
-	if (!rb->has_texture(buffers_name(), depth_name())) {
-		rb->create_texture(buffers_name(), depth_name(), RD::DATA_FORMAT_R32_SFLOAT, usage, RD::TEXTURE_SAMPLES_1, internal_size, 1);
-		rb->create_texture(buffers_name(), velocity_name(), RD::DATA_FORMAT_R16G16_SFLOAT, usage, RD::TEXTURE_SAMPLES_1, internal_size, 1);
-		rb->create_texture(buffers_name(), reactive_name(), RD::DATA_FORMAT_R8_UNORM, usage, RD::TEXTURE_SAMPLES_1, internal_size, 1);
-	}
-	const RID depth = rb->get_texture(buffers_name(), depth_name());
-	const RID velocity = rb->get_texture(buffers_name(), velocity_name());
-	const RID reactive = rb->get_texture(buffers_name(), reactive_name());
-
-	const RenderSceneDataRD *scene_data = p_render_data->scene_data;
-
-	PushConstant push_constant = {};
-	push_constant.size[0] = internal_size.width;
-	push_constant.size[1] = internal_size.height;
-	{
-		// The same reprojection as Godot's FSR 2.2.
-		Projection correction;
-		correction.set_depth_correction(true, true, false);
-		const Projection reprojection = (correction * scene_data->prev_cam_projection) * scene_data->prev_cam_transform.affine_inverse() * scene_data->cam_transform * (correction * scene_data->cam_projection).inverse();
-		RendererRD::MaterialStorage::store_camera(reprojection, push_constant.reprojection);
-	}
-
-	UniformSetCacheRD *uniform_set_cache = UniformSetCacheRD::get_singleton();
-	RendererRD::MaterialStorage *material_storage = RendererRD::MaterialStorage::get_singleton();
-	const RID nearest_sampler = material_storage->sampler_rd_get_default(RSE::CANVAS_ITEM_TEXTURE_FILTER_NEAREST, RSE::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED);
-	const RID shader = state->shader.version_get_shader(state->shader_version, 0);
-
-	RD::Uniform u_color(RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 0, Vector<RID>({ nearest_sampler, color }));
-	RD::Uniform u_depth(RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 1, Vector<RID>({ nearest_sampler, rb->get_depth_texture(0) }));
-	RD::Uniform u_velocity(RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 2, Vector<RID>({ nearest_sampler, rb->get_velocity_buffer(false, 0) }));
-	RD::Uniform u_dest_depth(RD::UNIFORM_TYPE_IMAGE, 0, Vector<RID>({ depth }));
-	RD::Uniform u_dest_velocity(RD::UNIFORM_TYPE_IMAGE, 1, Vector<RID>({ velocity }));
-	RD::Uniform u_dest_reactive(RD::UNIFORM_TYPE_IMAGE, 2, Vector<RID>({ reactive }));
-
 	rd->draw_command_begin_label("AMD FSR");
-	RD::ComputeListID compute_list = rd->compute_list_begin();
-	rd->compute_list_bind_compute_pipeline(compute_list, state->pipeline);
-	rd->compute_list_bind_uniform_set(compute_list, uniform_set_cache->get_cache(shader, 0, u_color, u_depth, u_velocity), 0);
-	rd->compute_list_bind_uniform_set(compute_list, uniform_set_cache->get_cache(shader, 1, u_dest_depth, u_dest_velocity, u_dest_reactive), 1);
-	rd->compute_list_set_push_constant(compute_list, &push_constant, sizeof(PushConstant));
-	rd->compute_list_dispatch_threads(compute_list, internal_size.width, internal_size.height, 1);
-	rd->compute_list_end();
+	const EretheaUpscaleInputs::Textures inputs = state->inputs.prepare(rb, p_render_data, buffers_name());
+	const RID depth = inputs.depth;
+	const RID velocity = inputs.velocity;
+	const RID reactive = inputs.reactive;
+	const RenderSceneDataRD *scene_data = p_render_data->scene_data;
 
 	DispatchArgs *args = memnew(DispatchArgs);
 	args->backend = state->backend;
@@ -616,9 +548,7 @@ void AmdFsrUpscaler::finish() {
 	// Contexts that the GPU may still use leak instead: the program is
 	// closing. The runtime stays loaded for the same reason.
 	destroy_pending_contexts(false);
-	if (state->shader_version.is_valid()) {
-		state->shader.version_free(state->shader_version);
-	}
+	state->inputs.finish();
 	memdelete(state);
 	state = nullptr;
 }
