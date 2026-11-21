@@ -160,23 +160,6 @@ jobs:
               $log[[Math]::Max(0, $failed - 400)..($failed - 1)] | Select-String -Pattern "ERROR|WARNING|VUID|AMD FSR" | Select-Object -Last 60
             }
             Select-String -Path amd_fsr_debug.log -Pattern "AMD FSR|Erethea:" | Select-Object -First 20
-            $dump = Get-Item api_dump.txt -ErrorAction SilentlyContinue
-            if (-not $dump) {
-              Write-Output "== No API dump was written. The log starts with:"
-              $log | Select-Object -First 40
-            } else {
-              Write-Output "== API dump: $($dump.Length) bytes"
-              Select-String -Path api_dump.txt -Pattern "returns VkResult VK_ERROR" -Context 30, 60 | Select-Object -First 3
-              # AMD's runtime starts by listing the device's extensions, which
-              # Erethea only does before it creates the device.
-              $calls = Select-String -Path api_dump.txt -Pattern "^vk\w+\("
-              $device = ($calls | Where-Object { $_.Line -like "vkCreateDevice(*" } | Select-Object -First 1).LineNumber
-              $start = ($calls | Where-Object { $_.LineNumber -gt $device -and $_.Line -like "vkEnumerateDeviceExtensionProperties(*" } | Select-Object -First 1).LineNumber
-              Write-Output "== Vulkan calls from line $start of the API dump"
-              if ($start) {
-                $calls | Where-Object { $_.LineNumber -ge $start } | Select-Object -First 250 | ForEach-Object { $_.Line }
-              }
-            }
           } else {
             $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($cdb) {
@@ -188,6 +171,49 @@ jobs:
             }
           }
           exit 0
+
+      # Reads the API dump from the step above: the Vulkan calls that failed,
+      # and the calls AMD's runtime made while it created the upscaler.
+      - name: Show the Vulkan calls of AMD FSR
+        if: failure() && matrix.driver == 'vulkan'
+        shell: python
+        run: |
+          import collections
+          import os
+          import re
+
+          if not os.path.exists("api_dump.txt"):
+              print("No API dump was written.")
+              raise SystemExit(0)
+          with open("api_dump.txt", encoding="utf-8", errors="replace") as f:
+              lines = f.read().splitlines()
+          print(f"{len(lines)} lines. The dump starts with:")
+          print("\n".join(lines[:25]))
+
+          call_pattern = re.compile(r"(vk\w+)\(.*\)\s+returns\s+(\w+)\s*(VK_\w+)?")
+          calls = []
+          for number, line in enumerate(lines):
+              match = call_pattern.search(line)
+              if match:
+                  calls.append((number, match.group(1), match.group(3) or ""))
+          print(f"\n{len(calls)} calls.")
+          results = collections.Counter((name, result) for _, name, result in calls if result and result != "VK_SUCCESS")
+          print("Results other than VK_SUCCESS:", results.most_common(20))
+
+          for number, name, result in [call for call in calls if call[2].startswith("VK_ERROR")][:3]:
+              print(f"\n== {name} returned {result}, line {number + 1}:")
+              print("\n".join(lines[max(0, number - 20) : number + 80]))
+
+          # AMD's runtime starts by listing the device's extensions, which
+          # Erethea only does before it creates the device.
+          device = next((number for number, name, _ in calls if name == "vkCreateDevice"), None)
+          start = next((index for index, (number, name, _) in enumerate(calls) if device is not None and number > device and name == "vkEnumerateDeviceExtensionProperties"), None)
+          if start is None:
+              print("\nNo call from AMD's runtime found.")
+          else:
+              print(f"\n== Calls from line {calls[start][0] + 1}:")
+              for number, name, result in calls[start : start + 600]:
+                  print(number + 1, name, result)
 
       - name: Compare AMD FSR with FSR 2.2
         shell: pwsh
