@@ -543,6 +543,20 @@ public:
 	virtual void command_buffer_end(CommandBufferID p_cmd_buffer) override final;
 	virtual void command_buffer_execute_secondary(CommandBufferID p_cmd_buffer, VectorView<CommandBufferID> p_secondary_cmd_buffers) override final;
 
+	// Erethea: Lets native upscalers (AMD FSR) record into the command list given to a driver callback.
+	// They bind their own descriptor heaps, root signature and pipeline, so the next commands must bind
+	// Godot's again instead of trusting what the command list had bound.
+	static ID3D12GraphicsCommandList *command_buffer_begin_native_commands(CommandBufferID p_cmd_buffer) {
+		CommandBufferInfo *cmd_buf_info = (CommandBufferInfo *)p_cmd_buffer.id;
+		cmd_buf_info->graphics_pso = nullptr;
+		cmd_buf_info->graphics_root_signature_crc = 0;
+		cmd_buf_info->compute_pso = nullptr;
+		cmd_buf_info->compute_root_signature_crc = 0;
+		cmd_buf_info->pending_dyn_params = true;
+		cmd_buf_info->descriptor_heaps_set = false;
+		return cmd_buf_info->cmd_list.Get();
+	}
+
 private:
 	/********************/
 	/**** SWAP CHAIN ****/
