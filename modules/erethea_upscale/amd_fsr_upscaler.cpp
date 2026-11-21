@@ -30,19 +30,47 @@
 
 #include "amd_fsr_upscaler.h"
 
-#if defined(WINDOWS_ENABLED) && defined(VULKAN_ENABLED) && defined(RD_ENABLED)
+#if defined(WINDOWS_ENABLED) && defined(RD_ENABLED) && (defined(VULKAN_ENABLED) || defined(D3D12_ENABLED))
 #define ERETHEA_AMD_FSR_ENABLED
 #endif
 
+Vector<String> AmdFsrUpscaler::get_runtime_libraries(const String &p_rendering_driver) {
+	Vector<String> libraries;
+	if (p_rendering_driver == "vulkan") {
+		for (const char *library : VULKAN_LIBRARIES) {
+			libraries.push_back(library);
+		}
+	} else if (p_rendering_driver == "d3d12") {
+		for (const char *library : D3D12_LIBRARIES) {
+			libraries.push_back(library);
+		}
+	}
+	return libraries;
+}
+
+bool AmdFsrUpscaler::is_supported_by_build(const String &p_rendering_driver) {
+#ifdef ERETHEA_AMD_FSR_ENABLED
+#ifdef VULKAN_ENABLED
+	if (p_rendering_driver == "vulkan") {
+		return true;
+	}
+#endif
+#ifdef D3D12_ENABLED
+	if (p_rendering_driver == "d3d12") {
+		return true;
+	}
+#endif
+#endif
+	return false;
+}
+
 #ifdef ERETHEA_AMD_FSR_ENABLED
 
-#include "api/include/vk/ffx_api_vk.h"
+#include "amd_fsr_backends.h"
 #include "erethea_upscale_inputs.glsl.gen.h"
-#include "upscalers/include/ffx_upscale.h"
 
 #include "core/io/file_access.h"
 #include "core/os/os.h"
-#include "drivers/vulkan/rendering_device_driver_vulkan.h"
 #include "servers/rendering/renderer_rd/storage_rd/material_storage.h"
 #include "servers/rendering/renderer_rd/storage_rd/render_data_rd.h"
 #include "servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.h"
@@ -50,9 +78,9 @@
 #include "servers/rendering/renderer_rd/uniform_set_cache_rd.h"
 #include "servers/rendering/rendering_device.h"
 
-namespace {
+#include <thirdparty/amd-fsr-api/upscalers/include/ffx_upscale.h>
 
-const char *const LOADER_LIBRARY = AmdFsrUpscaler::RUNTIME_LIBRARIES[0];
+namespace {
 
 const StringName &buffers_name() {
 	static const StringName name = "erethea_amd_fsr";
@@ -80,9 +108,19 @@ struct PushConstant {
 	float pad[2];
 };
 
+enum class Backend {
+	NONE,
+	VULKAN,
+	D3D12,
+};
+
 // Everything AMD FSR needs once the runtime is loaded. One upscaler owns it.
 struct State {
 	const AmdFsrUpscaler *owner = nullptr;
+	// The rendering driver doesn't change while the program runs, so the
+	// backend is chosen once.
+	Backend backend = Backend::NONE;
+	bool backend_chosen = false;
 	void *library = nullptr;
 	bool library_tried = false;
 	bool failed = false;
@@ -110,6 +148,7 @@ State *state = nullptr;
 
 // Arguments of one upscale, read when the rendering graph records it.
 struct DispatchArgs {
+	Backend backend = Backend::NONE;
 	ffxContext context = nullptr;
 	PfnFfxDispatch dispatch = nullptr;
 	ffxDispatchDescUpscale desc = {};
@@ -141,21 +180,42 @@ void message_callback(uint32_t p_type, const wchar_t *p_message) {
 	}
 }
 
+// Finds the backend for the rendering driver, or Backend::NONE with a warning.
+Backend choose_backend() {
+	const String driver = OS::get_singleton()->get_current_rendering_driver_name();
+	if (!AmdFsrUpscaler::is_supported_by_build(driver)) {
+		WARN_PRINT(vformat("AMD FSR needs the Vulkan or Direct3D 12 rendering driver (this one is \"%s\"). Using FSR 2.2.", driver));
+		return Backend::NONE;
+	}
+	if (driver == "d3d12") {
+		// AMD's runtime moves the textures between legacy resource states,
+		// which only meet Godot's own barriers in the COMMON layout of enhanced
+		// barriers. Godot's legacy barriers track states AMD's runtime can't see.
+		if (!AmdFsrBackends::has_enhanced_barriers_d3d12()) {
+			WARN_PRINT("AMD FSR on Direct3D 12 needs a graphics driver with enhanced barriers. Update the graphics driver or use the Vulkan rendering driver. Using FSR 2.2.");
+			return Backend::NONE;
+		}
+		return Backend::D3D12;
+	}
+	return Backend::VULKAN;
+}
+
 bool load_runtime() {
 	if (state->library_tried) {
 		return state->library != nullptr;
 	}
 	state->library_tried = true;
 
-	const String path = OS::get_singleton()->get_executable_path().get_base_dir().path_join(LOADER_LIBRARY);
+	const String loader = AmdFsrUpscaler::get_runtime_libraries(state->backend == Backend::D3D12 ? "d3d12" : "vulkan")[0];
+	const String path = OS::get_singleton()->get_executable_path().get_base_dir().path_join(loader);
 	if (!FileAccess::exists(path)) {
-		WARN_PRINT(vformat("AMD FSR isn't available: %s isn't next to the executable. Using FSR 2.2.", LOADER_LIBRARY));
+		WARN_PRINT(vformat("AMD FSR isn't available: %s isn't next to the executable. Using FSR 2.2.", loader));
 		return false;
 	}
 
 	void *library = nullptr;
 	if (OS::get_singleton()->open_dynamic_library(path, library) != OK) {
-		WARN_PRINT(vformat("AMD FSR isn't available: %s couldn't be loaded. Using FSR 2.2.", LOADER_LIBRARY));
+		WARN_PRINT(vformat("AMD FSR isn't available: %s couldn't be loaded. Using FSR 2.2.", loader));
 		return false;
 	}
 
@@ -169,7 +229,7 @@ bool load_runtime() {
 			os->get_dynamic_library_symbol_handle(library, "ffxQuery", query) != OK ||
 			os->get_dynamic_library_symbol_handle(library, "ffxDispatch", dispatch) != OK) {
 		os->close_dynamic_library(library);
-		WARN_PRINT(vformat("AMD FSR isn't available: %s is missing functions. Using FSR 2.2.", LOADER_LIBRARY));
+		WARN_PRINT(vformat("AMD FSR isn't available: %s is missing functions. Using FSR 2.2.", loader));
 		return false;
 	}
 
@@ -182,17 +242,8 @@ bool load_runtime() {
 }
 
 ffxContext create_context(const Size2i &p_internal_size, const Size2i &p_target_size) {
-	RenderingDevice *rd = RenderingDevice::get_singleton();
-
-	ffxCreateBackendVKDesc backend = {};
-	backend.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_VK;
-	backend.deviceContext.vkDevice = (VkDevice)rd->get_driver_resource(RD::DRIVER_RESOURCE_LOGICAL_DEVICE);
-	backend.deviceContext.vkPhysicalDevice = (VkPhysicalDevice)rd->get_driver_resource(RD::DRIVER_RESOURCE_PHYSICAL_DEVICE);
-	backend.deviceContext.vkDeviceProcAddr = vkGetDeviceProcAddr;
-
 	ffxCreateContextDescUpscaleVersion version = {};
 	version.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE_VERSION;
-	version.header.pNext = &backend.header;
 	version.version = FFX_UPSCALER_VERSION;
 
 	ffxCreateContextDescUpscale desc = {};
@@ -208,7 +259,21 @@ ffxContext create_context(const Size2i &p_internal_size, const Size2i &p_target_
 	desc.fpMessage = message_callback;
 
 	ffxContext context = nullptr;
-	const ffxReturnCode_t result = state->create_context(&context, &desc.header, nullptr);
+	ffxReturnCode_t result = FFX_API_RETURN_ERROR;
+	switch (state->backend) {
+#ifdef VULKAN_ENABLED
+		case Backend::VULKAN:
+			result = AmdFsrBackends::create_context_vulkan(state->create_context, &context, &desc.header, &version.header);
+			break;
+#endif
+#ifdef D3D12_ENABLED
+		case Backend::D3D12:
+			result = AmdFsrBackends::create_context_d3d12(state->create_context, &context, &desc.header, &version.header);
+			break;
+#endif
+		default:
+			break;
+	}
 	if (result != FFX_API_RETURN_OK || context == nullptr) {
 		ERR_PRINT(vformat("AMD FSR couldn't start (error %d). Using FSR 2.2.", int(result)));
 		state->failed = true;
@@ -222,7 +287,7 @@ ffxContext create_context(const Size2i &p_internal_size, const Size2i &p_target_
 		const String name = String::utf8(provider.versionName);
 		if (name != state->provider) {
 			state->provider = name;
-			print_line(vformat("Erethea: upscaling with AMD FSR %s.", name));
+			print_line(vformat("Erethea: upscaling with AMD FSR %s (%s).", name, state->backend == Backend::D3D12 ? "Direct3D 12" : "Vulkan"));
 		}
 	}
 	return context;
@@ -253,7 +318,7 @@ uint32_t surface_format(RD::DataFormat p_format) {
 
 // Describes a 2D texture of the rendering device for FSR. p_state must match
 // the layout that the rendering graph gives the texture for the callback.
-FfxApiResource make_resource(RID p_texture, uint32_t p_state) {
+FfxApiResource make_resource(RID p_texture, uint32_t p_state, bool p_written) {
 	RenderingDevice *rd = RenderingDevice::get_singleton();
 	const RD::TextureFormat format = rd->texture_get_format(p_texture);
 
@@ -266,14 +331,27 @@ FfxApiResource make_resource(RID p_texture, uint32_t p_state) {
 	resource.description.depth = 1;
 	resource.description.mipCount = 1;
 	resource.description.flags = FFX_API_RESOURCE_FLAGS_NONE;
-	resource.description.usage = p_state == FFX_API_RESOURCE_STATE_UNORDERED_ACCESS ? FFX_API_RESOURCE_USAGE_UAV : FFX_API_RESOURCE_USAGE_READ_ONLY;
+	resource.description.usage = p_written ? FFX_API_RESOURCE_USAGE_UAV : FFX_API_RESOURCE_USAGE_READ_ONLY;
 	resource.state = p_state;
 	return resource;
 }
 
 void dispatch_callback(RenderingDeviceDriver *p_driver, RenderingDeviceDriver::CommandBufferID p_command_buffer, void *p_userdata) {
 	DispatchArgs *args = (DispatchArgs *)p_userdata;
-	args->desc.commandList = RenderingDeviceDriverVulkan::command_buffer_get_vk_handle(p_command_buffer);
+	switch (args->backend) {
+#ifdef VULKAN_ENABLED
+		case Backend::VULKAN:
+			args->desc.commandList = AmdFsrBackends::get_command_list_vulkan(p_command_buffer);
+			break;
+#endif
+#ifdef D3D12_ENABLED
+		case Backend::D3D12:
+			args->desc.commandList = AmdFsrBackends::get_command_list_d3d12(p_command_buffer);
+			break;
+#endif
+		default:
+			break;
+	}
 	const ffxReturnCode_t result = args->dispatch(&args->context, &args->desc.header);
 	if (result != FFX_API_RETURN_OK) {
 		ERR_PRINT_ONCE(vformat("AMD FSR couldn't upscale (error %d).", int(result)));
@@ -318,8 +396,11 @@ bool AmdFsrUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, 
 		return false;
 	}
 
-	if (OS::get_singleton()->get_current_rendering_driver_name() != "vulkan") {
-		WARN_PRINT_ONCE("AMD FSR needs the Vulkan rendering driver. Using FSR 2.2.");
+	if (!state->backend_chosen) {
+		state->backend_chosen = true;
+		state->backend = choose_backend();
+	}
+	if (state->backend == Backend::NONE) {
 		return false;
 	}
 
@@ -417,16 +498,25 @@ bool AmdFsrUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, 
 	rd->compute_list_end();
 
 	DispatchArgs *args = memnew(DispatchArgs);
+	args->backend = state->backend;
 	args->context = buffers->context;
 	args->dispatch = state->dispatch;
 
+	// On Vulkan, the rendering graph gives the textures the layouts that AMD's
+	// runtime expects for these states. On Direct3D 12, it gives them the
+	// COMMON layout, the only one where its enhanced barriers and the
+	// runtime's legacy ones agree. The runtime puts them back in that state.
+	const bool common = state->backend == Backend::D3D12;
+	const uint32_t read_state = common ? FFX_API_RESOURCE_STATE_COMMON : FFX_API_RESOURCE_STATE_COMPUTE_READ;
+	const uint32_t write_state = common ? FFX_API_RESOURCE_STATE_COMMON : FFX_API_RESOURCE_STATE_UNORDERED_ACCESS;
+
 	ffxDispatchDescUpscale &desc = args->desc;
 	desc.header.type = FFX_API_DISPATCH_DESC_TYPE_UPSCALE;
-	desc.color = make_resource(color, FFX_API_RESOURCE_STATE_COMPUTE_READ);
-	desc.depth = make_resource(depth, FFX_API_RESOURCE_STATE_COMPUTE_READ);
-	desc.motionVectors = make_resource(velocity, FFX_API_RESOURCE_STATE_COMPUTE_READ);
-	desc.reactive = make_resource(reactive, FFX_API_RESOURCE_STATE_COMPUTE_READ);
-	desc.output = make_resource(output, FFX_API_RESOURCE_STATE_UNORDERED_ACCESS);
+	desc.color = make_resource(color, read_state, false);
+	desc.depth = make_resource(depth, read_state, false);
+	desc.motionVectors = make_resource(velocity, read_state, false);
+	desc.reactive = make_resource(reactive, read_state, false);
+	desc.output = make_resource(output, write_state, true);
 
 	// The same conventions as Godot's FSR 2.2: jitter in pixels, motion
 	// vectors in UV units pointing to the previous frame.
@@ -455,17 +545,19 @@ bool AmdFsrUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, 
 	desc.cameraFovAngleVertical = Math::deg_to_rad(scene_data->cam_projection.get_fovy(fov, 1.0 / aspect));
 	desc.viewSpaceToMetersFactor = 1.0f;
 
+	const RD::CallbackResourceUsage read_usage = common ? RD::CALLBACK_RESOURCE_USAGE_GENERAL : RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	const RD::CallbackResourceUsage write_usage = common ? RD::CALLBACK_RESOURCE_USAGE_GENERAL : RD::CALLBACK_RESOURCE_USAGE_STORAGE_IMAGE_READ_WRITE;
 	RD::CallbackResource resources[5];
 	resources[0].rid = color;
-	resources[0].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	resources[0].usage = read_usage;
 	resources[1].rid = depth;
-	resources[1].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	resources[1].usage = read_usage;
 	resources[2].rid = velocity;
-	resources[2].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	resources[2].usage = read_usage;
 	resources[3].rid = reactive;
-	resources[3].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	resources[3].usage = read_usage;
 	resources[4].rid = output;
-	resources[4].usage = RD::CALLBACK_RESOURCE_USAGE_STORAGE_IMAGE_READ_WRITE;
+	resources[4].usage = write_usage;
 	rd->driver_callback_add(&dispatch_callback, args, VectorView<RD::CallbackResource>(resources, 5));
 	rd->draw_command_end_label();
 	return true;
@@ -496,24 +588,16 @@ void AmdFsrUpscaler::finish() {
 	state = nullptr;
 }
 
-bool AmdFsrUpscaler::is_supported_by_build() {
-	return true;
-}
-
 #else // ERETHEA_AMD_FSR_ENABLED
 
 bool AmdFsrUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step) {
-	WARN_PRINT_ONCE("AMD FSR is only available on Windows with Vulkan. Using FSR 2.2.");
+	WARN_PRINT_ONCE("AMD FSR is only available on Windows, with the Vulkan or Direct3D 12 rendering driver. Using FSR 2.2.");
 	return false;
 }
 
 void AmdFsrUpscaler::release(const Ref<RenderSceneBuffersRD> &p_render_buffers) {}
 
 void AmdFsrUpscaler::finish() {}
-
-bool AmdFsrUpscaler::is_supported_by_build() {
-	return false;
-}
 
 #endif // ERETHEA_AMD_FSR_ENABLED
 

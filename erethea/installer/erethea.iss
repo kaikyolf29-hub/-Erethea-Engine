@@ -68,6 +68,8 @@ Source: "..\..\COPYRIGHT.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; erethea/tools/fetch_amd_fsr.py.
 Source: "amd_fidelityfx_loader_vk.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "amd_fidelityfx_upscaler_vk.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "amd_fidelityfx_loader_dx12.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "amd_fidelityfx_upscaler_dx12.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "AMD_FSR_LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

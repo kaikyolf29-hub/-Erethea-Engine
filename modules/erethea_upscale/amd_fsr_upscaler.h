@@ -31,19 +31,27 @@
 #pragma once
 
 #include "core/object/ref_counted.h"
+#include "core/string/ustring.h"
+#include "core/templates/vector.h"
 
 class RenderDataRD;
 class RenderSceneBuffersRD;
 
-// Upscales with AMD FSR through AMD's signed runtime
-// (amd_fidelityfx_loader_vk.dll and amd_fidelityfx_upscaler_vk.dll next to
-// the executable). The runtime picks FSR 4 on the graphics cards that support
-// it and FSR 3.1 on the others. Needs Windows, Vulkan and the Forward+
-// renderer. Only touched on the rendering thread.
+// Upscales with AMD FSR through AMD's signed runtime, a loader and an
+// upscaler DLL next to the executable for each rendering driver (Vulkan or
+// Direct3D 12). The runtime picks FSR 4 on the graphics cards that support it
+// and FSR 3.1 on the others. Needs Windows and the Forward+ renderer. Only
+// touched on the rendering thread.
 class AmdFsrUpscaler {
 public:
-	// AMD's runtime, loaded from the folder of the executable.
-	static constexpr const char *RUNTIME_LIBRARIES[2] = { "amd_fidelityfx_loader_vk.dll", "amd_fidelityfx_upscaler_vk.dll" };
+	// AMD's runtime for each rendering driver, loaded from the folder of the
+	// executable.
+	static constexpr const char *VULKAN_LIBRARIES[2] = { "amd_fidelityfx_loader_vk.dll", "amd_fidelityfx_upscaler_vk.dll" };
+	static constexpr const char *D3D12_LIBRARIES[2] = { "amd_fidelityfx_loader_dx12.dll", "amd_fidelityfx_upscaler_dx12.dll" };
+
+	// The runtime for a rendering driver ("vulkan" or "d3d12"), or nothing
+	// for the drivers AMD FSR doesn't support.
+	static Vector<String> get_runtime_libraries(const String &p_rendering_driver);
 
 	// Returns false when AMD FSR can't run, so that FSR 2.2 runs instead.
 	bool upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step);
@@ -54,8 +62,9 @@ public:
 	// Frees everything, including the runtime.
 	void finish();
 
-	// Whether this build can load AMD's runtime at all (Windows with Vulkan).
-	static bool is_supported_by_build();
+	// Whether this build can run AMD FSR with a rendering driver (Windows,
+	// and the driver built in).
+	static bool is_supported_by_build(const String &p_rendering_driver);
 
 	~AmdFsrUpscaler();
 };

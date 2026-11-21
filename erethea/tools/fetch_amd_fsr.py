@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Download AMD's FSR runtime for Vulkan into a folder.
+"""Download AMD's FSR runtime for Vulkan and Direct3D 12 into a folder.
 
 The `erethea_upscale` module loads these DLLs from the folder of the
 executable to upscale with AMD FSR (FSR 4 where the graphics card supports it,
-FSR 3.1 elsewhere). The engine builds don't contain them: the installer, the
+FSR 3.1 elsewhere), a loader and an upscaler for each rendering driver. The engine builds don't contain them: the installer, the
 release and the tests put them next to `erethea.exe` with this script.
 
     python erethea/tools/fetch_amd_fsr.py <folder>
@@ -27,6 +27,8 @@ BASE_URL = (
 FILES = {
     "amd_fidelityfx_loader_vk.dll": "38a56a01fb3565c0757d9f5c1e4e69de4b65e5f2e5769b323b200dc1f142bab9",
     "amd_fidelityfx_upscaler_vk.dll": "4a7e895af6e0b615d40a84d59eb8c2b1054ad91cdd0c739567940270d51bdab7",
+    "amd_fidelityfx_loader_dx12.dll": "e2191d3c0828be45eb8affd4e3ec0378f2293adc345b772a7170edcf3b021ecb",
+    "amd_fidelityfx_upscaler_dx12.dll": "aad4fccccb29084a655f9a4f9f613bd22c8c03fb4a0f8840148cc6543b4ccace",
 }
 
 LICENSE = f"""AMD FSR SDK {SDK_VERSION} runtime ({", ".join(FILES)})

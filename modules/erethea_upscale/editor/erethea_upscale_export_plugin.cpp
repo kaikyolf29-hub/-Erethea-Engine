@@ -41,8 +41,16 @@ void EretheaUpscaleExportPlugin::_export_begin(const HashSet<String> &p_features
 		return;
 	}
 
+	// Only the runtime of the game's rendering driver: each one is large. If
+	// the game falls back to the other driver, it uses FSR 2.2.
+	const String driver = EditorExportPlatform::get_project_setting(get_export_preset(), "rendering/rendering_device/driver.windows");
+	const Vector<String> libraries = AmdFsrUpscaler::get_runtime_libraries(driver);
+	if (libraries.is_empty()) {
+		return;
+	}
+
 	const String folder = OS::get_singleton()->get_executable_path().get_base_dir();
-	for (const char *library : AmdFsrUpscaler::RUNTIME_LIBRARIES) {
+	for (const String &library : libraries) {
 		const String path = folder.path_join(library);
 		if (!FileAccess::exists(path)) {
 			const String message = vformat(TTR("\"%s\" isn't next to the editor's executable, so the exported game will use FSR 2.2 instead of AMD FSR."), library);
@@ -55,7 +63,7 @@ void EretheaUpscaleExportPlugin::_export_begin(const HashSet<String> &p_features
 			return;
 		}
 	}
-	for (const char *library : AmdFsrUpscaler::RUNTIME_LIBRARIES) {
+	for (const String &library : libraries) {
 		add_shared_object(folder.path_join(library), Vector<String>());
 	}
 }

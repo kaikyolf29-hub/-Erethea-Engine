@@ -40,9 +40,15 @@ module, which loads AMD's signed runtime DLLs at run time):
 
 - `Kits/FidelityFX/api/include/ffx_api.h` as `api/include/ffx_api.h`
 - `Kits/FidelityFX/api/include/ffx_api_types.h` as `api/include/ffx_api_types.h`
+- `Kits/FidelityFX/api/include/dx12/ffx_api_dx12.h` as `api/include/dx12/ffx_api_dx12.h`
 - `Kits/FidelityFX/api/include/vk/ffx_api_vk.h` as `api/include/vk/ffx_api_vk.h`
 - `Kits/FidelityFX/upscalers/include/ffx_upscale.h` as `upscalers/include/ffx_upscale.h`
 - `LICENSE.txt` taken from the license header of these files
+
+Patches:
+
+- `0001-mingw-getdesc.patch` (Erethea, MinGW's DirectX headers return
+  `ID3D12Resource::GetDesc()` through a pointer)
 
 
 ## amd-fsr2

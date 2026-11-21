@@ -60,12 +60,29 @@ TEST_CASE("[Modules][EretheaUpscale] Modes stay in range and FSR 2.2 is left to 
 }
 
 TEST_CASE("[Modules][EretheaUpscale] AMD FSR runtime") {
-	CHECK(String(AmdFsrUpscaler::RUNTIME_LIBRARIES[0]) == "amd_fidelityfx_loader_vk.dll");
-	CHECK(String(AmdFsrUpscaler::RUNTIME_LIBRARIES[1]) == "amd_fidelityfx_upscaler_vk.dll");
+	const Vector<String> vulkan = AmdFsrUpscaler::get_runtime_libraries("vulkan");
+	REQUIRE(vulkan.size() == 2);
+	CHECK(vulkan[0] == "amd_fidelityfx_loader_vk.dll");
+	CHECK(vulkan[1] == "amd_fidelityfx_upscaler_vk.dll");
+
+	const Vector<String> d3d12 = AmdFsrUpscaler::get_runtime_libraries("d3d12");
+	REQUIRE(d3d12.size() == 2);
+	CHECK(d3d12[0] == "amd_fidelityfx_loader_dx12.dll");
+	CHECK(d3d12[1] == "amd_fidelityfx_upscaler_dx12.dll");
+
+	CHECK(AmdFsrUpscaler::get_runtime_libraries("opengl3").is_empty());
+	CHECK_FALSE(AmdFsrUpscaler::is_supported_by_build("opengl3"));
+	CHECK_FALSE(AmdFsrUpscaler::is_supported_by_build("metal"));
+
 #if defined(WINDOWS_ENABLED) && defined(VULKAN_ENABLED)
-	CHECK(AmdFsrUpscaler::is_supported_by_build());
+	CHECK(AmdFsrUpscaler::is_supported_by_build("vulkan"));
 #else
-	CHECK_FALSE(AmdFsrUpscaler::is_supported_by_build());
+	CHECK_FALSE(AmdFsrUpscaler::is_supported_by_build("vulkan"));
+#endif
+#if defined(WINDOWS_ENABLED) && defined(D3D12_ENABLED)
+	CHECK(AmdFsrUpscaler::is_supported_by_build("d3d12"));
+#else
+	CHECK_FALSE(AmdFsrUpscaler::is_supported_by_build("d3d12"));
 #endif
 }
 

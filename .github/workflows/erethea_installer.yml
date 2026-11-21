@@ -52,7 +52,9 @@ jobs:
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$dir`""
           if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
           if (-not (Test-Path "$dir/erethea.exe")) { throw "erethea.exe was not installed" }
-          if (-not (Test-Path "$dir/amd_fidelityfx_upscaler_vk.dll")) { throw "AMD's FSR runtime was not installed" }
+          foreach ($dll in "amd_fidelityfx_upscaler_vk.dll", "amd_fidelityfx_upscaler_dx12.dll") {
+            if (-not (Test-Path "$dir/$dll")) { throw "AMD's FSR runtime ($dll) was not installed" }
+          }
           "ERETHEA_DIR=$dir" >> $env:GITHUB_ENV
 
       - name: Open a Godot project with the installed editor

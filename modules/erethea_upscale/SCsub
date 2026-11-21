@@ -6,9 +6,6 @@ Import("env_modules")
 
 env_erethea_upscale = env_modules.Clone()
 
-# AMD FSR runtime API (headers only, the runtime is loaded at run time).
-env_erethea_upscale.Prepend(CPPPATH=["#thirdparty/amd-fsr-api"])
-
 env_erethea_upscale.RD_GLSL("erethea_upscale_inputs.glsl")
 env_erethea_upscale.Depends(Glob("*.glsl.gen.h"), ["#glsl_builders.py"])
 

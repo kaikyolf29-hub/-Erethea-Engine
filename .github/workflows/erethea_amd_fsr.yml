@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
 
 # Upscales the reference scene with AMD FSR (modules/erethea_upscale) in the
-# Windows editor built by windows_builds.yml, on the CPU: Mesa's lavapipe
-# Vulkan driver stands in for a graphics card. AMD's runtime then runs FSR 3.1
-# (FSR 4 needs an AMD graphics card). The job checks that the runtime loads,
-# that FSR upscales without errors, and that its image stays close to FSR 2.2's
-# from the same frames. The captures, side by side, are uploaded as an artifact.
+# Windows editor built by windows_builds.yml, with each rendering driver, on the
+# CPU: Mesa's lavapipe stands in for a graphics card on Vulkan, and Windows'
+# WARP on Direct3D 12. AMD's runtime then runs FSR 3.1 (FSR 4 needs an AMD
+# graphics card). Each job checks that the runtime loads, that FSR upscales
+# without errors, and that its image stays close to FSR 2.2's from the same
+# frames. The captures, side by side, are uploaded as an artifact.
 #
 # This proves the integration, not the quality or speed on a graphics card: see
 # "Não testado na placa" in erethea/README.md.
@@ -23,8 +24,16 @@ env:
 jobs:
   amd-fsr:
     runs-on: windows-latest
-    name: AMD FSR on lavapipe
+    name: AMD FSR on ${{ matrix.name }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Vulkan (lavapipe)
+            driver: vulkan
+          - name: Direct3D 12 (WARP)
+            driver: d3d12
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -39,6 +48,7 @@ jobs:
         run: python erethea/tools/fetch_amd_fsr.py bin
 
       - name: Install the Vulkan loader and lavapipe
+        if: matrix.driver == 'vulkan'
         shell: pwsh
         run: |
           # The Vulkan loader (vulkan-1.dll) comes with graphics drivers, which
@@ -66,11 +76,11 @@ jobs:
           $exe = "bin/erethea.windows.editor.x86_64.exe"
           $project = "erethea/tests/reference_scene"
           foreach ($upscaler in "fsr2", "amd_fsr") {
-            & $exe --path $project --rendering-driver vulkan --fixed-fps 30 -- `
+            & $exe --path $project --rendering-driver ${{ matrix.driver }} --fixed-fps 30 -- `
               "--capture=$PWD/captures/$upscaler" "--upscaler=$upscaler" --warmup=12 --frames=4 2>&1 | Tee-Object -FilePath "$upscaler.log"
             if ($LASTEXITCODE -ne 0) { throw "The $upscaler capture failed with exit code $LASTEXITCODE" }
           }
-          Select-String -Path amd_fsr.log -Pattern "Vulkan|lavapipe|AMD FSR|FSR 2.2" | Select-Object -First 20
+          Select-String -Path amd_fsr.log -Pattern "Vulkan|lavapipe|D3D12|Direct3D|WARP|Basic Render|AMD FSR|FSR 2.2" | Select-Object -First 20
 
           if (Select-String -Path amd_fsr.log -Pattern "Using FSR 2.2|AMD FSR couldn't|^ERROR:.*AMD FSR" -Quiet) {
             throw "AMD FSR didn't upscale, see amd_fsr.log above"
@@ -85,7 +95,7 @@ jobs:
           & bin/erethea.windows.editor.x86_64.exe --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- `
             "--baseline=$PWD/captures/fsr2" "--candidate=$PWD/captures/amd_fsr" "--out=$PWD/captures/comparison" "--max-rmse=$env:MAX_RMSE" 2>&1 | Tee-Object -FilePath compare.log
           $code = $LASTEXITCODE
-          "## AMD FSR contra FSR 2.2 (lavapipe, Windows)" >> $env:GITHUB_STEP_SUMMARY
+          "## AMD FSR contra FSR 2.2 (${{ matrix.name }}, Windows)" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
           Get-Content captures/comparison/summary.md -ErrorAction SilentlyContinue >> $env:GITHUB_STEP_SUMMARY
           if ($code -ne 0) { throw "AMD FSR's image differs from FSR 2.2's more than $env:MAX_RMSE" }
@@ -94,7 +104,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: erethea-amd-fsr-captures
+          name: erethea-amd-fsr-captures-${{ matrix.driver }}
           path: |
             captures
             *.log

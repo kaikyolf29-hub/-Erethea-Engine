@@ -1,0 +1,16 @@
+diff --git a/thirdparty/amd-fsr-api/api/include/dx12/ffx_api_dx12.h b/thirdparty/amd-fsr-api/api/include/dx12/ffx_api_dx12.h
+--- a/thirdparty/amd-fsr-api/api/include/dx12/ffx_api_dx12.h
++++ b/thirdparty/amd-fsr-api/api/include/dx12/ffx_api_dx12.h
+@@ -208,7 +208,12 @@
+     res.state = state;
+     if (!pRes) return res;
+ 
++#if defined(_MSC_VER) || !defined(_WIN32)
+     D3D12_RESOURCE_DESC desc = pRes->GetDesc();
++#else
++    D3D12_RESOURCE_DESC desc;
++    pRes->GetDesc(&desc);
++#endif
+     if (desc.Dimension == D3D12_RESOURCE_DIMENSION_UNKNOWN) {
+         return res;
+     }
