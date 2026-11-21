@@ -530,6 +530,7 @@
 /erethea/                                     @kaikyolf29-hub
 /erethea/**/*.py                              @kaikyolf29-hub @godotengine/buildsystem
 /erethea/tests/                               @kaikyolf29-hub @godotengine/tests
+/erethea/tests/**/*.py                        @kaikyolf29-hub @godotengine/buildsystem @godotengine/tests
 /tests/erethea/                               @kaikyolf29-hub @godotengine/tests
 /modules/erethea_quality/                     @kaikyolf29-hub @godotengine/rendering
 /modules/erethea_quality/**/*.py              @kaikyolf29-hub @godotengine/buildsystem
@@ -551,3 +552,7 @@
 /modules/erethea_upscale/**/SCsub             @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_upscale/editor/              @kaikyolf29-hub @godotengine/editor
 /modules/erethea_upscale/tests/               @kaikyolf29-hub @godotengine/tests
+/modules/erethea_mcp/                         @kaikyolf29-hub @godotengine/editor @godotengine/network
+/modules/erethea_mcp/**/*.py                  @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_mcp/**/SCsub                 @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_mcp/tests/                   @kaikyolf29-hub @godotengine/tests
