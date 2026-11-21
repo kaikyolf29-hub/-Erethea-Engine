@@ -151,3 +151,82 @@ jobs:
           name: reference-scene
           path: captures
           retention-days: 30
+
+  # Erethea streams the mipmaps of the textures used in 3D (modules/erethea_streaming).
+  # The editor opens erethea/tests/texture_streaming, sees brick.png in a 3D
+  # material and queues it; the next start switches it to the streamed importer.
+  # Then the project checks that brick.png streams up to its full resolution,
+  # looks like the same image without streaming, and goes back down when hidden,
+  # and that ui_icon.png, only used in the UI, stays as in Godot.
+  texture-streaming:
+    runs-on: ubuntu-24.04
+    name: Texture streaming of 3D textures
+    timeout-minutes: 30
+    env:
+      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the lavapipe Vulkan driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Import the test project
+        run: |
+          chmod +x bin/erethea.*
+          echo "ERETHEA=$GITHUB_WORKSPACE/bin/erethea.linuxbsd.editor.x86_64.mono" >> "$GITHUB_ENV"
+          project="$RUNNER_TEMP/texture_streaming"
+          echo "PROJECT=$project" >> "$GITHUB_ENV"
+          cp -r erethea/tests/texture_streaming "$project"
+          "$GITHUB_WORKSPACE/bin/erethea.linuxbsd.editor.x86_64.mono" --headless --import --path "$project"
+          grep -q 'importer="texture"' "$project/brick.png.import"
+          grep -q 'importer="texture"' "$project/ui_icon.png.import"
+
+      - name: Open the scene in the editor
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" -e --path "$PROJECT" --audio-driver Dummy \
+            --quit-after 3000 res://main.tscn 2>&1 | tee editor.log
+          queue="$PROJECT/.godot/editor/erethea_texture_streaming.cfg"
+          cat "$queue" || { echo "The editor didn't queue any texture."; exit 1; }
+          grep -q 'res://brick.png' "$queue" || { echo "brick.png, used in 3D, wasn't queued."; exit 1; }
+          if grep -q 'ui_icon.png' "$queue"; then
+            echo "ui_icon.png is only used in the UI, but it was queued."
+            exit 1
+          fi
+
+      - name: Switch the queued texture to the streamed importer
+        run: |
+          "$ERETHEA" --headless --import --path "$PROJECT" 2>&1 | tee import.log
+          cat "$PROJECT/brick.png.import"
+          grep -q 'importer="streamed_texture_2d"' "$PROJECT/brick.png.import"
+          grep -q 'importer="texture"' "$PROJECT/ui_icon.png.import"
+          ls "$PROJECT"/.godot/imported/brick.png-*.stex
+
+      - name: Run the streaming checks
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$PROJECT" --audio-driver Dummy \
+            -- --capture="$PWD/captures" 2>&1 | tee run.log
+          grep -q ERETHEA_STREAMING_OK run.log
+          {
+            echo "## Streaming de texturas 3D"
+            echo
+            echo '```'
+            grep -E "brick.png|ui_icon.png|RMSE" run.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: texture-streaming
+          path: captures
+          retention-days: 30

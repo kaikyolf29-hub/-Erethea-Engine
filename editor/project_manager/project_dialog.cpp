@@ -603,6 +603,12 @@ void ProjectDialog::ok_pressed() {
 			// Merge with other initial settings defined above.
 			initial_settings[extra_setting.key] = extra_setting.value;
 		}
+		if (renderer_type == "gl_compatibility") {
+			// Erethea: Texture streaming doesn't run with the Compatibility
+			// renderer, and warns about it every time the project starts.
+			initial_settings.erase("rendering/textures/streaming/enabled");
+			initial_settings.erase("rendering/erethea/stream_3d_textures");
+		}
 
 		Error err = ProjectSettings::get_singleton()->save_custom(path.path_join("project.godot"), initial_settings, Vector<String>(), false);
 		if (err != OK) {

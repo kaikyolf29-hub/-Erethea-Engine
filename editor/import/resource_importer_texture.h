@@ -98,6 +98,11 @@ public:
 	static void save_to_ctex_format(Ref<FileAccess> f, const Ref<Image> &p_image, CompressMode p_compress_mode, Image::UsedChannels p_channels, Image::CompressMode p_compress_format, Image::CompressProfile p_compress_profile, float p_lossy_quality, const Image::BasisUniversalPackerParams &p_basisu_params, Image::BPTCFormat p_bptc_format);
 
 	static ResourceImporterTexture *get_singleton() { return singleton; }
+
+	// Erethea: Tells a module about each texture detected as used in 3D. The
+	// erethea_streaming module streams their mipmaps after the editor restarts.
+	typedef void (*Texture3DDetectedCallback)(const String &p_path);
+	static Texture3DDetectedCallback texture_3d_detected_callback;
 	virtual String get_importer_name() const override;
 	virtual String get_visible_name() const override;
 	virtual void get_recognized_extensions(List<String> *p_extensions) const override;
