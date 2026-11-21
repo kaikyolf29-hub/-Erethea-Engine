@@ -86,7 +86,8 @@ jobs:
           New-Item -ItemType Directory -Force $layer | Out-Null
           @(
             "call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul || exit /b 1",
-            "cl /nologo /O2 /EHsc /std:c++17 /LD /I thirdparty\vulkan\include erethea\tests\vulkan_memory_alias\memory_alias_layer.cpp /Fo`"$layer\\`" /Fe`"$layer\VkLayer_erethea_memory_alias.dll`""
+            "cd /d `"$layer`" || exit /b 1",
+            "cl /nologo /O2 /EHsc /std:c++17 /LD /I `"$env:GITHUB_WORKSPACE\thirdparty\vulkan\include`" `"$env:GITHUB_WORKSPACE\erethea\tests\vulkan_memory_alias\memory_alias_layer.cpp`" /FeVkLayer_erethea_memory_alias.dll"
           ) | Set-Content -Encoding ascii "$layer\build.bat"
           cmd /c "$layer\build.bat"
           if ($LASTEXITCODE -ne 0) { throw "The memory alias layer didn't build" }
