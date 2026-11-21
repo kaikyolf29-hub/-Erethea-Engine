@@ -35,6 +35,7 @@
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
 #include "core/version.h"
+#include "drivers/vulkan/erethea_vulkan_requirements.h" // Erethea
 #include "drivers/vulkan/rendering_device_driver_vulkan.h"
 #include "drivers/vulkan/vulkan_hooks.h"
 
@@ -460,6 +461,18 @@ Error RenderingContextDriverVulkan::_initialize_instance_extensions() {
 		_register_requested_instance_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, false);
 	}
 
+	// Erethea: Optional extensions that libraries loaded by modules need.
+	for (EretheaVulkanRequirements *requirements : EretheaVulkanRequirements::get_list()) {
+		LocalVector<CharString> extensions;
+		uint32_t min_api_version = 0;
+		requirements->get_instance_requirements(extensions, min_api_version);
+		for (const CharString &extension : extensions) {
+			if (!requested_instance_extensions.has(extension)) {
+				_register_requested_instance_extension(extension, false);
+			}
+		}
+	}
+
 	// Load instance extensions that are available.
 	uint32_t instance_extension_count = 0;
 	VkResult err = vkEnumerateInstanceExtensionProperties(nullptr, &instance_extension_count, nullptr);
@@ -699,6 +712,15 @@ Error RenderingContextDriverVulkan::_initialize_instance() {
 	// version, devices can still support newer versions of Vulkan. The exception is when we're on Vulkan 1.0, we should not set this
 	// to anything but 1.0. Note that this value is only used by validation layers to warn us about version issues.
 	uint32_t application_api_version = instance_api_version == VK_API_VERSION_1_0 ? VK_API_VERSION_1_0 : VK_API_VERSION_1_2;
+	// Erethea: Libraries loaded by modules may use a newer version.
+	if (instance_api_version != VK_API_VERSION_1_0) {
+		for (EretheaVulkanRequirements *requirements : EretheaVulkanRequirements::get_list()) {
+			LocalVector<CharString> extensions;
+			uint32_t min_api_version = 0;
+			requirements->get_instance_requirements(extensions, min_api_version);
+			application_api_version = MAX(application_api_version, MIN(min_api_version, instance_api_version));
+		}
+	}
 
 	CharString cs = GLOBAL_GET("application/config/name").operator String().utf8();
 	VkApplicationInfo app_info = {};
