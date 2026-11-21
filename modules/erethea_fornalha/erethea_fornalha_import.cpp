@@ -259,6 +259,26 @@ EretheaFornalhaProject EretheaFornalhaProject::read() {
 	return project;
 }
 
+String EretheaFornalhaProject::get_signature() const {
+	// The models by their date too: the Fornalha writes them again in place.
+	Array inputs;
+	for (const EretheaFornalhaCharacter &character : characters) {
+		inputs.push_back(vformat("character %s %s %s %s %d", character.id, character.player, character.model, character.height, int64_t(FileAccess::get_modified_time(character.model))));
+	}
+	for (const EretheaFornalhaArea &area : areas) {
+		inputs.push_back(vformat("area %s %s %s %v", area.id, area.name, area.type, area.center));
+	}
+	inputs.push_back(vformat("world %s %d", world_model, world_model.is_empty() ? int64_t(0) : int64_t(FileAccess::get_modified_time(world_model))));
+	inputs.push_back(vformat("player %s %v", player, player_spawn));
+	for (const Vector3 &spawn : enemy_spawns) {
+		inputs.push_back(vformat("enemy spawn %v", spawn));
+	}
+	inputs.push_back(vformat("enemy near %s", enemy_near));
+	inputs.push_back(vformat("music %s", music));
+	inputs.push_back(vformat("sky %s", sky));
+	return JSON::stringify(inputs).md5_text();
+}
+
 int EretheaFornalhaProject::find_character(const String &p_id) const {
 	for (int i = 0; i < characters.size(); i++) {
 		if (characters[i].id == p_id) {
@@ -386,6 +406,9 @@ void EretheaFornalhaImport::register_project_settings() {
 	looping.push_back("correr");
 	looping.push_back("correr_rapido");
 	GLOBAL_DEF(PropertyInfo(Variant::PACKED_STRING_ARRAY, SETTING_LOOPING_ANIMATIONS), looping);
+	// Both only act in projects with a game.project.json.
+	GLOBAL_DEF(SETTING_BUILD_AUTOMATICALLY, true);
+	GLOBAL_DEF(SETTING_LIVE_LINK, true);
 }
 
 bool EretheaFornalhaImport::is_fornalha_project() {
@@ -406,6 +429,21 @@ EretheaFornalhaImport::Action EretheaFornalhaImport::decide(bool p_exists, const
 		return ACTION_REPLACED;
 	}
 	return p_recorded_hash.is_empty() ? ACTION_KEPT_FOREIGN : ACTION_KEPT_EDITED;
+}
+
+bool EretheaFornalhaImport::should_build_automatically(bool p_built_before, const String &p_built_signature, const String &p_signature, bool p_main_scene_exists) {
+	if (!p_built_before) {
+		return !p_main_scene_exists;
+	}
+	return p_built_signature != p_signature;
+}
+
+bool EretheaFornalhaImport::was_built_before() {
+	return FileAccess::exists(RECORD_FILE);
+}
+
+String EretheaFornalhaImport::get_built_signature() {
+	return _string(_read_json(RECORD_FILE).get("inputs", Variant()));
 }
 
 String EretheaFornalhaImport::get_action_name(Action p_action) {
@@ -851,6 +889,7 @@ EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	new_record["format"] = 1;
 	new_record["about"] = "Scenes that Erethea built from game.project.json. A scene whose text no longer matches was changed by someone, and the next build keeps it.";
 	new_record["files"] = state.recorded;
+	new_record["inputs"] = project.get_signature();
 	Ref<FileAccess> file = FileAccess::open(RECORD_FILE, FileAccess::WRITE);
 	if (file.is_valid()) {
 		file->store_string(JSON::stringify(new_record, "\t", true) + "\n");

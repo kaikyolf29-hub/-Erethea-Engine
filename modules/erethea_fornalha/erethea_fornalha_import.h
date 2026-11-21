@@ -77,6 +77,10 @@ struct EretheaFornalhaProject {
 
 	static EretheaFornalhaProject read();
 
+	// Changes when anything the scenes are built from changes, such as a new
+	// character or a model the Fornalha made again.
+	String get_signature() const;
+
 	int find_character(const String &p_id) const;
 	Vector<String> get_enemy_ids() const;
 	int find_area(const Vector3 &p_position) const;
@@ -124,6 +128,8 @@ public:
 	static constexpr const char *WORLD_SCENE = "res://World/mundo.tscn";
 	static constexpr const char *SCRIPTS_FOLDER = "res://Scripts/fornalha";
 	static constexpr const char *SETTING_LOOPING_ANIMATIONS = "editor/erethea_fornalha/looping_animations";
+	static constexpr const char *SETTING_BUILD_AUTOMATICALLY = "editor/erethea_fornalha/build_automatically";
+	static constexpr const char *SETTING_LIVE_LINK = "editor/erethea_fornalha/live_link";
 
 	static constexpr uint32_t LAYER_WORLD = 1;
 	static constexpr uint32_t LAYER_PLAYER = 2;
@@ -133,6 +139,12 @@ public:
 	static bool is_fornalha_project();
 
 	static Action decide(bool p_exists, const String &p_current_hash, const String &p_recorded_hash, const String &p_new_hash, bool p_force);
+	// Build by itself when what the scenes come from changed since the last
+	// build. Before the first build, only in a project with no main scene yet:
+	// one whose scenes the Fornalha assembles waits for someone to build once.
+	static bool should_build_automatically(bool p_built_before, const String &p_built_signature, const String &p_signature, bool p_main_scene_exists);
+	static bool was_built_before();
+	static String get_built_signature();
 	static String get_action_name(Action p_action);
 	// The text of a .tscn without what changes on every save (its uid and the
 	// random ids of its resources), so that two builds of a scene compare equal.

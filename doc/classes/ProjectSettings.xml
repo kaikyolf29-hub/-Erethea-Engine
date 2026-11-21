@@ -1161,6 +1161,12 @@
 		<member name="editor/erethea_export_checks/run_on_export" type="int" setter="" getter="" default="1">
 			When the Erethea checks run during export: [code]Never[/code], only in projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), or in all projects. They list too many triangles, too big textures, wrong scale and missing license receipts in the export log. They can also be run with [b]Project &gt; Tools &gt; Check Project for Export...[/b]. Erethea only.
 		</member>
+		<member name="editor/erethea_fornalha/build_automatically" type="bool" setter="" getter="" default="true">
+			In projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), build the scenes again by themselves when what they are built from changes, such as a new character from the Fornalha. Scenes changed by hand are kept. Before the first build, this only happens in a project with no [code]res://principal.tscn[/code] yet. Erethea only.
+		</member>
+		<member name="editor/erethea_fornalha/live_link" type="bool" setter="" getter="" default="true">
+			In projects made with the Fornalha, ask the Fornalha running on this computer (on [code]127.0.0.1[/code], at the port of the editor setting [code]erethea/fornalha/port[/code]) when it writes new files in the project, and import them. When the Fornalha has a WebSocket, it tells the editor through it instead. Erethea only.
+		</member>
 		<member name="editor/erethea_fornalha/looping_animations" type="PackedStringArray" setter="" getter="" default="PackedStringArray(&quot;parado&quot;, &quot;andar&quot;, &quot;correr&quot;, &quot;correr_rapido&quot;)">
 			In projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), the animations with these names loop when a 3D scene is imported, such as the walk cycles of the Fornalha's characters. glTF files can't say that an animation loops. A loop mode set in the import settings of an animation wins. Leave it empty to turn this off. Erethea only.
 		</member>
