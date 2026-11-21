@@ -608,6 +608,11 @@ Comment: SPIRV-Reflect
 Copyright: 2017-2022, Google Inc.
 License: Apache-2.0
 
+Files: thirdparty/streamline/*
+Comment: NVIDIA Streamline SDK headers
+Copyright: 2022-2024, NVIDIA Corporation
+License: Expat
+
 Files: thirdparty/swappy-frame-pacing/*
 Comment: Swappy
 Copyright: 2019, The Android Open Source Project

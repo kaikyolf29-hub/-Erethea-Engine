@@ -31,6 +31,7 @@
 #pragma once
 
 #include "../amd_fsr_upscaler.h"
+#include "../dlss_upscaler.h"
 #include "../erethea_upscaler.h"
 #include "../xess_upscaler.h"
 
@@ -52,7 +53,7 @@ TEST_CASE("[Modules][EretheaUpscale] Modes stay in range and FSR 2.2 is left to 
 	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_FSR2);
 
 	upscaler.set_mode(EretheaUpscaler::Mode(100));
-	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_XESS);
+	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_DLSS);
 	upscaler.set_mode(EretheaUpscaler::MODE_AMD_FSR);
 	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_AMD_FSR);
 	upscaler.set_mode(EretheaUpscaler::Mode(-1));
@@ -108,6 +109,29 @@ TEST_CASE("[Modules][EretheaUpscale] XeSS runtime") {
 	CHECK(XessUpscaler::is_supported_by_build("vulkan"));
 #else
 	CHECK_FALSE(XessUpscaler::is_supported_by_build("vulkan"));
+#endif
+}
+
+TEST_CASE("[Modules][EretheaUpscale] DLSS runtime") {
+	// NVIDIA's Streamline: the interposer, its common plugin, the DLSS plugin
+	// and DLSS itself.
+	const Vector<String> d3d12 = DlssUpscaler::get_runtime_libraries("d3d12");
+	REQUIRE(d3d12.size() == 4);
+	CHECK(d3d12[0] == "sl.interposer.dll");
+	CHECK(d3d12[1] == "sl.common.dll");
+	CHECK(d3d12[2] == "sl.dlss.dll");
+	CHECK(d3d12[3] == "nvngx_dlss.dll");
+
+	// Vulkan comes later.
+	CHECK(DlssUpscaler::get_runtime_libraries("vulkan").is_empty());
+	CHECK_FALSE(DlssUpscaler::is_supported_by_build("vulkan"));
+	CHECK(DlssUpscaler::get_runtime_libraries("opengl3").is_empty());
+	CHECK_FALSE(DlssUpscaler::is_supported_by_build("opengl3"));
+
+#if defined(WINDOWS_ENABLED) && defined(RD_ENABLED) && defined(D3D12_ENABLED)
+	CHECK(DlssUpscaler::is_supported_by_build("d3d12"));
+#else
+	CHECK_FALSE(DlssUpscaler::is_supported_by_build("d3d12"));
 #endif
 }
 

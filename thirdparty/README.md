@@ -1169,6 +1169,30 @@ Patches:
 - `0003-findnode-id-lookup-table.patch` ([GH-121835](https://github.com/godotengine/godot/pull/121835))
 
 
+## streamline
+
+- Upstream: https://github.com/NVIDIA-RTX/Streamline
+- Version: 2.14.16 (tag v2.14.16)
+- License: MIT (headers only)
+
+Files extracted from upstream source (used by the Erethea `erethea_upscale`
+module, which loads NVIDIA's `sl.interposer.dll` at run time; the DLLs are
+under the NVIDIA RTX SDKs License and aren't in the repository or in Erethea's
+builds):
+
+- `include/sl.h`
+- `include/sl_appidentity.h`
+- `include/sl_consts.h`
+- `include/sl_core_api.h`
+- `include/sl_core_types.h`
+- `include/sl_device_wrappers.h`
+- `include/sl_dlss.h`
+- `include/sl_result.h`
+- `include/sl_struct.h`
+- `include/sl_version.h`
+- `license.txt`
+
+
 ## swappy-frame-pacing
 
 - Upstream: https://android.googlesource.com/platform/frameworks/opt/gamesdk/ via https://github.com/godotengine/godot-swappy
