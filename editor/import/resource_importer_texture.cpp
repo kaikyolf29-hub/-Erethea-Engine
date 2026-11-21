@@ -168,6 +168,11 @@ void ResourceImporterTexture::update_imports() {
 
 			cf->set_value("params", "mipmaps/generate", true);
 			changed = true;
+
+			// Erethea: See texture_3d_detected_callback.
+			if (texture_3d_detected_callback) {
+				texture_3d_detected_callback(String(E.key));
+			}
 		}
 
 		if (changed) {
@@ -1107,6 +1112,8 @@ bool ResourceImporterTexture::are_import_settings_valid(const String &p_path, co
 }
 
 ResourceImporterTexture *ResourceImporterTexture::singleton = nullptr;
+// Erethea: See texture_3d_detected_callback.
+ResourceImporterTexture::Texture3DDetectedCallback ResourceImporterTexture::texture_3d_detected_callback = nullptr;
 
 ResourceImporterTexture::ResourceImporterTexture(bool p_singleton) {
 	// This should only be set through the EditorNode.
