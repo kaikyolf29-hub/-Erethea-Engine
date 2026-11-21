@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaMotionBlur" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Motion blur for moving objects and for the camera.
+	</brief_description>
+	<description>
+		A [CompositorEffect] that blurs each pixel along its motion since the previous frame, from the renderer's motion vectors, so both moving objects and camera movement are blurred. Add it to a [Compositor] and set that compositor on a [WorldEnvironment] or a [Camera3D]. Put it before an [EretheaPostEffect] in [member Compositor.compositor_effects], so the film grain isn't blurred.
+		The sky, which has no motion vectors, is blurred with the camera's rotation. Something that stays still on screen in front of a moving background, such as a character the camera follows, isn't smeared over that background.
+		The blur is drawn after the transparent pass, before temporal antialiasing, upscaling and tone mapping. Asking for motion vectors has a cost of its own when neither TAA nor FSR 2 is on.
+		[b]Note:[/b] This effect needs the Forward+ renderer. With the Mobile and Compatibility renderers it does nothing.
+		[b]Note:[/b] [member CompositorEffect.effect_callback_type] and the buffer settings of [CompositorEffect] don't apply to this effect, which always runs after the transparent pass with the motion vectors.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="intensity" type="float" setter="set_intensity" getter="get_intensity" default="0.5">
+			Fraction of the frame during which the virtual shutter is open: [code]0.5[/code] blurs along half of each pixel's motion between two frames, like a film camera's 180° shutter. [code]0.0[/code] turns it off.
+		</member>
+		<member name="max_length" type="float" setter="set_max_length" getter="get_max_length" default="0.05">
+			Longest blur, as a fraction of the screen width, so very fast motion doesn't smear the whole screen.
+		</member>
+		<member name="samples" type="int" setter="set_samples" getter="get_samples" default="12">
+			Number of samples along each pixel's motion. More samples give smoother long blurs and cost more.
+		</member>
+	</members>
+</class>
