@@ -5,7 +5,7 @@ on:
 
 # Upscales the reference scene with AMD FSR (modules/erethea_upscale) in the
 # Windows editor built by windows_builds.yml, with each rendering driver, on the
-# CPU: Mesa's lavapipe stands in for a graphics card on Vulkan, and Windows'
+# CPU: Mesa's lavapipe stands in for a graphics card on Vulkan, and Microsoft's
 # WARP on Direct3D 12. AMD's runtime then runs FSR 3.1 (FSR 4 needs an AMD
 # graphics card). Each job checks that the runtime loads, that FSR upscales
 # without errors, and that its image stays close to FSR 2.2's from the same
@@ -17,6 +17,8 @@ on:
 env:
   # Mesa for Windows (https://github.com/pal1000/mesa-dist-win), for lavapipe.
   MESA_VERSION: 26.2.7
+  # WARP from NuGet (https://www.nuget.org/packages/Microsoft.Direct3D.WARP).
+  WARP_VERSION: 1.0.22
   # Largest allowed difference with FSR 2.2, as luminance RMSE (0 to 255). Two
   # upscalers never match, this only catches a broken image.
   MAX_RMSE: 12.0
@@ -72,6 +74,20 @@ jobs:
           # driver is registered like an installed one.
           New-Item -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Force | Out-Null
           New-ItemProperty -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Name $icd.FullName -PropertyType DWord -Value 0 -Force | Out-Null
+
+      - name: Install a recent WARP
+        if: matrix.driver == 'd3d12'
+        shell: pwsh
+        run: |
+          # The runner's own WARP crashes in its shader compiler while compiling
+          # AMD FSR's compute shaders (d3d10warp!ComputeShaderTransformer). Use
+          # Microsoft's current one, which Direct3D 12 loads from the
+          # executable's folder.
+          $package = "microsoft.direct3d.warp.$env:WARP_VERSION.nupkg"
+          Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.direct3d.warp/$env:WARP_VERSION/$package" -OutFile warp.zip
+          Expand-Archive warp.zip -DestinationPath warp -Force
+          Copy-Item warp/build/native/bin/x64/d3d10warp.dll bin/
+          Write-Output "WARP: $((Get-Item bin/d3d10warp.dll).VersionInfo.FileVersion)"
 
       - name: Capture with FSR 2.2 and AMD FSR
         shell: pwsh
