@@ -111,23 +111,60 @@ jobs:
             throw "AMD FSR didn't start"
           }
 
-      # Runs the AMD FSR capture again under the console debugger, with more
-      # messages from Erethea, AMD's runtime and the Direct3D 12 debug layer,
-      # and prints where it crashed.
+      # Runs a short AMD FSR capture again with more messages from Erethea,
+      # AMD's runtime and the graphics API's validation. On Direct3D 12 it runs
+      # under the console debugger, which prints where it crashed. On Vulkan,
+      # the Vulkan SDK's API dump layer prints the Vulkan call that failed.
       - name: Show where AMD FSR failed
         if: failure()
         shell: pwsh
         run: |
-          $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           $exe = "bin/erethea.windows.editor.x86_64.exe"
           $arguments = @("--path", "erethea/tests/reference_scene", "--rendering-driver", "${{ matrix.driver }}", "--fixed-fps", "30", "--verbose", "--gpu-validation", "--",
-            "--capture=$PWD/captures/amd_fsr_debug", "--upscaler=amd_fsr", "--warmup=12", "--frames=4")
-          if ($cdb) {
-            $env:_NT_SYMBOL_PATH = "srv*$env:RUNNER_TEMP\symbols*https://msdl.microsoft.com/download/symbols"
-            & $cdb.FullName -g -G -lines -c "!gle; .ecxr; kn 60; lm o; q" $exe @arguments 2>&1 | Tee-Object -FilePath amd_fsr_debug.log
+            "--capture=$PWD/captures/amd_fsr_debug", "--upscaler=amd_fsr", "--warmup=1", "--frames=1")
+          if ("${{ matrix.driver }}" -eq "vulkan") {
+            try {
+              $version = (Invoke-RestMethod "https://vulkan.lunarg.com/sdk/latest/windows.txt").Trim()
+              Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$version/windows/vulkansdk-windows-X64-$version.exe" -OutFile vulkan-sdk.exe
+              $sdk = "$env:RUNNER_TEMP\VulkanSDK"
+              Start-Process -Wait -NoNewWindow -FilePath .\vulkan-sdk.exe -ArgumentList "--root", $sdk, "--accept-licenses", "--default-answer", "--confirm-command", "install"
+              # Elevated processes only find layers through the registry.
+              New-Item -Path "HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers" -Force | Out-Null
+              $layers = Get-ChildItem -Recurse $sdk -Filter "VkLayer_*.json"
+              foreach ($layer in $layers) {
+                New-ItemProperty -Path "HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers" -Name $layer.FullName -PropertyType DWord -Value 0 -Force | Out-Null
+              }
+              Write-Output "Vulkan SDK $version layers: $($layers.Name -join ', ')"
+            } catch {
+              Write-Output "The Vulkan SDK didn't install: $_"
+            }
+            $env:VK_LOADER_LAYERS_ENABLE = "*api_dump"
+            foreach ($prefix in "VK_APIDUMP", "VK_API_DUMP", "VK_LUNARG_API_DUMP") {
+              Set-Item "env:$($prefix)_LOG_FILENAME" "$PWD\api_dump.txt"
+              Set-Item "env:$($prefix)_OUTPUT_FORMAT" "text"
+              Set-Item "env:$($prefix)_FLUSH" "false"
+            }
+            # The API dump is far too long for the job's log: print only the
+            # messages and the failed calls.
+            & $exe @arguments *> amd_fsr_debug.log
+            $log = Get-Content amd_fsr_debug.log
+            $failed = ($log | Select-String -Pattern "AMD FSR couldn't start" | Select-Object -First 1).LineNumber
+            if ($failed) {
+              # The messages just before AMD FSR gave up.
+              $log[[Math]::Max(0, $failed - 400)..($failed - 1)] | Select-String -Pattern "ERROR|WARNING|VUID|AMD FSR" | Select-Object -Last 60
+            }
+            Select-String -Path amd_fsr_debug.log -Pattern "AMD FSR|Erethea:" | Select-Object -First 20
+            $dumps = Get-ChildItem api_dump.txt, amd_fsr_debug.log -ErrorAction SilentlyContinue
+            Select-String -Path $dumps -Pattern "returns VkResult VK_ERROR" -Context 30, 60 | Select-Object -First 3
           } else {
-            Write-Output "cdb.exe isn't on the runner; running without the debugger."
-            & $exe @arguments 2>&1 | Tee-Object -FilePath amd_fsr_debug.log
+            $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($cdb) {
+              $env:_NT_SYMBOL_PATH = "srv*$env:RUNNER_TEMP\symbols*https://msdl.microsoft.com/download/symbols"
+              & $cdb.FullName -g -G -lines -c "!gle; .ecxr; kn 60; lm o; q" $exe @arguments 2>&1 | Tee-Object -FilePath amd_fsr_debug.log
+            } else {
+              Write-Output "cdb.exe isn't on the runner; running without the debugger."
+              & $exe @arguments 2>&1 | Tee-Object -FilePath amd_fsr_debug.log
+            }
           }
           exit 0
 
