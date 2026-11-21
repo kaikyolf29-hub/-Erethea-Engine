@@ -1,0 +1,104 @@
+name: 🔥 Erethea DLSS
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Starts NVIDIA's DLSS (modules/erethea_upscale) in the Windows editor built by
+# windows_builds.yml, on Direct3D 12 with Microsoft's WARP, which renders on
+# the CPU. WARP isn't an NVIDIA RTX graphics card, so DLSS can't upscale there:
+# the job checks that Erethea loads NVIDIA's Streamline, which tells it so, that
+# Erethea then falls back to FSR 2.2 with the same image, and that it closes
+# cleanly. NVIDIA's files are downloaded for the test only: Erethea doesn't
+# ship them, and the artifact only holds the captures and the logs.
+#
+# This proves the integration up to the graphics card, not DLSS itself: see
+# "Não testado na placa" in erethea/README.md.
+
+env:
+  # WARP from NuGet (https://www.nuget.org/packages/Microsoft.Direct3D.WARP).
+  WARP_VERSION: 1.0.22
+  # Largest allowed difference with FSR 2.2, as luminance RMSE (0 to 255). DLSS
+  # falls back to the same FSR 2.2, so the images match.
+  MAX_RMSE: 1.0
+
+jobs:
+  dlss:
+    runs-on: windows-latest
+    name: DLSS on Direct3D 12 (WARP)
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      # For this test only, under NVIDIA's license for development.
+      - name: Download NVIDIA's Streamline
+        run: python erethea/tools/fetch_streamline.py bin --accept-nvidia-license
+
+      - name: Install a recent WARP
+        shell: pwsh
+        run: |
+          # The runner's own WARP crashes compiling some compute shaders. Use
+          # Microsoft's current one, which Direct3D 12 loads from the
+          # executable's folder.
+          $package = "microsoft.direct3d.warp.$env:WARP_VERSION.nupkg"
+          Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.direct3d.warp/$env:WARP_VERSION/$package" -OutFile warp.zip
+          Expand-Archive warp.zip -DestinationPath warp -Force
+          Copy-Item warp/build/native/bin/x64/d3d10warp.dll bin/
+          Write-Output "WARP: $((Get-Item bin/d3d10warp.dll).VersionInfo.FileVersion)"
+
+      - name: Capture with FSR 2.2 and DLSS
+        shell: pwsh
+        run: |
+          $exe = "bin/erethea.windows.editor.x86_64.exe"
+          $project = "erethea/tests/reference_scene"
+          & $exe --path $project --rendering-driver d3d12 --fixed-fps 30 -- `
+            "--capture=$PWD/captures/fsr2" "--upscaler=fsr2" --warmup=12 --frames=4 2>&1 | Tee-Object -FilePath "fsr2.log"
+          if ($LASTEXITCODE -ne 0) { throw "The FSR 2.2 capture failed with exit code $LASTEXITCODE" }
+
+          # Streamline starts before the graphics device, so DLSS is chosen
+          # before Erethea starts.
+          "[rendering]`nerethea/temporal_upscaler=3" | Set-Content -Encoding ascii "$project/override.cfg"
+          & $exe --path $project --rendering-driver d3d12 --fixed-fps 30 --verbose -- `
+            "--capture=$PWD/captures/dlss" "--upscaler=dlss" --warmup=12 --frames=4 2>&1 | Tee-Object -FilePath "dlss.log"
+          if ($LASTEXITCODE -ne 0) { throw "The DLSS capture failed with exit code $LASTEXITCODE" }
+          Remove-Item "$project/override.cfg"
+          Select-String -Path dlss.log -Pattern "DLSS|Streamline|D3D12|Direct3D|WARP|Basic Render|FSR 2.2" | Select-Object -First 30
+
+          if (Select-String -Path dlss.log -Pattern "switching to" -Quiet) {
+            throw "Direct3D 12 didn't start, so this job didn't test DLSS"
+          }
+          # Only Streamline, once loaded, can tell that this computer doesn't
+          # support DLSS: on WARP, slInit finds no plugin for the hardware.
+          if (-not (Select-String -Path dlss.log -Pattern "doesn't support DLSS" -Quiet)) {
+            throw "Streamline didn't check the graphics card, see dlss.log above"
+          }
+          if (-not (Select-String -Path dlss.log -Pattern "Using FSR 2.2" -Quiet)) {
+            throw "DLSS didn't fall back to FSR 2.2"
+          }
+
+      - name: Compare the fallback with FSR 2.2
+        shell: pwsh
+        run: |
+          & bin/erethea.windows.editor.x86_64.exe --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- `
+            "--baseline=$PWD/captures/fsr2" "--candidate=$PWD/captures/dlss" "--out=$PWD/captures/comparison" "--max-rmse=$env:MAX_RMSE" 2>&1 | Tee-Object -FilePath compare.log
+          $code = $LASTEXITCODE
+          "## DLSS (volta para o FSR 2.2) contra FSR 2.2 (Direct3D 12 WARP, Windows)" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content captures/comparison/summary.md -ErrorAction SilentlyContinue >> $env:GITHUB_STEP_SUMMARY
+          if ($code -ne 0) { throw "The image with DLSS chosen differs from FSR 2.2's more than $env:MAX_RMSE" }
+
+      - name: Upload captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-dlss-captures
+          path: |
+            captures
+            *.log
+          retention-days: 14

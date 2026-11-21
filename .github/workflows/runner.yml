@@ -72,6 +72,11 @@ jobs:
     needs: windows-build
     uses: ./.github/workflows/erethea_xess.yml
 
+  erethea-dlss:
+    name: 🔥 Erethea DLSS
+    needs: windows-build
+    uses: ./.github/workflows/erethea_dlss.yml
+
   erethea-reference-scene:
     name: 🔥 Erethea reference scene
     needs: linux-build
