@@ -67,6 +67,11 @@ jobs:
     needs: windows-build
     uses: ./.github/workflows/erethea_amd_fsr.yml
 
+  erethea-xess:
+    name: 🔥 Erethea XeSS
+    needs: windows-build
+    uses: ./.github/workflows/erethea_xess.yml
+
   erethea-reference-scene:
     name: 🔥 Erethea reference scene
     needs: linux-build
