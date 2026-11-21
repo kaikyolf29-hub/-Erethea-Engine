@@ -7,9 +7,12 @@ on:
 # Windows editor built by windows_builds.yml, with each rendering driver, on the
 # CPU: Mesa's lavapipe stands in for a graphics card on Vulkan, and Microsoft's
 # WARP on Direct3D 12. AMD's runtime then runs FSR 3.1 (FSR 4 needs an AMD
-# graphics card). Each job checks that the runtime loads, that FSR upscales
-# without errors, and that its image stays close to FSR 2.2's from the same
-# frames. The captures, side by side, are uploaded as an artifact.
+# graphics card). AMD's Vulkan backend needs a memory type that only the
+# graphics card sees, which lavapipe lacks, so a test layer
+# (erethea/tests/vulkan_memory_alias) adds one as an alias of lavapipe's.
+# Each job checks that the runtime loads, that FSR upscales without errors, and
+# that its image stays close to FSR 2.2's from the same frames. The captures,
+# side by side, are uploaded as an artifact.
 #
 # This proves the integration, not the quality or speed on a graphics card: see
 # "Não testado na placa" in erethea/README.md.
@@ -75,6 +78,24 @@ jobs:
           New-Item -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Force | Out-Null
           New-ItemProperty -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Name $icd.FullName -PropertyType DWord -Value 0 -Force | Out-Null
 
+          # The test layer that gives lavapipe a memory type only the "graphics
+          # card" sees, for AMD's Vulkan backend. Both captures use it, so FSR
+          # 2.2 and AMD FSR are compared on the same driver.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $layer = "$env:RUNNER_TEMP\memory_alias"
+          New-Item -ItemType Directory -Force $layer | Out-Null
+          @(
+            "call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul || exit /b 1",
+            "cl /nologo /O2 /EHsc /std:c++17 /LD /I thirdparty\vulkan\include erethea\tests\vulkan_memory_alias\memory_alias_layer.cpp /Fo`"$layer\\`" /Fe`"$layer\VkLayer_erethea_memory_alias.dll`""
+          ) | Set-Content -Encoding ascii "$layer\build.bat"
+          cmd /c "$layer\build.bat"
+          if ($LASTEXITCODE -ne 0) { throw "The memory alias layer didn't build" }
+          Copy-Item erethea/tests/vulkan_memory_alias/VkLayer_erethea_memory_alias.json $layer
+          New-Item -Path "HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers" -Name "$layer\VkLayer_erethea_memory_alias.json" -PropertyType DWord -Value 0 -Force | Out-Null
+          # Older Vulkan loaders only read VK_INSTANCE_LAYERS.
+          "VK_INSTANCE_LAYERS=VK_LAYER_ERETHEA_memory_alias" >> $env:GITHUB_ENV
+
       - name: Install a recent WARP
         if: matrix.driver == 'd3d12'
         shell: pwsh
@@ -139,7 +160,7 @@ jobs:
               Write-Output "The Vulkan SDK didn't install: $_"
             }
             # Older Vulkan loaders only read VK_INSTANCE_LAYERS.
-            $env:VK_INSTANCE_LAYERS = "VK_LAYER_LUNARG_api_dump"
+            $env:VK_INSTANCE_LAYERS = (@($env:VK_INSTANCE_LAYERS, "VK_LAYER_LUNARG_api_dump") | Where-Object { $_ }) -join ";"
             $env:VK_LOADER_LAYERS_ENABLE = "*api_dump"
             $env:VK_LOADER_DEBUG = "error,warn,layer"
             foreach ($prefix in "VK_APIDUMP", "VK_API_DUMP", "VK_LUNARG_API_DUMP") {
@@ -160,34 +181,6 @@ jobs:
               $log[[Math]::Max(0, $failed - 400)..($failed - 1)] | Select-String -Pattern "ERROR|WARNING|VUID|AMD FSR" | Select-Object -Last 60
             }
             Select-String -Path amd_fsr_debug.log -Pattern "AMD FSR|Erethea:" | Select-Object -First 20
-
-            # Trace AMD's runtime while it creates the upscaler, with the
-            # value each function returns, to see where its error comes from.
-            # The trace starts in the upscaler's own library, which the loader
-            # library loads before (a library loading during "wt" ends it).
-            Remove-Item env:VK_INSTANCE_LAYERS, env:VK_LOADER_LAYERS_ENABLE, env:VK_LOADER_DEBUG -ErrorAction SilentlyContinue
-            $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($cdb) {
-              # No -g: the commands run at the initial breakpoint, and each one
-              # after a "g" runs at the next stop.
-              $commands = "sxe ld:amd_fidelityfx_upscaler_vk; g; bp amd_fidelityfx_upscaler_vk!ffxCreateContext; sxd ld; g; wt -l 10 -or; q"
-              $cdbArguments = @("-G", "-c", "`"$commands`"", $exe) + $arguments
-              $process = Start-Process -FilePath $cdb.FullName -ArgumentList $cdbArguments -RedirectStandardOutput amd_fsr_trace.log -RedirectStandardError amd_fsr_trace_err.log -NoNewWindow -PassThru
-              if (-not $process.WaitForExit(600000)) {
-                Write-Output "The trace didn't finish in 10 minutes."
-                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-              }
-              $trace = Get-Content amd_fsr_trace.log
-              $summary = ($trace | Select-String -Pattern "instructions were executed" | Select-Object -First 1).LineNumber
-              if (-not $summary) { $summary = $trace.Count }
-              $callPattern = "^\s*\d+\s+\d+\s+\[\s*\d+\]"
-              Write-Output "== Debugger messages ($($trace.Count) lines in all)"
-              $trace[0..($summary - 1)] | Where-Object { $_ -notmatch $callPattern -and $_ -notmatch "^ModLoad:" } | Select-Object -Last 80
-              Write-Output "== Calls in AMD's libraries and out of them, with their results"
-              $trace[0..($summary - 1)] | Where-Object { $_ -match $callPattern -and $_ -match "amd_fidelityfx|vulkan_1|KERNEL32!|KERNELBASE!(LoadLibrary|GetProcAddress|GetModule|OutputDebug)|VERSION!|ucrtbase!getenv" } | Select-Object -First 1500
-              Write-Output "== Summary of the trace"
-              $trace[($summary - 1)..($trace.Count - 1)] | Where-Object { $_ -notmatch "^ntdll!|^ucrtbase!|^KERNELBASE!" }
-            }
           } else {
             $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($cdb) {
