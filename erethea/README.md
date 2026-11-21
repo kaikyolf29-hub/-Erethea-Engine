@@ -156,6 +156,39 @@ erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --post=all --capt
 O CI captura a cena com todos os efeitos e mostra a diferença para o padrão.
 Ainda não medido nas placas de referência: o custo de cada efeito em FPS.
 
+## Upscaling (AMD FSR 3.1 e 4)
+
+A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por
+meio do runtime oficial da AMD (FSR SDK 2.4.0, licença MIT): o runtime escolhe o
+**FSR 4** nas placas que a AMD suporta (Radeon RX 6000 em diante, segundo a
+AMD) e o **FSR 3.1** nas outras, inclusive a RX 580 e as GeForce.
+
+Para ligar: *Projeto › Configurações do projeto › Rendering › Erethea ›
+Temporal Upscaler* = `AMD FSR`, e no Viewport (ou em *Rendering › Scaling 3D*)
+o modo `FSR 2.2` com a escala que quiser. A Godot ignora essa configuração e
+continua no FSR 2.2, então o projeto abre igual nela.
+
+Precisa de Windows, do driver Vulkan e do Forward+, e dos arquivos
+`amd_fidelityfx_loader_vk.dll` e `amd_fidelityfx_upscaler_vk.dll` ao lado do
+executável. O instalador já os coloca, e a exportação para Windows os copia
+para o jogo quando o projeto usa o AMD FSR. Num build próprio, baixe-os com:
+
+```sh
+python erethea/tools/fetch_amd_fsr.py bin
+```
+
+Sem os arquivos, em outro sistema, com outro driver (D3D12, OpenGL) ou em XR,
+volta para o FSR 2.2 com um aviso. Os arquivos da AMD usam o runtime do Visual
+C++ 2015-2022, que quase todo PC com jogos já tem; sem ele, também volta para o
+FSR 2.2.
+
+Para ver na cena de referência, acrescente `--upscaler=amd_fsr` (ou `fsr2`)
+depois do `--`; ela renderiza a 67% e reconstrói na resolução da janela.
+O CI roda a cena no Windows com o AMD FSR num driver Vulkan de CPU (lavapipe),
+o que prova a integração com o FSR 3.1. **Não testado na placa:** a qualidade e
+o custo em FPS na RX 580 e na RTX 4060 Ti/5060 Ti, e o FSR 4 (precisa de uma
+Radeon RX 6000 ou mais nova).
+
 ## Lançar uma versão
 
 As versões da Erethea têm numeração própria (`0.2.0`, `0.2.0-beta.1`),

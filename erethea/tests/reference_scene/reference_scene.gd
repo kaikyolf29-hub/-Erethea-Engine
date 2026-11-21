@@ -22,6 +22,10 @@ extends Node3D
 ## (EretheaMotionBlur: the camera pans and the character turns, and both are
 ## back in their usual place, at full speed, on the captured frame). Stock
 ## Godot ignores both with a warning.
+##
+## --upscaler=<fsr2|amd_fsr> renders at 67% of the resolution and upscales with
+## Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 (Windows and Vulkan,
+## falls back to FSR 2.2 elsewhere). --upscale-scale=<0.25..1> changes the 67%.
 
 const TIMES: Array[String] = ["dia", "noite"]
 const VIEWS := {
@@ -38,6 +42,9 @@ const POST_EFFECTS: Array[String] = ["lut", "flare", "vignette", "aberration", "
 const MOTION_PAN := 12.0
 const MOTION_TURN := 60.0
 const LUT_PATH := "res://luts/cinematic.cube"
+# The values of the Erethea setting rendering/erethea/temporal_upscaler.
+const UPSCALERS := {"fsr2": 0, "amd_fsr": 1}
+const UPSCALER_SETTING := "rendering/erethea/temporal_upscaler"
 const CAPTURE_SIZE := Vector2i(1280, 720)
 const SEED := 2026
 
@@ -79,6 +86,8 @@ func _ready() -> void:
 		_apply_quality(arguments["quality"])
 	if arguments.has("post"):
 		_apply_post(arguments["post"])
+	if arguments.has("upscaler"):
+		_apply_upscaler(arguments["upscaler"], float(arguments.get("upscale-scale", "0.67")))
 	if arguments.has("capture"):
 		await _capture(arguments["capture"], int(arguments.get("warmup", "20")), int(arguments.get("frames", "20")))
 		get_tree().quit()
@@ -209,6 +218,19 @@ func _apply_post(effects_argument: String) -> void:
 	print("Post effects: %s" % ", ".join(effects))
 
 
+func _apply_upscaler(upscaler: String, scale: float) -> void:
+	if not UPSCALERS.has(upscaler):
+		push_error("Unknown upscaler '%s'. Use one of %s." % [upscaler, ", ".join(PackedStringArray(UPSCALERS.keys()))])
+		return
+	get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2
+	get_viewport().scaling_3d_scale = clampf(scale, 0.25, 1.0)
+	if ProjectSettings.has_setting(UPSCALER_SETTING):
+		ProjectSettings.set_setting(UPSCALER_SETTING, UPSCALERS[upscaler])
+	elif upscaler != "fsr2":
+		push_warning("This engine has no %s, upscaling with FSR 2.2." % UPSCALER_SETTING)
+	print("Upscaler: %s at %d%%" % [upscaler, roundi(get_viewport().scaling_3d_scale * 100.0)])
+
+
 func _get_user_arguments() -> Dictionary:
 	var arguments := {}
 	for argument in OS.get_cmdline_user_args():
@@ -239,6 +261,7 @@ func _capture(folder: String, warmup: int, frames: int) -> void:
 		"size": [CAPTURE_SIZE.x, CAPTURE_SIZE.y],
 		"quality": _get_user_arguments().get("quality", "default"),
 		"post": _get_user_arguments().get("post", "none"),
+		"upscaler": _get_user_arguments().get("upscaler", "none"),
 		"captures": [],
 	}
 	print("Reference scene on %s (%s)" % [results["adapter"], results["api"]])

@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/windows_builds.yml
 
   # Erethea: branding check, Windows installer and smoke test, window test,
-  # reference scene against stock Godot.
+  # AMD FSR test, reference scene against stock Godot.
 
   erethea-branding:
     name: 🔥 Erethea branding
@@ -61,6 +61,11 @@ jobs:
     name: 🔥 Erethea window
     needs: windows-build
     uses: ./.github/workflows/erethea_window.yml
+
+  erethea-amd-fsr:
+    name: 🔥 Erethea AMD FSR
+    needs: windows-build
+    uses: ./.github/workflows/erethea_amd_fsr.yml
 
   erethea-reference-scene:
     name: 🔥 Erethea reference scene

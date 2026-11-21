@@ -38,6 +38,8 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item bin/erethea.windows.editor.x86_64.exe erethea/installer/erethea.exe
+          python erethea/tools/fetch_amd_fsr.py erethea/installer
+          if ($LASTEXITCODE -ne 0) { throw "Couldn't download AMD's FSR runtime" }
           $version = python -c "import version; print(f'{version.major}.{version.minor}')"
           & $env:ISCC "/DMyAppVersion=$version" erethea/installer/erethea.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
@@ -50,6 +52,7 @@ jobs:
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$dir`""
           if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
           if (-not (Test-Path "$dir/erethea.exe")) { throw "erethea.exe was not installed" }
+          if (-not (Test-Path "$dir/amd_fidelityfx_upscaler_vk.dll")) { throw "AMD's FSR runtime was not installed" }
           "ERETHEA_DIR=$dir" >> $env:GITHUB_ENV
 
       - name: Open a Godot project with the installed editor

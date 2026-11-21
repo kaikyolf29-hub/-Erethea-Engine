@@ -1,2 +1,5 @@
 # Build outputs of the installer.
 *.exe
+# AMD FSR runtime, downloaded by erethea/tools/fetch_amd_fsr.py.
+*.dll
+AMD_FSR_LICENSE.txt

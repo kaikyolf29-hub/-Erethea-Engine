@@ -133,6 +133,8 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item bin/erethea.windows.editor.x86_64.exe erethea/installer/erethea.exe
+          python erethea/tools/fetch_amd_fsr.py erethea/installer
+          if ($LASTEXITCODE -ne 0) { throw "Couldn't download AMD's FSR runtime" }
           Copy-Item bin/erethea.windows.editor.x86_64.console.exe erethea/installer/erethea.console.exe
           & $env:ISCC "/DMyAppVersion=${{ steps.version.outputs.version }}" erethea/installer/erethea.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
