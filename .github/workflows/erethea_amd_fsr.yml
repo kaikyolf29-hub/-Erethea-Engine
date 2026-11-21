@@ -217,6 +217,9 @@ jobs:
               lines = f.read().splitlines()
           print(f"{len(lines)} lines. The dump starts with:")
           print("\n".join(lines[:25]))
+          # A dump without vkDestroyInstance at its end lost its last calls.
+          print("== The dump ends with:")
+          print("\n".join(lines[-15:]))
 
           call_pattern = re.compile(r"(vk\w+)\(.*\)\s+returns\s+(\w+)\s*(VK_\w+)?")
           calls = []
