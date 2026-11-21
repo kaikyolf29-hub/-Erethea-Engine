@@ -1,0 +1,14 @@
+; Test project for erethea/tests/export_checks/test_export_checks.py, which
+; adds the assets and their license receipts before exporting.
+
+config_version=5
+
+[application]
+
+config/name="Erethea Export Checks Test"
+config/features=PackedStringArray("4.8", "Forward Plus")
+
+[editor]
+
+erethea_export_checks/max_texture_size=256
+erethea_export_checks/max_character_triangles=1000

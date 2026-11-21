@@ -12,6 +12,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/smoke_project/` | Projeto Godot simples que o CI abre com o instalador |
 | `tests/reference_scene/` | Cena de referência (vila, floresta, personagem, dia e noite) para comparar com a Godot |
 | `tests/mcp/` | Projeto vazio e teste de ponta a ponta do servidor MCP do editor |
+| `tests/export_checks/` | Projeto da Fornalha e teste das validações antes de exportar |
 
 ## Atualizar a Godot
 
@@ -362,6 +363,7 @@ claude mcp add --transport http erethea http://127.0.0.1:11481/mcp
 | `get_errors` | Erros, avisos e `print` do editor e do jogo, a partir de um ponto |
 | `take_screenshot` | Captura do jogo, do editor ou da vista 2D ou 3D, em PNG |
 | `rescan_files` | Faz o editor ver arquivos criados fora dele |
+| `check_export` | Roda as validações antes de exportar (veja abaixo) |
 
 Tudo o que muda a cena entra no histórico de desfazer com o nome
 `MCP: ...`, então Ctrl+Z desfaz o que o agente fez. As mudanças só vão para o
@@ -383,6 +385,69 @@ e os logs ficam no artefato `erethea-mcp-linux`.
 
 ```sh
 python erethea/tests/mcp/test_mcp.py bin/erethea.linuxbsd.editor.x86_64 --out capturas/mcp
+```
+
+## Validações antes de exportar
+
+Antes de exportar, a Erethea confere o que costuma estragar um jogo feito com
+assets gerados: modelo pesado demais, textura grande demais, modelo na escala
+errada e asset sem recibo de licença. O código fica em
+`modules/erethea_export_checks/`. Os limites ficam em *Projeto › Configurações
+do Projeto › Editor › Erethea Export Checks* (com *Configurações Avançadas*
+ligado).
+
+| Confere | Padrão | Configuração |
+| --- | --- | --- |
+| Triângulos de um personagem ou inimigo | até 100 mil | `max_character_triangles` |
+| Triângulos de qualquer outro modelo | até 500 mil | `max_model_triangles` |
+| Lado maior de uma textura (também as de dentro do `.glb`) | até 4096 px | `max_texture_size` |
+| Altura de um personagem ou inimigo | de 0,3 a 4 m | `character_height` |
+| Lado maior de qualquer outro modelo | de 5 mm a 5 km | `model_size` |
+| Pastas de personagens | `Characters` e `Enemies` | `character_folders` |
+| Recibo de licença de cada asset | ligado | `license_receipts` |
+
+A escala pega o erro mais comum de exportação do Blender: um personagem de
+180 m foi exportado em centímetros. Os triângulos contam o modelo inteiro, sem
+os LODs que a Godot cria na importação.
+
+**Recibos de licença.** Em projetos da Fornalha (com `game.project.json` ao
+lado do `project.godot`), a Erethea lê `ai/recibos.jsonl`, o banco de recibos
+que a Fornalha grava, e confere os mesmos arquivos que a Fornalha confere: as
+imagens, modelos, sons e vídeos das pastas `World`, `Characters`, `Enemies`,
+`Items`, `Weapons`, `Animations`, `Audio`, `VFX`, `Cutscenes` e `UI`. Uma
+textura que a Godot tirou de dentro de um `.glb` usa o recibo do `.glb`.
+
+- **Erro**, num projeto comercial (o padrão da Fornalha): asset sem recibo, ou
+  feito com um modelo cuja licença não deixa vender.
+- **Aviso**: licença com condições (aceite ou teto de receita, que ficam na
+  Fornalha, então confira lá), ou arquivo que mudou depois do recibo (editado à
+  mão ou limpo no Blender).
+
+Os outros problemas (triângulos, texturas, escala) são avisos.
+
+**Quando roda.**
+
+- Na exportação, em projetos da Fornalha. Projetos da Godot exportam como antes;
+  para ligar neles, troque `run_on_export` para *All Projects* (ou *Never* para
+  desligar de vez). Cada problema aparece no log da exportação. A Godot não
+  deixa um plugin parar a exportação, então o arquivo é gerado mesmo com erro,
+  mas o log mostra *Falhou* e lista os erros.
+- A qualquer hora em *Projeto › Ferramentas › Check Project for Export...*: uma
+  lista com cada problema; dois cliques numa linha mostram o arquivo.
+- Pelo agente, com a ferramenta `check_export` do servidor MCP, que pode
+  conferir só o que um preset de exportação leva.
+
+**Teste.** `erethea/tests/export_checks/test_export_checks.py` monta um projeto
+como os da Fornalha, com um herói certo, um gigante em centímetros, um inimigo
+pesado feito com um modelo que não deixa vender, uma casa sem recibo, uma
+textura grande com licença condicional e uma textura que mudou depois do
+recibo. Exporta um `.pck` pela linha de comando e confere que o log aponta cada
+problema, e nada do herói. Depois tira o `game.project.json` e confere que a
+exportação de um projeto da Godot não roda nenhuma validação. O CI roda no
+Linux e no Windows.
+
+```sh
+python erethea/tests/export_checks/test_export_checks.py bin/erethea.linuxbsd.editor.x86_64
 ```
 
 ## Lançar uma versão

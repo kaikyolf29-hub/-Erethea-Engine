@@ -3168,6 +3168,13 @@ static void _load_script_doc_cache(bool p_changes) {
 }
 
 void EditorHelp::load_script_doc_cache() {
+	// Erethea: this is called deferred by the documentation thread, which
+	// cleanup_doc() waits for when the editor quits, such as right after
+	// --import. The call then runs with the editor gone, and crashed.
+	if (!EditorNode::get_singleton() || !doc) {
+		return;
+	}
+
 	if (!ProjectSettings::get_singleton()->is_project_loaded()) {
 		print_verbose("Skipping loading script doc cache since no project is open.");
 		return;

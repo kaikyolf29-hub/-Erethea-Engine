@@ -1,0 +1,63 @@
+name: 🔥 Erethea export checks
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Exports a project made like the Fornalha makes them, with models, textures
+# and license receipts that have known problems, through the editor's command
+# line (modules/erethea_export_checks), and checks that the export log lists
+# each problem. Then the same project without game.project.json, like a plain
+# Godot project, must export without any check.
+
+jobs:
+  export-checks-linux:
+    runs-on: ubuntu-24.04
+    name: Export checks on Linux
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Export with checks
+        run: |
+          chmod +x bin/erethea.*
+          python3 erethea/tests/export_checks/test_export_checks.py bin/erethea.linuxbsd.editor.x86_64.mono --out "$PWD/export_checks/linux"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-export-checks-linux
+          path: export_checks
+          retention-days: 14
+
+  export-checks-windows:
+    runs-on: windows-latest
+    name: Export checks on Windows
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Export with checks
+        run: python erethea/tests/export_checks/test_export_checks.py bin/erethea.windows.editor.x86_64.exe --out "${{ github.workspace }}/export_checks/windows"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-export-checks-windows
+          path: export_checks
+          retention-days: 14
