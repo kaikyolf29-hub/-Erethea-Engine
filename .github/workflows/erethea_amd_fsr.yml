@@ -138,24 +138,45 @@ jobs:
             } catch {
               Write-Output "The Vulkan SDK didn't install: $_"
             }
+            # Older Vulkan loaders only read VK_INSTANCE_LAYERS.
+            $env:VK_INSTANCE_LAYERS = "VK_LAYER_LUNARG_api_dump"
             $env:VK_LOADER_LAYERS_ENABLE = "*api_dump"
+            $env:VK_LOADER_DEBUG = "error,warn,layer"
             foreach ($prefix in "VK_APIDUMP", "VK_API_DUMP", "VK_LUNARG_API_DUMP") {
+              Set-Item "env:$($prefix)_FILE" "true"
               Set-Item "env:$($prefix)_LOG_FILENAME" "$PWD\api_dump.txt"
               Set-Item "env:$($prefix)_OUTPUT_FORMAT" "text"
               Set-Item "env:$($prefix)_FLUSH" "false"
             }
             # The API dump is far too long for the job's log: print only the
-            # messages and the failed calls.
+            # messages, the failed calls and the calls AMD's runtime made.
             & $exe @arguments *> amd_fsr_debug.log
             $log = Get-Content amd_fsr_debug.log
+            Write-Output "== Layers"
+            $log | Select-String -Pattern "api_dump|khronos_validation" | Select-Object -First 15
             $failed = ($log | Select-String -Pattern "AMD FSR couldn't start" | Select-Object -First 1).LineNumber
             if ($failed) {
-              # The messages just before AMD FSR gave up.
+              Write-Output "== Messages before AMD FSR gave up"
               $log[[Math]::Max(0, $failed - 400)..($failed - 1)] | Select-String -Pattern "ERROR|WARNING|VUID|AMD FSR" | Select-Object -Last 60
             }
             Select-String -Path amd_fsr_debug.log -Pattern "AMD FSR|Erethea:" | Select-Object -First 20
-            $dumps = Get-ChildItem api_dump.txt, amd_fsr_debug.log -ErrorAction SilentlyContinue
-            Select-String -Path $dumps -Pattern "returns VkResult VK_ERROR" -Context 30, 60 | Select-Object -First 3
+            $dump = Get-Item api_dump.txt -ErrorAction SilentlyContinue
+            if (-not $dump) {
+              Write-Output "== No API dump was written. The log starts with:"
+              $log | Select-Object -First 40
+            } else {
+              Write-Output "== API dump: $($dump.Length) bytes"
+              Select-String -Path api_dump.txt -Pattern "returns VkResult VK_ERROR" -Context 30, 60 | Select-Object -First 3
+              # AMD's runtime starts by listing the device's extensions, which
+              # Erethea only does before it creates the device.
+              $calls = Select-String -Path api_dump.txt -Pattern "^vk\w+\("
+              $device = ($calls | Where-Object { $_.Line -like "vkCreateDevice(*" } | Select-Object -First 1).LineNumber
+              $start = ($calls | Where-Object { $_.LineNumber -gt $device -and $_.Line -like "vkEnumerateDeviceExtensionProperties(*" } | Select-Object -First 1).LineNumber
+              Write-Output "== Vulkan calls from line $start of the API dump"
+              if ($start) {
+                $calls | Where-Object { $_.LineNumber -ge $start } | Select-Object -First 250 | ForEach-Object { $_.Line }
+              }
+            }
           } else {
             $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($cdb) {
