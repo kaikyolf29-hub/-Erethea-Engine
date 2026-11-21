@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/windows_builds.yml
 
   # Erethea: branding check, Windows installer and smoke test, window test,
-  # AMD FSR test, reference scene against stock Godot.
+  # upscaler tests, reference scene against stock Godot, editor MCP server.
 
   erethea-branding:
     name: 🔥 Erethea branding
@@ -81,3 +81,8 @@ jobs:
     name: 🔥 Erethea reference scene
     needs: linux-build
     uses: ./.github/workflows/erethea_reference_scene.yml
+
+  erethea-mcp:
+    name: 🔥 Erethea MCP
+    needs: [linux-build, windows-build]
+    uses: ./.github/workflows/erethea_mcp.yml

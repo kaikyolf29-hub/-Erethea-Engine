@@ -52,9 +52,10 @@ novas da Godot sem reescrever nada.
 | Pós-processamento (LUT `.cube`, lens flare, motion blur, grão) | `modules/erethea_post/` |
 | Upscalers (AMD FSR 3.1/4, XeSS e DLSS) | `modules/erethea_upscale/` |
 | Streaming de texturas 3D | `modules/erethea_streaming/` |
+| Servidor MCP do editor (agentes como o Claude Code) | `modules/erethea_mcp/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
-| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`) |
+| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`) |
 
 ## Compilar e testar
 
