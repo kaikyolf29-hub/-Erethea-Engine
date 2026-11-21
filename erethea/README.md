@@ -11,6 +11,7 @@ que juntar versões novas da Godot não dê conflito.
 | `installer/erethea.iss` | Instalador do Windows (Inno Setup 6), também usado nas atualizações |
 | `tests/smoke_project/` | Projeto Godot simples que o CI abre com o instalador |
 | `tests/reference_scene/` | Cena de referência (vila, floresta, personagem, dia e noite) para comparar com a Godot |
+| `tests/mcp/` | Projeto vazio e teste de ponta a ponta do servidor MCP do editor |
 
 ## Atualizar a Godot
 
@@ -324,6 +325,65 @@ O ícone continua como na Godot.
 
 Ainda não testado nas placas de referência: quanta memória de vídeo economiza
 num jogo de verdade e se a textura demora a ficar nítida quando a câmera corre.
+
+## Servidor MCP do editor
+
+O editor da Erethea pode abrir um servidor MCP (Model Context Protocol) para
+que um agente como o Claude Code mexa no projeto aberto do mesmo jeito que uma
+pessoa: abrir e criar cenas, criar nós, escrever e anexar scripts, salvar,
+rodar o jogo, ler os erros e os `print` do jogo e tirar capturas de tela. O
+código fica em `modules/erethea_mcp/`. O MCP da Fornalha cuida do projeto e dos
+assets; o do editor cuida do que só o editor aberto sabe fazer.
+
+**Ligar.** Vem desligado. Ligue em *Configurações do Editor › Erethea › MCP*
+(`erethea/mcp/enabled`); a porta padrão é 11481 (`erethea/mcp/port`). Também
+dá para ligar só numa execução com a variável de ambiente `ERETHEA_MCP_PORT`,
+que liga o servidor e escolhe a porta. Quando ele sobe, o painel Saída mostra
+`Erethea MCP: server listening on http://127.0.0.1:11481/mcp`. Para conectar o
+Claude Code:
+
+```sh
+claude mcp add --transport http erethea http://127.0.0.1:11481/mcp
+```
+
+| Ferramenta | O que faz |
+| --- | --- |
+| `get_editor_state` | Projeto, cena principal, cenas abertas e não salvas, se o jogo está rodando |
+| `get_scene_tree` | Árvore de nós da cena aberta, com tipo, script e cena instanciada |
+| `get_node_properties` | Propriedades de um nó |
+| `open_scene`, `create_scene` | Abre uma cena ou cria uma nova com o nó raiz pedido |
+| `create_node` | Cria um nó (classe ou `class_name`) ou instancia uma cena, já com propriedades |
+| `set_node_properties` | Muda propriedades; aceita `[1, 2, 3]`, `"Vector3(1, 2, 3)"`, `"#ff8800"`, nomes de enum e recursos |
+| `delete_node` | Apaga um nó (nunca a raiz) |
+| `write_script` | Escreve um script e devolve os erros com linha e coluna |
+| `attach_script` | Anexa um script a um nó |
+| `save_scene` | Salva a cena aberta |
+| `run_game`, `stop_game` | Roda a cena principal, a aberta ou outra, e para |
+| `get_errors` | Erros, avisos e `print` do editor e do jogo, a partir de um ponto |
+| `take_screenshot` | Captura do jogo, do editor ou da vista 2D ou 3D, em PNG |
+| `rescan_files` | Faz o editor ver arquivos criados fora dele |
+
+Tudo o que muda a cena entra no histórico de desfazer com o nome
+`MCP: ...`, então Ctrl+Z desfaz o que o agente fez. As mudanças só vão para o
+disco quando o agente (ou a pessoa) salva.
+
+**Segurança.** O servidor só escuta em `127.0.0.1`, recusa pedidos com `Host`
+ou `Origin` que não sejam da própria máquina (o que impede um site aberto no
+navegador de mexer no editor) e só aceita caminhos dentro do projeto.
+
+**Para a Fornalha.** `GET http://127.0.0.1:11481/status` responde sem sessão
+com o nome do projeto aberto, a pasta e se o jogo está rodando.
+
+**Teste.** `erethea/tests/mcp/test_mcp.py` abre o editor com o servidor ligado
+num projeto vazio e faz o que um agente faria: cria cenas, nós e um script,
+salva, roda o jogo, lê o `print` e o erro do jogo (com arquivo e linha) e tira
+capturas. O CI roda no Linux sem janela e com janela (Xvfb e lavapipe, onde as
+capturas têm que ser imagens de verdade) e no Windows sem janela. As capturas
+e os logs ficam no artefato `erethea-mcp-linux`.
+
+```sh
+python erethea/tests/mcp/test_mcp.py bin/erethea.linuxbsd.editor.x86_64 --out capturas/mcp
+```
 
 ## Lançar uma versão
 
