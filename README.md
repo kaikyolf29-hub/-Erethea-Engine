@@ -1,7 +1,10 @@
 # Erethea Engine
 
 <p align="center">
-  <img src="erethea/branding/logo.svg" width="420" alt="Erethea Engine">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="erethea/branding/logo_vertical_dark.svg">
+    <img src="erethea/branding/logo_vertical.svg" width="260" alt="Erethea Engine">
+  </picture>
 </p>
 
 **Erethea Engine** é uma engine de jogos 2D e 3D baseada na

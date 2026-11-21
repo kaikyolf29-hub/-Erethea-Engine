@@ -37,6 +37,10 @@ DefaultGroupName=Erethea Engine
 AllowNoIcons=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=..\branding\erethea.ico
+; Wizard images for 100%, 150% and 200% screen scaling, made by
+; erethea/tools/make_branding.py.
+WizardImageFile=..\branding\installer_large_164x314.bmp,..\branding\installer_large_328x628.bmp
+WizardSmallImageFile=..\branding\installer_small_55x58.bmp,..\branding\installer_small_83x80.bmp,..\branding\installer_small_110x106.bmp
 LicenseFile=..\..\LICENSE.txt
 OutputDir=.
 OutputBaseFilename=erethea-setup-x86_64
