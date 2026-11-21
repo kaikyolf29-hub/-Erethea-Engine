@@ -5,9 +5,9 @@ que juntar versões novas da Godot não dê conflito.
 
 | Pasta | O que tem |
 | --- | --- |
-| `branding/` | Logo, ícones (`.svg`, `.png`, `.ico`) e splash da Erethea |
+| `branding/` | Logo, ícones (`.svg`, `.png`, `.ico`), splash e imagens do instalador da Erethea |
 | `tools/rebrand.py` | Aplica a marca Erethea por cima do código da Godot |
-| `tools/make_branding.py` | Gera os arquivos de `branding/` a partir do desenho do logo |
+| `tools/make_branding.py` | Gera os arquivos de `branding/` a partir do desenho do logo (`branding/source/`) |
 | `installer/erethea.iss` | Instalador do Windows (Inno Setup 6), também usado nas atualizações |
 | `tests/smoke_project/` | Projeto Godot simples que o CI abre com o instalador |
 | `tests/reference_scene/` | Cena de referência (vila, floresta, personagem, dia e noite) para comparar com a Godot |
@@ -529,13 +529,36 @@ da Godot também ficam como estão.
 
 ## Logo
 
-O logo é um "E" moderno com cortes inclinados dentro de um anel, em preto e
-branco, com o letreiro ERETHEA / ENGINE em Inter (licença SIL OFL, já incluída
-em `thirdparty/fonts/`). Para mudar, edite `tools/make_branding.py` e rode:
+O logo é um emblema medieval: um disco escuro com dois anéis finos, uma fileira
+de pontos e uma cruz, e no meio um "C" em meia-lua atravessado por uma espada,
+que forma o "E". Embaixo vai o letreiro ERETHEA / ENGINE. O desenho original
+fica em `branding/source/`: `emblem.png` (só o emblema), `logo.png` (logo
+completo, para fundo claro) e `logo_dark_background.png` (as cores trocadas,
+para fundo escuro).
+
+Onde ele aparece:
+
+| Lugar | Arquivo |
+| --- | --- |
+| Ícone do executável e do instalador (16 a 256 px) | `branding/erethea.ico`, `branding/erethea_console.ico` |
+| Ícone do app e de projetos novos | `branding/icon.svg`, `branding/app_icon.png` |
+| Splash ao abrir a engine | `branding/splash.png` (logo para fundo escuro) |
+| Tela "Sobre" e créditos | `branding/logo.svg` (emblema ao lado do letreiro) |
+| Barra de título do Gerenciador de Projetos | `branding/title_bar_logo.svg` |
+| Instalador (canto das páginas e última página) | `branding/installer_*.bmp` |
+| `README.md` | `branding/logo_vertical.svg` e `branding/logo_vertical_dark.svg` |
+
+Nos ícones pequenos (até 64 px) os anéis e os pontos virariam borrão: no lugar
+deles vai um anel só, mais grosso, e o "E" fica um pouco maior.
+
+Para mudar o logo, troque os PNGs de `branding/source/` (mesmo tamanho e
+posição) e rode:
 
 ```sh
-pip install fonttools brotli pillow
+sudo apt install potrace          # ou: brew install potrace / choco install potrace
+pip install pillow numpy
 npm install playwright && npx playwright install chromium
 python erethea/tools/make_branding.py
+prek run svgo --files erethea/branding/*.svg
 python erethea/tools/rebrand.py
 ```
