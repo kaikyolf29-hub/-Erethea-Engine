@@ -160,6 +160,27 @@ jobs:
               $log[[Math]::Max(0, $failed - 400)..($failed - 1)] | Select-String -Pattern "ERROR|WARNING|VUID|AMD FSR" | Select-Object -Last 60
             }
             Select-String -Path amd_fsr_debug.log -Pattern "AMD FSR|Erethea:" | Select-Object -First 20
+
+            # Trace AMD's runtime while it creates the upscaler, with the
+            # value each function returns, to see where its error comes from.
+            Remove-Item env:VK_INSTANCE_LAYERS, env:VK_LOADER_LAYERS_ENABLE, env:VK_LOADER_DEBUG -ErrorAction SilentlyContinue
+            $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($cdb) {
+              # No -g: the commands run at the initial breakpoint, and each one
+              # after a "g" runs at the next stop.
+              $commands = "sxe ld:amd_fidelityfx_loader_vk; g; bp amd_fidelityfx_loader_vk!ffxCreateContext; g; wt -l 12 -or; q"
+              $cdbArguments = @("-G", "-c", "`"$commands`"", $exe) + $arguments
+              $process = Start-Process -FilePath $cdb.FullName -ArgumentList $cdbArguments -RedirectStandardOutput amd_fsr_trace.log -RedirectStandardError amd_fsr_trace_err.log -NoNewWindow -PassThru
+              if (-not $process.WaitForExit(600000)) {
+                Write-Output "The trace didn't finish in 10 minutes."
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+              }
+              $trace = Get-Content amd_fsr_trace.log
+              Write-Output "== Trace of ffxCreateContext ($($trace.Count) lines): calls out of AMD's runtime"
+              $trace | Select-String -Pattern "vulkan_1!|LoadLibrary|GetProcAddress|GetModuleHandle|GetFileVersion|D3DKMT|GDI32!|amdihk|eax = " | Select-Object -First 200
+              Write-Output "== End of the trace"
+              $trace | Select-Object -Last 120
+            }
           } else {
             $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($cdb) {
@@ -214,6 +235,22 @@ jobs:
               print(f"\n== Calls from line {calls[start][0] + 1}:")
               for number, name, result in calls[start : start + 600]:
                   print(number + 1, name, result)
+
+          # Without that start, list the queries and creations after the first
+          # frame: Erethea's are few, and AMD's runtime would add its own.
+          present = next((index for index, (_, name, _) in enumerate(calls) if name == "vkQueuePresentKHR"), None)
+          if present is not None:
+              print("\n== Queries and creations after the first frame:")
+              wanted = re.compile(r"vk(GetPhysicalDevice|Enumerate|Create|Allocate|Bind|GetDeviceQueue|GetBufferMemory|GetImageMemory)")
+              shown = 0
+              previous = None
+              for number, name, result in calls[present:]:
+                  if wanted.match(name) and (name, result) != previous:
+                      print(number + 1, name, result)
+                      previous = (name, result)
+                      shown += 1
+                      if shown >= 300:
+                          break
 
       - name: Compare AMD FSR with FSR 2.2
         shell: pwsh
