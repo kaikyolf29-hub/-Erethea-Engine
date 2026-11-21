@@ -1,0 +1,63 @@
+name: 🔥 Erethea Fornalha import
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Builds the scenes of a project made like the Fornalha makes them, from
+# game.project.json, the character models and the blockout
+# (modules/erethea_fornalha), through the editor's MCP server. Checks that a
+# scene changed by hand is kept, then runs the game without a window and walks
+# the player.
+
+jobs:
+  fornalha-import-linux:
+    runs-on: ubuntu-24.04
+    name: Fornalha import on Linux
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Build the scenes and walk
+        run: |
+          chmod +x bin/erethea.*
+          python3 erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.linuxbsd.editor.x86_64.mono --out "$PWD/fornalha_import/linux"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-fornalha-import-linux
+          path: fornalha_import
+          retention-days: 14
+
+  fornalha-import-windows:
+    runs-on: windows-latest
+    name: Fornalha import on Windows
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Build the scenes and walk
+        run: python erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.windows.editor.x86_64.exe --out "${{ github.workspace }}/fornalha_import/windows"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-fornalha-import-windows
+          path: fornalha_import
+          retention-days: 14

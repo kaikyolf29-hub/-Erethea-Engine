@@ -45,6 +45,7 @@ EXPECTED_TOOLS = {
     "take_screenshot",
     "rescan_files",
     "check_export",
+    "build_fornalha_scenes",
 }
 
 BOX_SCRIPT = """extends MeshInstance3D
@@ -291,6 +292,10 @@ def run_checks(mcp, project, window, out):
     )
     mcp.call("check_export", {"preset": "Windows"}, expect_error=True)
     print("  ok: an unknown export preset is refused")
+
+    print("Scenes from game.project.json")
+    _, text = mcp.call("build_fornalha_scenes", {}, expect_error=True)
+    check("game.project.json" in text, "a plain project has none to build")
 
     print("Game")
     mcp.call("run_game", {}, expect_error=True)
