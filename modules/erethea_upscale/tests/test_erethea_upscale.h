@@ -32,6 +32,7 @@
 
 #include "../amd_fsr_upscaler.h"
 #include "../erethea_upscaler.h"
+#include "../xess_upscaler.h"
 
 #include "core/config/project_settings.h"
 #include "servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.h"
@@ -51,6 +52,8 @@ TEST_CASE("[Modules][EretheaUpscale] Modes stay in range and FSR 2.2 is left to 
 	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_FSR2);
 
 	upscaler.set_mode(EretheaUpscaler::Mode(100));
+	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_XESS);
+	upscaler.set_mode(EretheaUpscaler::MODE_AMD_FSR);
 	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_AMD_FSR);
 	upscaler.set_mode(EretheaUpscaler::Mode(-1));
 	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_FSR2);
@@ -83,6 +86,24 @@ TEST_CASE("[Modules][EretheaUpscale] AMD FSR runtime") {
 	CHECK(AmdFsrUpscaler::is_supported_by_build("d3d12"));
 #else
 	CHECK_FALSE(AmdFsrUpscaler::is_supported_by_build("d3d12"));
+#endif
+}
+
+TEST_CASE("[Modules][EretheaUpscale] XeSS runtime") {
+	const Vector<String> d3d12 = XessUpscaler::get_runtime_libraries("d3d12");
+	REQUIRE(d3d12.size() == 1);
+	CHECK(d3d12[0] == "libxess.dll");
+
+	// Not on Vulkan yet: it needs extensions at device creation.
+	CHECK(XessUpscaler::get_runtime_libraries("vulkan").is_empty());
+	CHECK_FALSE(XessUpscaler::is_supported_by_build("vulkan"));
+	CHECK(XessUpscaler::get_runtime_libraries("opengl3").is_empty());
+	CHECK_FALSE(XessUpscaler::is_supported_by_build("opengl3"));
+
+#if defined(WINDOWS_ENABLED) && defined(D3D12_ENABLED)
+	CHECK(XessUpscaler::is_supported_by_build("d3d12"));
+#else
+	CHECK_FALSE(XessUpscaler::is_supported_by_build("d3d12"));
 #endif
 }
 

@@ -32,19 +32,33 @@
 
 #include "../amd_fsr_upscaler.h"
 #include "../erethea_upscaler.h"
+#include "../xess_upscaler.h"
 
 #include "core/io/file_access.h"
 #include "core/os/os.h"
 
 void EretheaUpscaleExportPlugin::_export_begin(const HashSet<String> &p_features, bool p_debug, const String &p_path, int p_flags) {
-	if (!p_features.has("windows") || EretheaUpscaler::get_project_mode() != EretheaUpscaler::MODE_AMD_FSR) {
+	if (!p_features.has("windows")) {
 		return;
 	}
 
-	// Only the runtime of the game's rendering driver: each one is large. If
-	// the game falls back to the other driver, it uses FSR 2.2.
+	// Only the runtime of the game's upscaler and rendering driver: each one
+	// is large. If the game falls back to another driver, it uses FSR 2.2.
 	const String driver = EditorExportPlatform::get_project_setting(get_export_preset(), "rendering/rendering_device/driver.windows");
-	const Vector<String> libraries = AmdFsrUpscaler::get_runtime_libraries(driver);
+	Vector<String> libraries;
+	String upscaler;
+	switch (EretheaUpscaler::get_project_mode()) {
+		case EretheaUpscaler::MODE_AMD_FSR:
+			libraries = AmdFsrUpscaler::get_runtime_libraries(driver);
+			upscaler = "AMD FSR";
+			break;
+		case EretheaUpscaler::MODE_XESS:
+			libraries = XessUpscaler::get_runtime_libraries(driver);
+			upscaler = "XeSS";
+			break;
+		default:
+			break;
+	}
 	if (libraries.is_empty()) {
 		return;
 	}
@@ -53,10 +67,10 @@ void EretheaUpscaleExportPlugin::_export_begin(const HashSet<String> &p_features
 	for (const String &library : libraries) {
 		const String path = folder.path_join(library);
 		if (!FileAccess::exists(path)) {
-			const String message = vformat(TTR("\"%s\" isn't next to the editor's executable, so the exported game will use FSR 2.2 instead of AMD FSR."), library);
+			const String message = vformat(TTR("\"%s\" isn't next to the editor's executable, so the exported game will use FSR 2.2 instead of %s."), library, upscaler);
 			Ref<EditorExportPlatform> platform = get_export_platform();
 			if (platform.is_valid()) {
-				platform->add_message(EditorExportPlatform::EXPORT_MESSAGE_WARNING, TTR("AMD FSR"), message);
+				platform->add_message(EditorExportPlatform::EXPORT_MESSAGE_WARNING, upscaler, message);
 			} else {
 				WARN_PRINT(message);
 			}

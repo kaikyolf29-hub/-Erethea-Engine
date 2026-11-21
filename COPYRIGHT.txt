@@ -690,6 +690,11 @@ Copyright: 2018-2020, Jonathan Young
  2006, NVIDIA Corporation, Ignacio Castano
 License: Expat
 
+Files: thirdparty/xess/*
+Comment: Intel XeSS SDK headers
+Copyright: 2026, Intel Corporation
+License: Expat
+
 Files: thirdparty/zlib/*
 Comment: zlib
 Copyright: 1995-2026, Jean-loup Gailly and Mark Adler

@@ -23,9 +23,10 @@ extends Node3D
 ## back in their usual place, at full speed, on the captured frame). Stock
 ## Godot ignores both with a warning.
 ##
-## --upscaler=<fsr2|amd_fsr> renders at 67% of the resolution and upscales with
-## Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 (Windows and Vulkan,
-## falls back to FSR 2.2 elsewhere). --upscale-scale=<0.25..1> changes the 67%.
+## --upscaler=<fsr2|amd_fsr|xess> renders at 67% of the resolution and upscales
+## with Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 (Windows, Vulkan or
+## Direct3D 12) or XeSS (Windows, Direct3D 12); both fall back to FSR 2.2
+## elsewhere. --upscale-scale=<0.25..1> changes the 67%.
 
 const TIMES: Array[String] = ["dia", "noite"]
 const VIEWS := {
@@ -43,7 +44,7 @@ const MOTION_PAN := 12.0
 const MOTION_TURN := 60.0
 const LUT_PATH := "res://luts/cinematic.cube"
 # The values of the Erethea setting rendering/erethea/temporal_upscaler.
-const UPSCALERS := {"fsr2": 0, "amd_fsr": 1}
+const UPSCALERS := {"fsr2": 0, "amd_fsr": 1, "xess": 2}
 const UPSCALER_SETTING := "rendering/erethea/temporal_upscaler"
 const CAPTURE_SIZE := Vector2i(1280, 720)
 const SEED := 2026

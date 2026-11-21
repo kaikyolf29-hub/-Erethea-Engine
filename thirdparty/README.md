@@ -1408,6 +1408,21 @@ Files extracted from upstream source:
 - `LICENSE`
 
 
+## xess
+
+- Upstream: https://github.com/intel/xess
+- Version: XeSS 3 SDK, XeSS-SR 2.0.2 (de0fb9c1c510661c571164e1418ceca8101dab69, 2026)
+- License: MIT (headers only)
+
+Files extracted from upstream source (used by the Erethea `erethea_upscale`
+module, which loads Intel's `libxess.dll` at run time; the DLL itself is under
+the Intel Simplified Software License and isn't in the repository):
+
+- `inc/xess/xess.h`
+- `inc/xess/xess_d3d12.h`
+- `LICENSE.txt` taken from the license header of these files
+
+
 ## zlib
 
 - Upstream: https://github.com/madler/zlib

@@ -31,6 +31,7 @@
 #pragma once
 
 #include "amd_fsr_upscaler.h"
+#include "xess_upscaler.h"
 
 #include "servers/rendering/renderer_rd/effects/temporal_upscaler.h"
 
@@ -45,6 +46,7 @@ public:
 	enum Mode {
 		MODE_FSR2,
 		MODE_AMD_FSR,
+		MODE_XESS,
 		MODE_MAX,
 	};
 
@@ -55,6 +57,7 @@ private:
 
 	std::atomic<int> mode = MODE_FSR2;
 	AmdFsrUpscaler amd_fsr;
+	XessUpscaler xess;
 
 	static void _update_from_project_settings();
 	static void _finish_on_render_thread();

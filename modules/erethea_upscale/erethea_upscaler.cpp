@@ -35,7 +35,7 @@
 #include "servers/rendering/rendering_server.h"
 
 void EretheaUpscaler::register_project_settings() {
-	GLOBAL_DEF(PropertyInfo(Variant::INT, PROJECT_SETTING, PROPERTY_HINT_ENUM, "FSR 2.2,AMD FSR"), MODE_FSR2);
+	GLOBAL_DEF(PropertyInfo(Variant::INT, PROJECT_SETTING, PROPERTY_HINT_ENUM, "FSR 2.2,AMD FSR,XeSS"), MODE_FSR2);
 }
 
 EretheaUpscaler::Mode EretheaUpscaler::get_project_mode() {
@@ -87,11 +87,21 @@ EretheaUpscaler::Mode EretheaUpscaler::get_mode() const {
 }
 
 bool EretheaUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step) {
-	switch (get_mode()) {
+	// Each upscaler frees what it kept for these render buffers when another
+	// one takes over.
+	const Mode current = get_mode();
+	if (current != MODE_AMD_FSR) {
+		amd_fsr.release(p_render_buffers);
+	}
+	if (current != MODE_XESS) {
+		xess.release(p_render_buffers);
+	}
+	switch (current) {
 		case MODE_AMD_FSR:
 			return amd_fsr.upscale(p_render_buffers, p_render_data, p_time_step);
+		case MODE_XESS:
+			return xess.upscale(p_render_buffers, p_render_data, p_time_step);
 		default:
-			amd_fsr.release(p_render_buffers);
 			return false;
 	}
 }
