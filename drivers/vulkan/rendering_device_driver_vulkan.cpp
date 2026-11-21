@@ -34,6 +34,7 @@
 #include "core/config/project_settings.h"
 #include "core/os/os.h"
 #include "core/templates/fixed_vector.h"
+#include "drivers/vulkan/erethea_vulkan_requirements.h" // Erethea
 #include "drivers/vulkan/vulkan_hooks.h"
 
 #include <thirdparty/misc/smolv.h>
@@ -628,6 +629,17 @@ Error RenderingDeviceDriverVulkan::_initialize_device_extensions() {
 	}
 
 	_register_requested_device_extension(VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME, false);
+
+	// Erethea: Optional extensions that libraries loaded by modules need.
+	for (EretheaVulkanRequirements *requirements : EretheaVulkanRequirements::get_list()) {
+		LocalVector<CharString> extensions;
+		requirements->get_device_extensions(context_driver->instance_get(), physical_device, extensions);
+		for (const CharString &extension : extensions) {
+			if (!requested_device_extensions.has(extension)) {
+				_register_requested_device_extension(extension, false);
+			}
+		}
+	}
 
 	uint32_t device_extension_count = 0;
 	VkResult err = vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &device_extension_count, nullptr);
@@ -1531,12 +1543,40 @@ Error RenderingDeviceDriverVulkan::_initialize_device(const LocalVector<VkDevice
 	create_info.ppEnabledExtensionNames = enabled_extension_names.ptr();
 	create_info.pEnabledFeatures = &requested_device_features;
 
+	// Erethea: Libraries loaded by modules may need more features. They patch
+	// the chain of features, so the core ones move into it.
+	VkPhysicalDeviceFeatures2 features_2 = {};
+	const bool erethea_requirements = EretheaVulkanRequirements::should_patch_device_features() && physical_device_properties.apiVersion >= VK_API_VERSION_1_1;
+	if (erethea_requirements) {
+		features_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		features_2.pNext = create_info_next;
+		features_2.features = requested_device_features;
+		void *features = &features_2;
+		for (EretheaVulkanRequirements *requirements : EretheaVulkanRequirements::get_list()) {
+			features = requirements->patch_device_features(context_driver->instance_get(), physical_device, features);
+		}
+		create_info.pNext = features;
+		create_info.pEnabledFeatures = nullptr;
+	}
+
 	if (VulkanHooks::get_singleton() != nullptr) {
 		bool device_created = VulkanHooks::get_singleton()->create_vulkan_device(&create_info, &vk_device);
 		ERR_FAIL_COND_V_MSG(!device_created, ERR_CANT_CREATE, "Couldn't create a Vulkan device through the VulkanHooks singleton.");
 	} else {
 		VkResult err = vkCreateDevice(physical_device, &create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_DEVICE), &vk_device);
+		// Erethea: Without the features that modules added, if the device refused them.
+		if (err != VK_SUCCESS && erethea_requirements) {
+			WARN_PRINT(vformat("Couldn't create the Vulkan device with the features that Erethea's modules need (VkResult error %d). Creating it without them.", err));
+			EretheaVulkanRequirements::set_device_features_refused();
+			return _initialize_device(p_queue_create_info);
+		}
 		ERR_FAIL_COND_V_MSG(err != VK_SUCCESS, ERR_CANT_CREATE, vformat("Couldn't create Vulkan device (VkResult error %d).", err));
+	}
+
+	if (erethea_requirements) {
+		for (EretheaVulkanRequirements *requirements : EretheaVulkanRequirements::get_list()) {
+			requirements->set_patched_device(physical_device);
+		}
 	}
 
 	for (uint32_t i = 0; i < queue_families.size(); i++) {

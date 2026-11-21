@@ -45,8 +45,13 @@ static void _editor_init() {
 #endif
 
 void initialize_erethea_upscale_module(ModuleInitializationLevel p_level) {
-	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+	// Before the rendering device is created, so that it can be created with
+	// what the project's upscaler needs.
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SERVERS) {
 		EretheaUpscaler::register_project_settings();
+		EretheaUpscaler::prepare_rendering_driver();
+	}
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		EretheaUpscaler::initialize();
 	}
 
@@ -60,5 +65,8 @@ void initialize_erethea_upscale_module(ModuleInitializationLevel p_level) {
 void uninitialize_erethea_upscale_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		EretheaUpscaler::finish();
+	}
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SERVERS) {
+		EretheaUpscaler::finish_rendering_driver();
 	}
 }

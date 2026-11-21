@@ -68,6 +68,11 @@ public:
 	static void register_project_settings();
 	static Mode get_project_mode();
 
+	// Prepares the rendering driver for the project's upscaler, before the
+	// rendering device is created.
+	static void prepare_rendering_driver();
+	static void finish_rendering_driver();
+
 	// Creates the upscaler and hands it to the renderer.
 	static void initialize();
 	// Takes it back from the renderer and frees it on the rendering thread.

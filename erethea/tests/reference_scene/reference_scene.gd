@@ -24,9 +24,11 @@ extends Node3D
 ## Godot ignores both with a warning.
 ##
 ## --upscaler=<fsr2|amd_fsr|xess> renders at 67% of the resolution and upscales
-## with Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 (Windows, Vulkan or
-## Direct3D 12) or XeSS (Windows, Direct3D 12); both fall back to FSR 2.2
-## elsewhere. --upscale-scale=<0.25..1> changes the 67%.
+## with Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 or XeSS (Windows,
+## Vulkan or Direct3D 12); both fall back to FSR 2.2 elsewhere. On Vulkan, XeSS
+## also needs the project setting before Erethea starts: put
+## "[rendering]\nerethea/temporal_upscaler=2" in an override.cfg next to
+## project.godot. --upscale-scale=<0.25..1> changes the 67%.
 
 const TIMES: Array[String] = ["dia", "noite"]
 const VIEWS := {

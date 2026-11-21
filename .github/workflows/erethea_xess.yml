@@ -4,17 +4,22 @@ on:
   workflow_dispatch:
 
 # Upscales the reference scene with Intel XeSS (modules/erethea_upscale) in the
-# Windows editor built by windows_builds.yml, on Direct3D 12 with Microsoft's
-# WARP standing in for a graphics card. XeSS then runs its cross-vendor path
-# (Shader Model 6.4), as on graphics cards that aren't Intel's. The job checks
-# that the runtime loads, that XeSS upscales without errors, and that its image
-# stays close to FSR 2.2's from the same frames. The captures, side by side, are
-# uploaded as an artifact.
+# Windows editor built by windows_builds.yml, with each rendering driver, on the
+# CPU: Mesa's lavapipe stands in for a graphics card on Vulkan, and Microsoft's
+# WARP on Direct3D 12. XeSS then runs its cross-vendor path, as on graphics
+# cards that aren't Intel's. On Vulkan, XeSS needs extensions and features
+# enabled when the device is created, so the project setting is given before
+# Erethea starts, in an override.cfg. Each job checks that the runtime loads,
+# that XeSS upscales without errors, and that its image stays close to FSR
+# 2.2's from the same frames. The captures, side by side, are uploaded as an
+# artifact.
 #
 # This proves the integration, not the quality or speed on a graphics card: see
 # "Não testado na placa" in erethea/README.md.
 
 env:
+  # Mesa for Windows (https://github.com/pal1000/mesa-dist-win), for lavapipe.
+  MESA_VERSION: 26.2.7
   # WARP from NuGet (https://www.nuget.org/packages/Microsoft.Direct3D.WARP).
   WARP_VERSION: 1.0.22
   # Largest allowed difference with FSR 2.2, as luminance RMSE (0 to 255). Two
@@ -24,8 +29,16 @@ env:
 jobs:
   xess:
     runs-on: windows-latest
-    name: XeSS on Direct3D 12 (WARP)
+    name: XeSS on ${{ matrix.name }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Vulkan (lavapipe)
+            driver: vulkan
+          - name: Direct3D 12 (WARP)
+            driver: d3d12
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -39,7 +52,39 @@ jobs:
       - name: Download Intel's XeSS runtime
         run: python erethea/tools/fetch_xess.py bin
 
+      - name: Install the Vulkan loader and lavapipe
+        if: matrix.driver == 'vulkan'
+        shell: pwsh
+        run: |
+          # The Vulkan loader (vulkan-1.dll) comes with graphics drivers, which
+          # the runner doesn't have. Browsers ship one for their own use.
+          $loader = Get-ChildItem -Path "$env:WINDIR\System32\vulkan-1.dll", `
+            "${env:ProgramFiles}\Google\Chrome\Application\*\vulkan-1.dll", `
+            "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\*\vulkan-1.dll" `
+            -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $loader) { throw "No vulkan-1.dll found on the runner" }
+          Write-Output "Vulkan loader: $($loader.FullName)"
+          Copy-Item $loader.FullName bin/
+
+          $archive = "mesa3d-$env:MESA_VERSION-release-msvc.7z"
+          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/$archive" -OutFile $archive
+          7z x $archive -omesa x64 -y | Out-Null
+          $icd = Get-ChildItem -Recurse mesa -Filter "lvp_icd*.json" | Select-Object -First 1
+          if (-not $icd) { Get-ChildItem -Recurse mesa | Select-Object -First 40 FullName; throw "lavapipe isn't in $archive" }
+          Write-Output "lavapipe: $($icd.FullName)"
+          # The runner's processes are elevated, and the Vulkan loader ignores
+          # VK_DRIVER_FILES and VK_ICD_FILENAMES in elevated processes, so the
+          # driver is registered like an installed one.
+          New-Item -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Name $icd.FullName -PropertyType DWord -Value 0 -Force | Out-Null
+
+          # XeSS on Vulkan has to be chosen before Erethea creates the device.
+          # Both captures use it, so FSR 2.2 and XeSS are compared on the same
+          # device.
+          "[rendering]`nerethea/temporal_upscaler=2" | Set-Content -Encoding ascii erethea/tests/reference_scene/override.cfg
+
       - name: Install a recent WARP
+        if: matrix.driver == 'd3d12'
         shell: pwsh
         run: |
           # The runner's own WARP crashes compiling some compute shaders. Use
@@ -57,11 +102,15 @@ jobs:
           $exe = "bin/erethea.windows.editor.x86_64.exe"
           $project = "erethea/tests/reference_scene"
           foreach ($upscaler in "fsr2", "xess") {
-            & $exe --path $project --rendering-driver d3d12 --fixed-fps 30 -- `
+            & $exe --path $project --rendering-driver ${{ matrix.driver }} --fixed-fps 30 -- `
               "--capture=$PWD/captures/$upscaler" "--upscaler=$upscaler" --warmup=12 --frames=4 2>&1 | Tee-Object -FilePath "$upscaler.log"
             if ($LASTEXITCODE -ne 0) { throw "The $upscaler capture failed with exit code $LASTEXITCODE" }
           }
-          Select-String -Path xess.log -Pattern "D3D12|Direct3D|WARP|Basic Render|XeSS|FSR 2.2" | Select-Object -First 20
+          Select-String -Path xess.log -Pattern "Vulkan|lavapipe|D3D12|Direct3D|WARP|Basic Render|XeSS|FSR 2.2" | Select-Object -First 20
+
+          if ("${{ matrix.driver }}" -eq "vulkan" -and (Select-String -Path xess.log -Pattern "switching to Direct3D 12" -Quiet)) {
+            throw "Vulkan didn't start, so this job didn't test XeSS on Vulkan"
+          }
 
           if (Select-String -Path xess.log -Pattern "Using FSR 2.2|XeSS couldn't|^ERROR:.*XeSS" -Quiet) {
             throw "XeSS didn't upscale, see xess.log above"
@@ -71,14 +120,14 @@ jobs:
           }
 
       # Runs a short XeSS capture again with all of XeSS's messages and the
-      # Direct3D 12 debug layer, under the console debugger, which prints where
-      # it crashed.
+      # graphics API's validation, under the console debugger, which prints
+      # where it crashed.
       - name: Show where XeSS failed
         if: failure()
         shell: pwsh
         run: |
           $exe = "bin/erethea.windows.editor.x86_64.exe"
-          $arguments = @("--path", "erethea/tests/reference_scene", "--rendering-driver", "d3d12", "--fixed-fps", "30", "--verbose", "--gpu-validation", "--",
+          $arguments = @("--path", "erethea/tests/reference_scene", "--rendering-driver", "${{ matrix.driver }}", "--fixed-fps", "30", "--verbose", "--gpu-validation", "--",
             "--capture=$PWD/captures/xess_debug", "--upscaler=xess", "--warmup=1", "--frames=1")
           $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($cdb) {
@@ -88,7 +137,7 @@ jobs:
             & $exe @arguments 2>&1 | Tee-Object -FilePath xess_debug.log
           }
           Write-Output "== XeSS messages"
-          Select-String -Path xess_debug.log -Pattern "XeSS|D3D12 ERROR|D3D12 WARNING" | Select-Object -First 60
+          Select-String -Path xess_debug.log -Pattern "XeSS|Vulkan|D3D12 ERROR|D3D12 WARNING" | Select-Object -First 60
           exit 0
 
       - name: Compare XeSS with FSR 2.2
@@ -97,7 +146,7 @@ jobs:
           & bin/erethea.windows.editor.x86_64.exe --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- `
             "--baseline=$PWD/captures/fsr2" "--candidate=$PWD/captures/xess" "--out=$PWD/captures/comparison" "--max-rmse=$env:MAX_RMSE" 2>&1 | Tee-Object -FilePath compare.log
           $code = $LASTEXITCODE
-          "## XeSS contra FSR 2.2 (Direct3D 12 no WARP, Windows)" >> $env:GITHUB_STEP_SUMMARY
+          "## XeSS contra FSR 2.2 (${{ matrix.name }}, Windows)" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
           Get-Content captures/comparison/summary.md -ErrorAction SilentlyContinue >> $env:GITHUB_STEP_SUMMARY
           if ($code -ne 0) { throw "XeSS's image differs from FSR 2.2's more than $env:MAX_RMSE" }
@@ -106,7 +155,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: erethea-xess-captures
+          name: erethea-xess-captures-${{ matrix.driver }}
           path: |
             captures
             *.log

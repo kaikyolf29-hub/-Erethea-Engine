@@ -43,6 +43,16 @@ EretheaUpscaler::Mode EretheaUpscaler::get_project_mode() {
 	return Mode(CLAMP(value, int(MODE_FSR2), int(MODE_MAX) - 1));
 }
 
+void EretheaUpscaler::prepare_rendering_driver() {
+	if (get_project_mode() == MODE_XESS) {
+		XessUpscaler::prepare_rendering_driver();
+	}
+}
+
+void EretheaUpscaler::finish_rendering_driver() {
+	XessUpscaler::finish_rendering_driver();
+}
+
 void EretheaUpscaler::_update_from_project_settings() {
 	if (singleton != nullptr) {
 		singleton->set_mode(get_project_mode());

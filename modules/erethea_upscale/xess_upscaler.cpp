@@ -30,13 +30,13 @@
 
 #include "xess_upscaler.h"
 
-#if defined(WINDOWS_ENABLED) && defined(RD_ENABLED) && defined(D3D12_ENABLED)
+#if defined(WINDOWS_ENABLED) && defined(RD_ENABLED) && (defined(D3D12_ENABLED) || defined(VULKAN_ENABLED))
 #define ERETHEA_XESS_ENABLED
 #endif
 
 Vector<String> XessUpscaler::get_runtime_libraries(const String &p_rendering_driver) {
 	Vector<String> libraries;
-	if (p_rendering_driver == "d3d12") {
+	if (p_rendering_driver == "d3d12" || p_rendering_driver == "vulkan") {
 		libraries.push_back(LIBRARY);
 	}
 	return libraries;
@@ -44,15 +44,24 @@ Vector<String> XessUpscaler::get_runtime_libraries(const String &p_rendering_dri
 
 bool XessUpscaler::is_supported_by_build(const String &p_rendering_driver) {
 #ifdef ERETHEA_XESS_ENABLED
-	return p_rendering_driver == "d3d12";
-#else
-	return false;
+#ifdef D3D12_ENABLED
+	if (p_rendering_driver == "d3d12") {
+		return true;
+	}
 #endif
+#ifdef VULKAN_ENABLED
+	if (p_rendering_driver == "vulkan") {
+		return true;
+	}
+#endif
+#endif
+	return false;
 }
 
 #ifdef ERETHEA_XESS_ENABLED
 
 #include "erethea_upscale_inputs.h"
+#include "xess_backends.h"
 
 #include "core/io/file_access.h"
 #include "core/os/os.h"
@@ -61,12 +70,6 @@ bool XessUpscaler::is_supported_by_build(const String &p_rendering_driver) {
 #include "servers/rendering/renderer_rd/storage_rd/render_scene_data_rd.h"
 #include "servers/rendering/rendering_device.h"
 
-// The driver's header brings the DirectX headers Godot builds with, which
-// Intel's header then uses.
-#include "drivers/d3d12/rendering_device_driver_d3d12.h"
-
-#include <thirdparty/xess/xess_d3d12.h>
-
 namespace {
 
 const StringName &buffers_name() {
@@ -74,13 +77,17 @@ const StringName &buffers_name() {
 	return name;
 }
 
+enum class Backend {
+	NONE,
+	D3D12,
+	VULKAN,
+};
+
 // libxess.dll is loaded at run time, so its functions are called through
-// pointers of the same types as Intel's declarations.
+// pointers of the same types as Intel's declarations. These ones don't
+// depend on the rendering driver.
 struct Functions {
 	decltype(&xessGetVersion) get_version = nullptr;
-	decltype(&xessD3D12CreateContext) create_context = nullptr;
-	decltype(&xessD3D12Init) init = nullptr;
-	decltype(&xessD3D12Execute) execute = nullptr;
 	decltype(&xessDestroyContext) destroy_context = nullptr;
 	decltype(&xessGetOptimalInputResolution) get_optimal_input_resolution = nullptr;
 	decltype(&xessSetVelocityScale) set_velocity_scale = nullptr;
@@ -91,7 +98,7 @@ struct Functions {
 struct State {
 	const XessUpscaler *owner = nullptr;
 	bool driver_checked = false;
-	bool driver_supported = false;
+	Backend backend = Backend::NONE;
 	void *library = nullptr;
 	bool library_tried = false;
 	bool failed = false;
@@ -110,12 +117,9 @@ struct State {
 
 State *state = nullptr;
 
-// Arguments of one upscale, read when the rendering graph records it.
-struct DispatchArgs {
-	decltype(&xessD3D12Execute) execute = nullptr;
-	xess_context_handle_t context = nullptr;
-	xess_d3d12_execute_params_t params = {};
-};
+String get_library_path() {
+	return OS::get_singleton()->get_executable_path().get_base_dir().path_join(XessUpscaler::LIBRARY);
+}
 
 void destroy_pending_contexts(bool p_all_finished) {
 	if (state == nullptr || state->pending.is_empty()) {
@@ -161,22 +165,36 @@ String result_name(xess_result_t p_result) {
 	}
 }
 
+const char *backend_name() {
+	return state->backend == Backend::VULKAN ? "Vulkan" : "Direct3D 12";
+}
+
 bool check_driver() {
 	if (state->driver_checked) {
-		return state->driver_supported;
+		return state->backend != Backend::NONE;
 	}
 	state->driver_checked = true;
 	const String driver = OS::get_singleton()->get_current_rendering_driver_name();
-	if (driver == "vulkan") {
-		WARN_PRINT("XeSS doesn't support the Vulkan rendering driver in Erethea yet. Use the Direct3D 12 rendering driver. Using FSR 2.2.");
-		return false;
-	}
 	if (!XessUpscaler::is_supported_by_build(driver)) {
-		WARN_PRINT(vformat("XeSS needs the Direct3D 12 rendering driver (this one is \"%s\"). Using FSR 2.2.", driver));
+		WARN_PRINT(vformat("XeSS needs the Direct3D 12 or Vulkan rendering driver (this one is \"%s\"). Using FSR 2.2.", driver));
 		return false;
 	}
-	state->driver_supported = true;
-	return true;
+#ifdef VULKAN_ENABLED
+	if (driver == "vulkan") {
+		String reason;
+		if (!XessBackends::check_device_vulkan(reason)) {
+			WARN_PRINT(vformat("XeSS can't run on Vulkan: %s. Using FSR 2.2.", reason));
+			return false;
+		}
+		state->backend = Backend::VULKAN;
+	}
+#endif
+#ifdef D3D12_ENABLED
+	if (driver == "d3d12") {
+		state->backend = Backend::D3D12;
+	}
+#endif
+	return state->backend != Backend::NONE;
 }
 
 bool load_runtime() {
@@ -185,7 +203,7 @@ bool load_runtime() {
 	}
 	state->library_tried = true;
 
-	const String path = OS::get_singleton()->get_executable_path().get_base_dir().path_join(XessUpscaler::LIBRARY);
+	const String path = get_library_path();
 	if (!FileAccess::exists(path)) {
 		WARN_PRINT(vformat("XeSS isn't available: %s isn't next to the executable. Using FSR 2.2.", XessUpscaler::LIBRARY));
 		return false;
@@ -199,22 +217,21 @@ bool load_runtime() {
 	}
 
 	Functions functions;
-	bool found = true;
-#define LOAD_FUNCTION(m_member, m_name) \
-	{ \
-		void *symbol = nullptr; \
-		found = found && os->get_dynamic_library_symbol_handle(library, m_name, symbol) == OK; \
-		functions.m_member = (decltype(functions.m_member))symbol; \
+	bool found = XessBackends::load_function(library, "xessGetVersion", functions.get_version) &&
+			XessBackends::load_function(library, "xessDestroyContext", functions.destroy_context) &&
+			XessBackends::load_function(library, "xessGetOptimalInputResolution", functions.get_optimal_input_resolution) &&
+			XessBackends::load_function(library, "xessSetVelocityScale", functions.set_velocity_scale) &&
+			XessBackends::load_function(library, "xessSetLoggingCallback", functions.set_logging_callback);
+#ifdef D3D12_ENABLED
+	if (state->backend == Backend::D3D12) {
+		found = found && XessBackends::load_d3d12(library);
 	}
-	LOAD_FUNCTION(get_version, "xessGetVersion");
-	LOAD_FUNCTION(create_context, "xessD3D12CreateContext");
-	LOAD_FUNCTION(init, "xessD3D12Init");
-	LOAD_FUNCTION(execute, "xessD3D12Execute");
-	LOAD_FUNCTION(destroy_context, "xessDestroyContext");
-	LOAD_FUNCTION(get_optimal_input_resolution, "xessGetOptimalInputResolution");
-	LOAD_FUNCTION(set_velocity_scale, "xessSetVelocityScale");
-	LOAD_FUNCTION(set_logging_callback, "xessSetLoggingCallback");
-#undef LOAD_FUNCTION
+#endif
+#ifdef VULKAN_ENABLED
+	if (state->backend == Backend::VULKAN) {
+		found = found && XessBackends::load_vulkan(library);
+	}
+#endif
 	if (!found) {
 		os->close_dynamic_library(library);
 		WARN_PRINT(vformat("XeSS isn't available: %s is missing functions. Using FSR 2.2.", XessUpscaler::LIBRARY));
@@ -224,6 +241,34 @@ bool load_runtime() {
 	state->library = library;
 	state->functions = functions;
 	return true;
+}
+
+xess_result_t create_backend_context(xess_context_handle_t *r_context) {
+#ifdef D3D12_ENABLED
+	if (state->backend == Backend::D3D12) {
+		return XessBackends::create_context_d3d12(r_context);
+	}
+#endif
+#ifdef VULKAN_ENABLED
+	if (state->backend == Backend::VULKAN) {
+		return XessBackends::create_context_vulkan(r_context);
+	}
+#endif
+	return XESS_RESULT_ERROR_NOT_IMPLEMENTED;
+}
+
+xess_result_t init_backend_context(xess_context_handle_t p_context, const Size2i &p_output_size, xess_quality_settings_t p_quality, uint32_t p_flags) {
+#ifdef D3D12_ENABLED
+	if (state->backend == Backend::D3D12) {
+		return XessBackends::init_d3d12(p_context, p_output_size, p_quality, p_flags);
+	}
+#endif
+#ifdef VULKAN_ENABLED
+	if (state->backend == Backend::VULKAN) {
+		return XessBackends::init_vulkan(p_context, p_output_size, p_quality, p_flags);
+	}
+#endif
+	return XESS_RESULT_ERROR_NOT_IMPLEMENTED;
 }
 
 // XeSS takes any input resolution within the range of a quality preset, so
@@ -257,12 +302,9 @@ bool choose_quality(xess_context_handle_t p_context, const Size2i &p_internal_si
 // Returns nullptr when XeSS can't run. r_unsupported_size tells that it only
 // can't upscale between these sizes.
 xess_context_handle_t create_context(const Size2i &p_internal_size, const Size2i &p_target_size, bool &r_unsupported_size) {
-	RenderingDevice *rd = RenderingDevice::get_singleton();
-	ID3D12Device *device = (ID3D12Device *)rd->get_driver_resource(RD::DRIVER_RESOURCE_LOGICAL_DEVICE);
-
 	xess_context_handle_t context = nullptr;
 	// Positive results are warnings, such as an old graphics driver.
-	xess_result_t result = state->functions.create_context(device, &context);
+	xess_result_t result = create_backend_context(&context);
 	if (result < XESS_RESULT_SUCCESS || context == nullptr) {
 		ERR_PRINT(vformat("XeSS couldn't start (%s). Using FSR 2.2.", result_name(result)));
 		state->failed = true;
@@ -279,15 +321,10 @@ xess_context_handle_t create_context(const Size2i &p_internal_size, const Size2i
 		return nullptr;
 	}
 
-	xess_d3d12_init_params_t params = {};
-	params.outputResolution.x = p_target_size.width;
-	params.outputResolution.y = p_target_size.height;
-	params.qualitySetting = quality;
 	// Godot's 3D buffers hold linear HDR color, reversed depth and motion
 	// vectors at the internal resolution. XeSS finds the exposure itself,
 	// like Godot's FSR 2.2 without auto exposure.
-	params.initFlags = XESS_INIT_FLAG_INVERTED_DEPTH | XESS_INIT_FLAG_ENABLE_AUTOEXPOSURE;
-	result = state->functions.init(context, &params);
+	result = init_backend_context(context, p_target_size, quality, XESS_INIT_FLAG_INVERTED_DEPTH | XESS_INIT_FLAG_ENABLE_AUTOEXPOSURE);
 	if (result < XESS_RESULT_SUCCESS) {
 		ERR_PRINT(vformat("XeSS couldn't start (%s). Using FSR 2.2.", result_name(result)));
 		state->functions.destroy_context(context);
@@ -302,24 +339,29 @@ xess_context_handle_t create_context(const Size2i &p_internal_size, const Size2i
 		state->announced = true;
 		xess_version_t version = {};
 		state->functions.get_version(&version);
-		print_line(vformat("Erethea: upscaling with XeSS %d.%d.%d (Direct3D 12).", version.major, version.minor, version.patch));
+		print_line(vformat("Erethea: upscaling with XeSS %d.%d.%d (%s).", version.major, version.minor, version.patch, backend_name()));
 	}
 	return context;
 }
 
-void dispatch_callback(RenderingDeviceDriver *p_driver, RenderingDeviceDriver::CommandBufferID p_command_buffer, void *p_userdata) {
-	DispatchArgs *args = (DispatchArgs *)p_userdata;
-	// XeSS binds its own pipelines and descriptor heap, so Godot forgets the
-	// ones it bound.
-	ID3D12GraphicsCommandList *command_list = (ID3D12GraphicsCommandList *)RenderingDeviceDriverD3D12::command_buffer_begin_native_commands(p_command_buffer);
-	const xess_result_t result = args->execute(args->context, command_list, &args->params);
-	if (result < XESS_RESULT_SUCCESS) {
-		ERR_PRINT_ONCE(vformat("XeSS couldn't upscale (%s).", result_name(result)));
-	}
-	memdelete(args);
-}
-
 } // namespace
+
+// XeSS doesn't change the textures' layouts: it reads the inputs as shader
+// resources and writes the output as a storage image, which are the layouts
+// the rendering graph gives them for these usages. It doesn't synchronize
+// with other work on them either; the rendering graph does.
+void XessBackends::add_callback(RenderingDeviceDriver::DriverCallback p_callback, void *p_userdata, const Dispatch &p_dispatch) {
+	RD::CallbackResource resources[4];
+	resources[0].rid = p_dispatch.color;
+	resources[0].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	resources[1].rid = p_dispatch.velocity;
+	resources[1].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	resources[2].rid = p_dispatch.depth;
+	resources[2].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
+	resources[3].rid = p_dispatch.output;
+	resources[3].usage = RD::CALLBACK_RESOURCE_USAGE_STORAGE_IMAGE_READ_WRITE;
+	RenderingDevice::get_singleton()->driver_callback_add(p_callback, p_userdata, VectorView<RD::CallbackResource>(resources, 4));
+}
 
 // The XeSS context of one set of render buffers. Rebuilt when they change
 // size, since XeSS keeps its history at that size.
@@ -350,6 +392,27 @@ public:
 
 	~EretheaXessBuffers() { release(); }
 };
+
+void XessUpscaler::prepare_rendering_driver() {
+#ifdef VULKAN_ENABLED
+	const String path = get_library_path();
+	if (!FileAccess::exists(path)) {
+		return;
+	}
+	void *library = nullptr;
+	if (OS::get_singleton()->open_dynamic_library(path, library) != OK) {
+		return;
+	}
+	// The runtime stays loaded, as Vulkan devices may keep using it.
+	XessBackends::add_requirements_vulkan(library);
+#endif
+}
+
+void XessUpscaler::finish_rendering_driver() {
+#ifdef VULKAN_ENABLED
+	XessBackends::remove_requirements_vulkan();
+#endif
+}
 
 bool XessUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step) {
 	if (state == nullptr) {
@@ -397,49 +460,34 @@ bool XessUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, Re
 	}
 
 	RenderingDevice *rd = RenderingDevice::get_singleton();
-	const RID color = rb->get_internal_texture(0);
-	const RID output = rb->get_upscaled_texture(0);
-
 	rd->draw_command_begin_label("XeSS");
 	// XeSS reads the depth and motion vectors from typed textures, with the
 	// motion of the sky filled in. Godot's reactive mask is left out: XeSS
 	// only recommends its mask where it clearly helps.
 	const EretheaUpscaleInputs::Textures inputs = state->inputs.prepare(rb, p_render_data, buffers_name());
 
-	DispatchArgs *args = memnew(DispatchArgs);
-	args->execute = state->functions.execute;
-	args->context = buffers->context;
-
-	xess_d3d12_execute_params_t &params = args->params;
-	params.pColorTexture = (ID3D12Resource *)rd->get_driver_resource(RD::DRIVER_RESOURCE_TEXTURE, color);
-	params.pVelocityTexture = (ID3D12Resource *)rd->get_driver_resource(RD::DRIVER_RESOURCE_TEXTURE, inputs.velocity);
-	params.pDepthTexture = (ID3D12Resource *)rd->get_driver_resource(RD::DRIVER_RESOURCE_TEXTURE, inputs.depth);
-	params.pOutputTexture = (ID3D12Resource *)rd->get_driver_resource(RD::DRIVER_RESOURCE_TEXTURE, output);
-
+	XessBackends::Dispatch dispatch;
+	dispatch.color = rb->get_internal_texture(0);
+	dispatch.velocity = inputs.velocity;
+	dispatch.depth = inputs.depth;
+	dispatch.output = rb->get_upscaled_texture(0);
+	dispatch.input_size = internal_size;
 	// The same jitter as Godot's FSR 2.2: in pixels, in the convention XeSS
 	// shares with FSR.
-	const Vector2 jitter = p_render_data->scene_data->taa_jitter * Vector2(internal_size) * 0.5f;
-	params.jitterOffsetX = jitter.x;
-	params.jitterOffsetY = jitter.y;
-	params.exposureScale = 1.0f;
-	params.resetHistory = buffers->reset ? 1 : 0;
+	dispatch.jitter = p_render_data->scene_data->taa_jitter * Vector2(internal_size) * 0.5f;
+	dispatch.reset = buffers->reset;
 	buffers->reset = false;
-	params.inputWidth = internal_size.width;
-	params.inputHeight = internal_size.height;
 
-	// XeSS doesn't change the textures' states: it reads the inputs as
-	// shader resources and writes the output as an unordered access view,
-	// which are the layouts the rendering graph gives them for these usages.
-	RD::CallbackResource resources[4];
-	resources[0].rid = color;
-	resources[0].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
-	resources[1].rid = inputs.velocity;
-	resources[1].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
-	resources[2].rid = inputs.depth;
-	resources[2].usage = RD::CALLBACK_RESOURCE_USAGE_TEXTURE_SAMPLE;
-	resources[3].rid = output;
-	resources[3].usage = RD::CALLBACK_RESOURCE_USAGE_STORAGE_IMAGE_READ_WRITE;
-	rd->driver_callback_add(&dispatch_callback, args, VectorView<RD::CallbackResource>(resources, 4));
+#ifdef D3D12_ENABLED
+	if (state->backend == Backend::D3D12) {
+		XessBackends::add_dispatch_d3d12(buffers->context, dispatch);
+	}
+#endif
+#ifdef VULKAN_ENABLED
+	if (state->backend == Backend::VULKAN) {
+		XessBackends::add_dispatch_vulkan(buffers->context, dispatch);
+	}
+#endif
 	rd->draw_command_end_label();
 	return true;
 }
@@ -469,8 +517,12 @@ void XessUpscaler::finish() {
 
 #else // ERETHEA_XESS_ENABLED
 
+void XessUpscaler::prepare_rendering_driver() {}
+
+void XessUpscaler::finish_rendering_driver() {}
+
 bool XessUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step) {
-	WARN_PRINT_ONCE("XeSS is only available on Windows, with the Direct3D 12 rendering driver. Using FSR 2.2.");
+	WARN_PRINT_ONCE("XeSS is only available on Windows, with the Direct3D 12 or Vulkan rendering driver. Using FSR 2.2.");
 	return false;
 }
 

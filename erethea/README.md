@@ -210,19 +210,23 @@ e, pelo caminho para outras marcas, em qualquer placa com Shader Model 6.4
 qualidade do XeSS pela escala do Viewport; abaixo de 1/3 (33%) o XeSS não
 reconstrói e a Erethea usa o FSR 2.2.
 
-Por enquanto só no **Direct3D 12** (o padrão dos projetos novos no Windows):
-no Vulkan o XeSS precisa ligar extensões na criação do dispositivo, o que a
-Erethea ainda não faz, e aí avisa e usa o FSR 2.2. O instalador coloca o
-`libxess.dll` (78 MB) e a licença da Intel (`XESS_LICENSE.txt`, que deixa
-redistribuir o arquivo sem modificação), e a exportação para Windows copia o
-arquivo para o jogo quando o projeto usa o XeSS com o Direct3D 12. Num build
-próprio:
+Funciona no **Direct3D 12** (o padrão dos projetos novos no Windows) e no
+**Vulkan**. No Vulkan o XeSS precisa de extensões e recursos ligados quando a
+Erethea cria o dispositivo da placa, então a Erethea faz isso ao abrir um
+projeto que já está com o XeSS escolhido. Se você trocar para o XeSS com o
+projeto aberto no Vulkan, ele avisa e usa o FSR 2.2 até a próxima vez que
+abrir. O instalador coloca o `libxess.dll` (78 MB) e a licença da Intel
+(`XESS_LICENSE.txt`, que deixa redistribuir o arquivo sem modificação), e a
+exportação para Windows copia o arquivo para o jogo quando o projeto usa o
+XeSS. Num build próprio:
 
 ```sh
 python erethea/tools/fetch_xess.py bin
 ```
 
-Na cena de referência, `--upscaler=xess`. O CI roda a cena com o XeSS no
+Na cena de referência, `--upscaler=xess` (no Vulkan, com um `override.cfg`
+que escolhe o XeSS antes de abrir; veja o comentário em
+`reference_scene.gd`). O CI roda a cena com o XeSS no Vulkan do lavapipe e no
 Direct3D 12 do WARP e compara com o FSR 2.2. **Não testado na placa:** a
 qualidade e o custo em FPS na RX 580 e na RTX 4060 Ti/5060 Ti, e numa placa
 Intel.
