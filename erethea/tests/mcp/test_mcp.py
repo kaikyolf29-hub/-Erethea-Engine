@@ -44,6 +44,7 @@ EXPECTED_TOOLS = {
     "get_errors",
     "take_screenshot",
     "rescan_files",
+    "check_export",
 }
 
 BOX_SCRIPT = """extends MeshInstance3D
@@ -281,6 +282,15 @@ def run_checks(mcp, project, window, out):
         "main.tscn on disk has the mesh, the script and the instance",
     )
     check((project / "mcp_test" / "box.gd").read_text(encoding="utf-8") == BOX_SCRIPT, "box.gd on disk")
+
+    print("Checks before export")
+    report = mcp.data("check_export")
+    check(
+        report["fornalha_project"] is False and report["errors"] == 0 and report["warnings"] == 0,
+        "nothing to fix in a plain project with no assets",
+    )
+    mcp.call("check_export", {"preset": "Windows"}, expect_error=True)
+    print("  ok: an unknown export preset is refused")
 
     print("Game")
     mcp.call("run_game", {}, expect_error=True)
