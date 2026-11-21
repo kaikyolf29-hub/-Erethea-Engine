@@ -252,6 +252,10 @@ ffxContext create_context(const Size2i &p_internal_size, const Size2i &p_target_
 	// Godot's 3D buffers hold linear HDR color and reversed depth. FSR finds
 	// the exposure itself, like Godot's FSR 2.2 without auto exposure.
 	desc.flags = FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE | FFX_UPSCALE_ENABLE_DEPTH_INVERTED | FFX_UPSCALE_ENABLE_AUTO_EXPOSURE;
+	if (OS::get_singleton()->is_stdout_verbose()) {
+		// The runtime checks the inputs and reports problems through fpMessage.
+		desc.flags |= FFX_UPSCALE_ENABLE_DEBUG_CHECKING;
+	}
 	desc.maxRenderSize.width = p_internal_size.width;
 	desc.maxRenderSize.height = p_internal_size.height;
 	desc.maxUpscaleSize.width = p_target_size.width;
@@ -352,9 +356,17 @@ void dispatch_callback(RenderingDeviceDriver *p_driver, RenderingDeviceDriver::C
 		default:
 			break;
 	}
+	static bool first_dispatch = true;
+	if (first_dispatch) {
+		print_verbose(vformat("AMD FSR: recording the first upscale, %dx%d to %dx%d.", args->desc.renderSize.width, args->desc.renderSize.height, args->desc.upscaleSize.width, args->desc.upscaleSize.height));
+	}
 	const ffxReturnCode_t result = args->dispatch(&args->context, &args->desc.header);
 	if (result != FFX_API_RETURN_OK) {
 		ERR_PRINT_ONCE(vformat("AMD FSR couldn't upscale (error %d).", int(result)));
+	}
+	if (first_dispatch) {
+		print_verbose("AMD FSR: the first upscale is recorded.");
+		first_dispatch = false;
 	}
 	memdelete(args);
 }

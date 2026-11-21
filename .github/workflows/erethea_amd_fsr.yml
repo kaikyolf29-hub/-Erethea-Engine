@@ -67,8 +67,11 @@ jobs:
           $icd = Get-ChildItem -Recurse mesa -Filter "lvp_icd*.json" | Select-Object -First 1
           if (-not $icd) { Get-ChildItem -Recurse mesa | Select-Object -First 40 FullName; throw "lavapipe isn't in $archive" }
           Write-Output "lavapipe: $($icd.FullName)"
-          "VK_DRIVER_FILES=$($icd.FullName)" >> $env:GITHUB_ENV
-          "VK_ICD_FILENAMES=$($icd.FullName)" >> $env:GITHUB_ENV
+          # The runner's processes are elevated, and the Vulkan loader ignores
+          # VK_DRIVER_FILES and VK_ICD_FILENAMES in elevated processes, so the
+          # driver is registered like an installed one.
+          New-Item -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\SOFTWARE\Khronos\Vulkan\Drivers" -Name $icd.FullName -PropertyType DWord -Value 0 -Force | Out-Null
 
       - name: Capture with FSR 2.2 and AMD FSR
         shell: pwsh
@@ -82,12 +85,35 @@ jobs:
           }
           Select-String -Path amd_fsr.log -Pattern "Vulkan|lavapipe|D3D12|Direct3D|WARP|Basic Render|AMD FSR|FSR 2.2" | Select-Object -First 20
 
+          if ("${{ matrix.driver }}" -eq "vulkan" -and (Select-String -Path amd_fsr.log -Pattern "switching to Direct3D 12" -Quiet)) {
+            throw "Vulkan didn't start, so this job didn't test AMD FSR on Vulkan"
+          }
           if (Select-String -Path amd_fsr.log -Pattern "Using FSR 2.2|AMD FSR couldn't|^ERROR:.*AMD FSR" -Quiet) {
             throw "AMD FSR didn't upscale, see amd_fsr.log above"
           }
           if (-not (Select-String -Path amd_fsr.log -Pattern "Erethea: upscaling with AMD FSR" -Quiet)) {
             throw "AMD FSR didn't start"
           }
+
+      # Runs the AMD FSR capture again under the console debugger, with more
+      # messages from Erethea, AMD's runtime and the Direct3D 12 debug layer,
+      # and prints where it crashed.
+      - name: Show where AMD FSR failed
+        if: failure()
+        shell: pwsh
+        run: |
+          $cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $exe = "bin/erethea.windows.editor.x86_64.exe"
+          $arguments = @("--path", "erethea/tests/reference_scene", "--rendering-driver", "${{ matrix.driver }}", "--fixed-fps", "30", "--verbose", "--gpu-validation", "--",
+            "--capture=$PWD/captures/amd_fsr_debug", "--upscaler=amd_fsr", "--warmup=12", "--frames=4")
+          if ($cdb) {
+            $env:_NT_SYMBOL_PATH = "srv*$env:RUNNER_TEMP\symbols*https://msdl.microsoft.com/download/symbols"
+            & $cdb.FullName -g -G -lines -c "!gle; .ecxr; kn 60; lm o; q" $exe @arguments 2>&1 | Tee-Object -FilePath amd_fsr_debug.log
+          } else {
+            Write-Output "cdb.exe isn't on the runner; running without the debugger."
+            & $exe @arguments 2>&1 | Tee-Object -FilePath amd_fsr_debug.log
+          }
+          exit 0
 
       - name: Compare AMD FSR with FSR 2.2
         shell: pwsh
