@@ -4,6 +4,9 @@ A Erethea Engine é um fork da Godot Engine (base: Godot 4.8) com nome próprio,
 janela moderna no Windows e gráficos melhores, ligado à Fábrica de jogos.
 O plano completo está no "Plano 2 · Erethea Engine (fork da Godot)".
 
+Para retomar o trabalho, comece por `HANDOFF.md`: o estado de cada fase, os
+PRs abertos, as decisões já tomadas e o passo a passo até o lançamento.
+
 ## Conversa
 
 - Fale em português do Brasil com o dono do projeto, nos PRs e na

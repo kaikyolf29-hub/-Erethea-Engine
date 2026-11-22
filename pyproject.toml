@@ -78,6 +78,7 @@ skip = [
 	"platform/web/package-lock.json",
 	# Erethea: documentation written in Portuguese.
 	"CLAUDE.md",
+	"HANDOFF.md",
 	"README.md",
 	"erethea/README.md",
 ]
