@@ -1,0 +1,20 @@
+{
+  "formato": 1,
+  "id": "teste_importador",
+  "nome": "Erethea Fornalha Import Test",
+  "criado_em": "2026-11-21T00:00:00Z",
+  "atualizado_em": "2026-11-21T00:00:00Z",
+  "comercial": true,
+  "engine": "erethea",
+  "personagens": [
+    {"id": "heroi", "nome": "Heroi", "papel": "protagonista"},
+    {"id": "lobo", "nome": "Lobo", "papel": "inimigo"}
+  ],
+  "mundo": {
+    "areas": [
+      {"id": "vila", "nome": "Vila de Brasa", "tipo": "vila"},
+      {"id": "floresta", "nome": "Floresta Escura", "tipo": "floresta"},
+      {"id": "arena", "nome": "Arena", "tipo": "arena"}
+    ]
+  }
+}

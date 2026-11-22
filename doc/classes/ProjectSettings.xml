@@ -1161,6 +1161,9 @@
 		<member name="editor/erethea_export_checks/run_on_export" type="int" setter="" getter="" default="1">
 			When the Erethea checks run during export: [code]Never[/code], only in projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), or in all projects. They list too many triangles, too big textures, wrong scale and missing license receipts in the export log. They can also be run with [b]Project &gt; Tools &gt; Check Project for Export...[/b]. Erethea only.
 		</member>
+		<member name="editor/erethea_fornalha/looping_animations" type="PackedStringArray" setter="" getter="" default="PackedStringArray(&quot;parado&quot;, &quot;andar&quot;, &quot;correr&quot;, &quot;correr_rapido&quot;)">
+			In projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), the animations with these names loop when a 3D scene is imported, such as the walk cycles of the Fornalha's characters. glTF files can't say that an animation loops. A loop mode set in the import settings of an animation wins. Leave it empty to turn this off. Erethea only.
+		</member>
 		<member name="editor/export/convert_text_resources_to_binary" type="bool" setter="" getter="" default="true">
 			If [code]true[/code], text resource ([code]tres[/code]) and text scene ([code]tscn[/code]) files are converted to their corresponding binary format on export. This decreases file sizes and speeds up loading slightly.
 			[b]Note:[/b] Because a resource's file extension may change in an exported project, it is heavily recommended to use [method @GDScript.load] or [ResourceLoader] instead of [FileAccess] to load resources dynamically.

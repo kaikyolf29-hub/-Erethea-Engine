@@ -40,7 +40,7 @@ jobs:
 
   # Erethea: branding check, Windows installer and smoke test, window test,
   # upscaler tests, reference scene against stock Godot, editor MCP server,
-  # checks before export.
+  # checks before export, scenes built from game.project.json.
 
   erethea-branding:
     name: 🔥 Erethea branding
@@ -92,3 +92,8 @@ jobs:
     name: 🔥 Erethea export checks
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_export_checks.yml
+
+  erethea-fornalha-import:
+    name: 🔥 Erethea Fornalha import
+    needs: [linux-build, windows-build]
+    uses: ./.github/workflows/erethea_fornalha_import.yml

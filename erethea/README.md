@@ -13,6 +13,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/reference_scene/` | Cena de referência (vila, floresta, personagem, dia e noite) para comparar com a Godot |
 | `tests/mcp/` | Projeto vazio e teste de ponta a ponta do servidor MCP do editor |
 | `tests/export_checks/` | Projeto da Fornalha e teste das validações antes de exportar |
+| `tests/fornalha_import/` | Projeto da Fornalha e teste das cenas montadas pelo `game.project.json` |
 
 ## Atualizar a Godot
 
@@ -364,6 +365,7 @@ claude mcp add --transport http erethea http://127.0.0.1:11481/mcp
 | `take_screenshot` | Captura do jogo, do editor ou da vista 2D ou 3D, em PNG |
 | `rescan_files` | Faz o editor ver arquivos criados fora dele |
 | `check_export` | Roda as validações antes de exportar (veja abaixo) |
+| `build_fornalha_scenes` | Monta as cenas do jogo pelo `game.project.json` (veja abaixo) |
 
 Tudo o que muda a cena entra no histórico de desfazer com o nome
 `MCP: ...`, então Ctrl+Z desfaz o que o agente fez. As mudanças só vão para o
@@ -448,6 +450,63 @@ Linux e no Windows.
 
 ```sh
 python erethea/tests/export_checks/test_export_checks.py bin/erethea.linuxbsd.editor.x86_64
+```
+
+## Cenas montadas pelo `game.project.json`
+
+Num projeto da Fornalha, a Erethea monta as cenas do jogo a partir do
+`game.project.json` e do que a Forja deixou no projeto: os personagens em
+`Characters/` e `Enemies/`, o blockout do mundo em `World/blockout.glb` (com
+`World/blockout.info.json`, que diz onde fica cada área e onde nasce cada
+inimigo) e as escolhas da última montagem em `.fornalha/cena.json`. O código
+fica em `modules/erethea_fornalha/`.
+
+| Cena | O que tem |
+| --- | --- |
+| `Characters/<id>/<id>.tscn` | O jogador: o modelo, a cápsula de colisão, a câmera por cima do ombro e o script `jogador.gd` da Fornalha |
+| `Enemies/<id>/<id>.tscn` | O inimigo: o modelo, a colisão e o script `inimigo.gd` da Fornalha (persegue, ataca e morre) |
+| `World/areas/<área>.tscn` | Uma por área do blockout (vila, floresta...), com os inimigos dela; é onde vai o que for daquela área |
+| `World/mundo.tscn` | O blockout, o sol, o céu e as áreas, cada uma no seu lugar |
+| `principal.tscn` | O mundo, o jogador no ponto de nascimento e o HUD |
+
+São os mesmos nomes de nós e de arquivos que a montagem da Fornalha usa, então
+o `run_test` da Fornalha continua funcionando. O modelo entra como instância
+do `.glb`, então quando a Fornalha gera o modelo de novo a cena mostra o novo
+sem perder colisão, câmera e script.
+
+**O que o dev mudou fica.** A Erethea guarda em `res://.erethea/fornalha_import.json`
+como deixou cada cena. Na próxima montagem, uma cena que alguém mudou depois,
+ou que a Erethea não fez (como a `principal.tscn` da montagem da Fornalha),
+fica como está, e o relatório diz isso. Montar com *force* (ou o botão
+*Replace Kept Scenes*) monta essas também e guarda uma cópia das antigas em
+`res://.erethea/backup/`. Uma cena aberta no editor com mudanças não salvas
+nunca é trocada.
+
+**Animações em loop.** O glTF não tem como dizer que uma animação é em loop,
+então as animações de andar da Forja chegavam na Godot tocando uma vez só. Em
+projetos da Fornalha, a importação deixa em loop as animações com os nomes de
+`editor/erethea_fornalha/looping_animations` (padrão: `parado`, `andar`,
+`correr` e `correr_rapido`). O que a pessoa escolher nas configurações de
+importação da animação vale mais.
+
+**Como montar.**
+
+- Em *Projeto › Ferramentas › Build Scenes from game.project.json...*, que só
+  aparece em projetos da Fornalha: uma lista com o que foi criado, atualizado ou
+  mantido; dois cliques abrem a cena.
+- Pelo agente, com a ferramenta `build_fornalha_scenes` do servidor MCP.
+
+**Teste.** `erethea/tests/fornalha_import/test_fornalha_import.py` monta um
+projeto como os da Fornalha, com um herói, um lobo e um blockout de duas áreas
+em `.glb`, e scripts que fazem o papel dos da Fornalha. Pelo servidor MCP,
+monta as cenas, confere que a segunda montagem não muda nada, que a
+`principal.tscn` que a Erethea não fez fica até montar com *force* (e que a
+cópia vai para o backup) e que uma área mudada à mão fica. Depois roda o jogo
+sem janela: o herói anda mais de 2 m no chão tocando `andar` em loop, e cada
+lobo está na cena da sua área. O CI roda no Linux e no Windows.
+
+```sh
+python erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.linuxbsd.editor.x86_64
 ```
 
 ## Lançar uma versão

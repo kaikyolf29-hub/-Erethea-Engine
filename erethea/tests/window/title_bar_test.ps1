@@ -104,6 +104,39 @@ $MOUSEEVENTF_LEFTUP = 0x0004
 $script:failures = 0
 $script:step = 0
 
+# The artifact isn't always reachable, so the end of each log goes to the
+# job's output too.
+function Write-LogTails {
+	foreach ($log in Get-ChildItem -Path $OutDir -Filter "*.log") {
+		Write-Output "----- $($log.Name) (last 40 lines) -----"
+		Get-Content $log.FullName -Tail 40
+	}
+}
+
+# Windows records the module and the offset of a crash that the engine's own
+# crash handler doesn't see (such as a fast fail, code 0xC0000409).
+function Write-CrashEvents {
+	$since = (Get-Date).AddMinutes(-30)
+	$events = Get-WinEvent -FilterHashtable @{ LogName = "Application"; Id = 1000, 1001, 1026; StartTime = $since } -ErrorAction SilentlyContinue
+	foreach ($entry in $events) {
+		if ($entry.Message -match "erethea") {
+			Write-Output "----- Windows event $($entry.Id) at $($entry.TimeCreated) -----"
+			Write-Output $entry.Message
+		}
+	}
+}
+
+# A step that can't go on (such as an engine that exits early) stops the
+# test; the logs still go to the output.
+trap {
+	Write-Output "ERROR $_"
+	Write-Output $_.InvocationInfo.PositionMessage
+	Write-LogTails
+	Write-CrashEvents
+	Write-Output "Screenshots and logs: $OutDir"
+	exit 1
+}
+
 function Check([string]$name, [bool]$ok, [string]$details = "") {
 	if ($ok) {
 		Write-Output "PASS  $name $details"
@@ -474,12 +507,8 @@ if ($errors) {
 
 Write-Output ""
 if ($script:failures -gt 0) {
-	# The artifact isn't always reachable, so the end of each log goes to the
-	# job's output too.
-	foreach ($log in Get-ChildItem -Path $OutDir -Filter "*.log") {
-		Write-Output "----- $($log.Name) (last 40 lines) -----"
-		Get-Content $log.FullName -Tail 40
-	}
+	Write-LogTails
+	Write-CrashEvents
 	Write-Output "$($script:failures) check(s) failed. Screenshots and logs: $OutDir"
 	exit 1
 }
