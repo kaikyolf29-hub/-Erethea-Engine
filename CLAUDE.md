@@ -57,7 +57,7 @@ novas da Godot sem reescrever nada.
 | Streaming de texturas 3D | `modules/erethea_streaming/` |
 | Servidor MCP do editor (agentes como o Claude Code) | `modules/erethea_mcp/` |
 | Validações antes de exportar (polígonos, texturas, escala, recibos) | `modules/erethea_export_checks/` |
-| Ponte com a Fornalha (cenas montadas pelo `game.project.json`) | `modules/erethea_fornalha/` |
+| Ponte com a Fornalha (cenas montadas pelo `game.project.json`, elo ao vivo) | `modules/erethea_fornalha/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
 | CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`) |

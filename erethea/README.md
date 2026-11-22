@@ -14,6 +14,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/mcp/` | Projeto vazio e teste de ponta a ponta do servidor MCP do editor |
 | `tests/export_checks/` | Projeto da Fornalha e teste das validações antes de exportar |
 | `tests/fornalha_import/` | Projeto da Fornalha e teste das cenas montadas pelo `game.project.json` |
+| `tests/fornalha_link/` | Teste do elo ao vivo com a Fornalha, com uma Fornalha de mentira |
 
 ## Atualizar a Godot
 
@@ -491,6 +492,8 @@ importação da animação vale mais.
 
 **Como montar.**
 
+- Sozinha, quando muda o que as cenas usam, como um personagem novo da
+  Fornalha (veja "Elo ao vivo com a Fornalha", abaixo).
 - Em *Projeto › Ferramentas › Build Scenes from game.project.json...*, que só
   aparece em projetos da Fornalha: uma lista com o que foi criado, atualizado ou
   mantido; dois cliques abrem a cena.
@@ -507,6 +510,69 @@ lobo está na cena da sua área. O CI roda no Linux e no Windows.
 
 ```sh
 python erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.linuxbsd.editor.x86_64
+```
+
+## Elo ao vivo com a Fornalha
+
+Num projeto da Fornalha aberto no editor, o que a Fornalha gera aparece sozinho
+na cena: ela avisa que gravou arquivos novos, o editor importa e, quando muda o
+que as cenas usam (um personagem ou inimigo novo, um modelo gerado de novo, o
+blockout, as áreas do `game.project.json`), monta as cenas de novo como em
+"Cenas montadas pelo `game.project.json`". Cena que alguém mudou à mão fica como
+está. As cenas abertas recarregam, e num projeto novo a `principal.tscn` abre
+sozinha.
+
+**Quando monta sozinha.** Se a Erethea já montou as cenas deste projeto alguma
+vez (existe `res://.erethea/fornalha_import.json`), monta de novo sempre que o
+que as cenas usam muda. Se nunca montou, só monta sozinha num projeto que ainda
+não tem `principal.tscn`. Num projeto cujas cenas a Fornalha monta ela mesma
+(`montar.gd`), a Erethea espera alguém montar uma vez pelo menu ou pelo agente.
+
+**Configurações.** Só valem em projetos com `game.project.json`; projetos da
+Godot não mudam.
+
+| Onde | Configuração | Padrão |
+| --- | --- | --- |
+| Configurações do Projeto | `editor/erethea_fornalha/build_automatically`: montar as cenas sozinha | ligado |
+| Configurações do Projeto | `editor/erethea_fornalha/live_link`: perguntar à Fornalha o que ela gravou | ligado |
+| Configurações do Editor | `erethea/fornalha/port`: porta da API da Fornalha | `11480` |
+
+A variável de ambiente `ERETHEA_FORNALHA_PORT` troca a porta, como nos testes.
+
+**Como a Erethea fala com a Fornalha.** Só em `127.0.0.1`, na porta da API da
+Fornalha.
+
+1. A cada 2 segundos, como o add-on `fornalha_ponte` faz hoje:
+   `GET /fornalha/ponte?projeto=<pasta do projeto>`, que responde
+   `{"versao": 3, "arquivos": ["Characters/heroi/heroi.glb"]}`. Quando a
+   `versao` muda, o editor importa os arquivos novos.
+2. Quando essa resposta tiver `"websocket": "/fornalha/ponte/ws"`, o editor
+   abre esse WebSocket e para de perguntar por HTTP. Se o WebSocket fechar,
+   volta a perguntar por HTTP.
+
+Mensagens pelo WebSocket, em texto JSON:
+
+| De | Mensagem | Quando |
+| --- | --- | --- |
+| Erethea | `{"tipo": "ola", "programa": "Erethea Engine", "versao": "...", "projeto": "<pasta>", "monta_cenas": true}` | Ao abrir. `monta_cenas` diz que a Erethea monta as cenas, então a Fornalha não precisa rodar o `montar.gd` |
+| Fornalha | `{"tipo": "ponte", "versao": 4, "arquivos": [...]}` | Ao abrir e sempre que gravar arquivos no projeto |
+| Erethea | `{"tipo": "cenas", "ok": true, "summary": "...", "scenes": [{"file": "...", "result": "created"}], "warnings": [...]}` | Depois de montar sozinha; é o mesmo relatório da ferramenta `build_fornalha_scenes` |
+
+Hoje a Fornalha só tem o `GET /fornalha/ponte`, então a Erethea pergunta por
+HTTP. O WebSocket, o campo `"websocket"` na resposta e deixar de rodar o
+`montar.gd` quando a Erethea disser `monta_cenas` são pedidos para a Fornalha.
+
+**Teste.** `erethea/tests/fornalha_link/test_fornalha_link.py` sobe uma
+Fornalha de mentira (o `GET /fornalha/ponte` e o WebSocket) e abre o editor num
+projeto novo que tem só o herói e o blockout. Confere que o editor monta as
+cenas sozinho; que, por HTTP, um lobo que a Fornalha grava é importado e ganha
+a sua cena e o seu lugar nas áreas; e que, quando a Fornalha anuncia o
+WebSocket, o editor diz `ola`, recebe o próximo inimigo por ele e devolve o
+relatório das cenas. Depois roda o jogo sem janela e o herói anda. O CI roda no
+Linux e no Windows.
+
+```sh
+python erethea/tests/fornalha_link/test_fornalha_link.py bin/erethea.linuxbsd.editor.x86_64
 ```
 
 ## Lançar uma versão

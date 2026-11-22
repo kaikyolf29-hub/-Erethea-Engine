@@ -36,6 +36,7 @@
 #include "editor/plugins/editor_plugin.h"
 #include "scene/gui/dialogs.h"
 
+class EretheaFornalhaLink;
 class Label;
 class Tree;
 
@@ -72,6 +73,7 @@ class EretheaFornalhaPlugin : public EditorPlugin {
 
 	Ref<EretheaFornalhaAnimationLoops> animation_loops;
 	EretheaFornalhaBuildDialog *dialog = nullptr;
+	EretheaFornalhaLink *link = nullptr;
 
 	void _show_dialog();
 

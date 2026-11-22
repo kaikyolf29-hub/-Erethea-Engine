@@ -7,7 +7,9 @@ on:
 # game.project.json, the character models and the blockout
 # (modules/erethea_fornalha), through the editor's MCP server. Checks that a
 # scene changed by hand is kept, then runs the game without a window and walks
-# the player.
+# the player. Then checks the live link with a stand-in for the Fornalha: the
+# editor imports what the Fornalha writes and builds the scenes by itself, over
+# HTTP and through the WebSocket.
 
 jobs:
   fornalha-import-linux:
@@ -28,6 +30,9 @@ jobs:
         run: |
           chmod +x bin/erethea.*
           python3 erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.linuxbsd.editor.x86_64.mono --out "$PWD/fornalha_import/linux"
+
+      - name: Live link with the Fornalha
+        run: python3 erethea/tests/fornalha_link/test_fornalha_link.py bin/erethea.linuxbsd.editor.x86_64.mono --out "$PWD/fornalha_import/linux_link"
 
       - name: Upload logs
         if: always()
@@ -53,6 +58,9 @@ jobs:
 
       - name: Build the scenes and walk
         run: python erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.windows.editor.x86_64.exe --out "${{ github.workspace }}/fornalha_import/windows"
+
+      - name: Live link with the Fornalha
+        run: python erethea/tests/fornalha_link/test_fornalha_link.py bin/erethea.windows.editor.x86_64.exe --out "${{ github.workspace }}/fornalha_import/windows_link"
 
       - name: Upload logs
         if: always()

@@ -30,10 +30,13 @@
 
 #include "erethea_fornalha_plugin.h"
 
+#include "erethea_fornalha_link.h"
+
 #include "core/config/project_settings.h"
 #include "core/object/callable_mp.h"
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
+#include "editor/settings/editor_settings.h"
 #include "editor/themes/editor_scale.h"
 #include "scene/animation/animation_mixer.h"
 #include "scene/gui/box_container.h"
@@ -215,11 +218,15 @@ void EretheaFornalhaPlugin::_notification(int p_what) {
 
 EretheaFornalhaPlugin::EretheaFornalhaPlugin() {
 	animation_loops.instantiate();
+	EDITOR_DEF(EretheaFornalhaLink::SETTING_PORT, EretheaFornalhaLink::DEFAULT_PORT);
+	EditorSettings::get_singleton()->add_property_hint(PropertyInfo(Variant::INT, EretheaFornalhaLink::SETTING_PORT, PROPERTY_HINT_RANGE, "1024,65535,1"));
 
-	// Godot projects see no new menu.
+	// Godot projects see no new menu and don't look for the Fornalha.
 	if (EretheaFornalhaImport::is_fornalha_project()) {
 		dialog = memnew(EretheaFornalhaBuildDialog);
 		EditorNode::get_singleton()->get_gui_base()->add_child(dialog);
 		add_tool_menu_item(TTR("Build Scenes from game.project.json..."), callable_mp(this, &EretheaFornalhaPlugin::_show_dialog));
+		link = memnew(EretheaFornalhaLink);
+		add_child(link);
 	}
 }

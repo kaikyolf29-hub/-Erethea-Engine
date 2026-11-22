@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "../editor/erethea_fornalha_link.h"
 #include "../editor/erethea_fornalha_plugin.h"
 #include "../erethea_fornalha_import.h"
 
@@ -265,6 +266,93 @@ TEST_CASE("[Modules][EretheaFornalha] Walk cycles loop") {
 	CHECK(library->get_animation("atacar")->get_loop_mode() == Animation::LOOP_NONE);
 	CHECK(library->get_animation("correr")->get_loop_mode() == Animation::LOOP_NONE);
 	memdelete(scene);
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Building scenes by themselves") {
+	using Import = EretheaFornalhaImport;
+	// Never built: only a project with nothing assembled yet.
+	CHECK(Import::should_build_automatically(false, "", "a", false));
+	CHECK_FALSE(Import::should_build_automatically(false, "", "a", true));
+	// Built before: when what the scenes come from changed.
+	CHECK(Import::should_build_automatically(true, "a", "b", true));
+	CHECK(Import::should_build_automatically(true, "", "b", true));
+	CHECK_FALSE(Import::should_build_automatically(true, "a", "a", true));
+	CHECK_FALSE(Import::should_build_automatically(true, "a", "a", false));
+
+	EretheaFornalhaProject project;
+	EretheaFornalhaCharacter hero;
+	hero.id = "heroi";
+	hero.player = true;
+	hero.model = "res://Characters/heroi/heroi.glb";
+	project.characters.push_back(hero);
+	EretheaFornalhaArea village;
+	village.id = "vila";
+	village.name = "Vila";
+	project.areas.push_back(village);
+	project.player = "heroi";
+	const String signature = project.get_signature();
+	CHECK(signature.length() == 32);
+	CHECK(project.get_signature() == signature);
+
+	EretheaFornalhaProject with_enemy = project;
+	EretheaFornalhaCharacter wolf;
+	wolf.id = "lobo";
+	wolf.model = "res://Enemies/lobo/lobo.glb";
+	with_enemy.characters.push_back(wolf);
+	CHECK(with_enemy.get_signature() != signature);
+
+	EretheaFornalhaProject renamed = project;
+	renamed.areas.write[0].name = "Aldeia";
+	CHECK(renamed.get_signature() != signature);
+
+	EretheaFornalhaProject taller = project;
+	taller.characters.write[0].height = 2.1;
+	CHECK(taller.get_signature() != signature);
+
+	// Warnings say nothing about what is built.
+	EretheaFornalhaProject warned = project;
+	warned.warnings.push_back("No blockout in World/ yet.");
+	CHECK(warned.get_signature() == signature);
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Messages from the Fornalha") {
+	int64_t version = -1;
+	PackedStringArray files;
+	String websocket_path = "unset";
+
+	// The answer of GET /fornalha/ponte.
+	CHECK(EretheaFornalhaLink::parse_bridge_message(R"({"versao": 3, "arquivos": ["Characters/heroi/heroi.glb"]})", version, files, websocket_path));
+	CHECK(version == 3);
+	REQUIRE(files.size() == 1);
+	CHECK(files[0] == "Characters/heroi/heroi.glb");
+	CHECK(websocket_path.is_empty());
+
+	// A Fornalha that has a WebSocket says where.
+	CHECK(EretheaFornalhaLink::parse_bridge_message(R"({"versao": 4, "arquivos": [], "websocket": "/fornalha/ponte/ws"})", version, files, websocket_path));
+	CHECK(version == 4);
+	CHECK(files.is_empty());
+	CHECK(websocket_path == "/fornalha/ponte/ws");
+	// Only a path on the Fornalha itself.
+	CHECK(EretheaFornalhaLink::parse_bridge_message(R"({"versao": 4, "websocket": "ws://example.com/"})", version, files, websocket_path));
+	CHECK(websocket_path.is_empty());
+
+	// Pushed through the WebSocket.
+	CHECK(EretheaFornalhaLink::parse_bridge_message(R"({"tipo": "ponte", "versao": 5, "arquivos": ["Enemies/lobo/lobo.glb", 7]})", version, files, websocket_path));
+	CHECK(version == 5);
+	CHECK(files.size() == 1);
+
+	// Other messages are left alone.
+	CHECK_FALSE(EretheaFornalhaLink::parse_bridge_message(R"({"tipo": "outra", "versao": 6})", version, files, websocket_path));
+	CHECK_FALSE(EretheaFornalhaLink::parse_bridge_message(R"({"arquivos": []})", version, files, websocket_path));
+	CHECK_FALSE(EretheaFornalhaLink::parse_bridge_message("[1, 2]", version, files, websocket_path));
+	CHECK_FALSE(EretheaFornalhaLink::parse_bridge_message("not json", version, files, websocket_path));
+	CHECK(version == 5);
+
+	const Dictionary hello = EretheaFornalhaLink::make_hello("/jogos/vila/", true);
+	CHECK(hello["tipo"] == "ola");
+	CHECK(hello["projeto"] == "/jogos/vila/");
+	CHECK(bool(hello["monta_cenas"]));
+	CHECK(String(hello["programa"]).length() > 0);
 }
 
 } // namespace TestEretheaFornalha
