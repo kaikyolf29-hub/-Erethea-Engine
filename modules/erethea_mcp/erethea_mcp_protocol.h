@@ -58,6 +58,10 @@ struct EretheaMcpToolResult {
 	// Answers with a JSON object, as text and as structured content.
 	static EretheaMcpToolResult object(const Dictionary &p_result);
 	void add_image(const String &p_base64_png);
+
+	// As a Dictionary (content, structured, is_error), to pass it on.
+	Dictionary to_dictionary() const;
+	static EretheaMcpToolResult from_dictionary(const Dictionary &p_dictionary);
 };
 
 class EretheaMcpToolHandler {
