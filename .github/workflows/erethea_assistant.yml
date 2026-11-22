@@ -1,0 +1,67 @@
+name: 🔥 Erethea assistant
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Drives the assistant panel (modules/erethea_assistant) with
+# erethea/tests/assistant/test_assistant.py: a fake model server answers as the
+# Anthropic API (Claude), an OpenAI-compatible server and Ignis, a small editor
+# plugin types in the panel and presses Send and Undo, and the test checks
+# through the MCP server and the project's files that the answers changed the
+# scene and the scripts and that undoing put them back.
+#
+# No real model runs here: the test with Ignis and Claude is part of the final
+# test on the creator's computer.
+
+jobs:
+  assistant-linux:
+    runs-on: ubuntu-24.04
+    name: Assistant panel on Linux
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Assistant panel
+        run: |
+          chmod +x bin/erethea.*
+          python3 erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64.mono --out "$PWD/assistant/linux"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-assistant-linux
+          path: assistant
+          retention-days: 14
+
+  assistant-windows:
+    runs-on: windows-latest
+    name: Assistant panel on Windows
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Assistant panel
+        run: python erethea/tests/assistant/test_assistant.py bin/erethea.windows.editor.x86_64.exe --out "${{ github.workspace }}/assistant/windows"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-assistant-windows
+          path: assistant
+          retention-days: 14
