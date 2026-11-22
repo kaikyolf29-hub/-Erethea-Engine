@@ -20,6 +20,7 @@ import http.client
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -407,7 +408,79 @@ def test_ignis(fake, driver, mcp, project):
     check(len(fake.taken(path)) == 4, "one more try after an error worth retrying")
 
 
-def run_checks(fake, driver, mcp, project):
+def read_log(path):
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_claude_code(fake, driver, mcp, project, claude_log):
+    print("Claude Code (subscription)")
+    driver.send({
+        "settings": {
+            "erethea/assistant/provider": 3,
+            "erethea/assistant/claude_code/path": sys.executable,
+            "erethea/assistant/claude_code/arguments": str(HERE / "fake_claude.py"),
+        }
+    })
+    time.sleep(3)
+    shown = driver.send({"ask": "Put a statue here."})["conversation"]
+    check("Placed a statue." in shown, "the answer shows in the panel")
+    check("create_node" in shown and "save_scene" in shown, "the panel lists the tools Claude Code called")
+    check("Statue" in mcp.node_names(), "Statue is in the scene")
+    check("Statue" in (project / "main.tscn").read_text(encoding="utf-8"), "main.tscn was saved with Statue")
+
+    entries = read_log(claude_log)
+    starts = [entry for entry in entries if entry["event"] == "start"]
+    check(len(starts) == 1, "Claude Code started once")
+    argv = starts[0]["argv"]
+    for flag, value in [
+        ("--input-format", "stream-json"),
+        ("--output-format", "stream-json"),
+        ("--allowedTools", "mcp__erethea"),
+        ("--permission-mode", "dontAsk"),
+    ]:
+        check(flag in argv and argv[argv.index(flag) + 1] == value, f"{flag} {value}")
+    check(
+        "-p" in argv and "--strict-mcp-config" in argv and "--tools=" in argv,
+        "print mode, only the editor's MCP server and no built-in tools",
+    )
+    check("--resume" not in argv and "--bare" not in argv, "a new session, with the subscription login")
+    url = starts[0]["mcp_config"]["mcpServers"]["erethea"]["url"]
+    check(url == f"http://127.0.0.1:{mcp.port}/mcp", "the editor's MCP server in --mcp-config")
+    check(not starts[0]["api_key_in_environment"], "no API key reaches Claude Code")
+    messages = [entry for entry in entries if entry["event"] == "message"]
+    check(len(messages) == 1 and messages[0]["type"] == "user", "one user message on its input")
+    check("Scene being edited: res://main.tscn" in messages[0]["content"], "the message carries the editor's context")
+    check(messages[0]["content"].endswith("Put a statue here."), "and ends with the question")
+
+    shown = driver.send({"ask": "Anything else?"})["conversation"]
+    check("Nothing to change." in shown, "a second question")
+    entries = read_log(claude_log)
+    check(len([entry for entry in entries if entry["event"] == "start"]) == 1, "on the same Claude Code")
+
+    # Claude Code goes away between questions: the next one starts it again in the same session.
+    os.kill(starts[0]["pid"], signal.SIGTERM)
+    time.sleep(2)
+    shown = driver.send({"ask": "And now?"})["conversation"]
+    check(shown.count("Nothing to change.") == 2, "it answers after starting again")
+    starts = [entry for entry in read_log(claude_log) if entry["event"] == "start"]
+    check(
+        len(starts) == 2 and starts[1]["argv"][starts[1]["argv"].index("--resume") + 1] == "fake-session-1",
+        "with --resume and the same session",
+    )
+
+    # The last answers only talked, so the statue is what gets undone.
+    before = driver.send({"new": True})["conversation"]
+    result = driver.send({"undo": True})
+    check("Undid the last answer" in new_text(before, result["conversation"]), "the panel says the answer was undone")
+    check("Statue" not in mcp.node_names(), "Statue left the scene")
+    check(
+        "Statue" not in (project / "main.tscn").read_text(encoding="utf-8"), "main.tscn was saved again without Statue"
+    )
+
+
+def run_checks(fake, driver, mcp, project, claude_log):
     reply = mcp.rpc(
         "initialize",
         {
@@ -435,6 +508,7 @@ def run_checks(fake, driver, mcp, project):
     test_claude_undo(fake, driver, mcp, project)
     test_openai(fake, driver, mcp, project)
     test_ignis(fake, driver, mcp, project)
+    test_claude_code(fake, driver, mcp, project, claude_log)
 
 
 def main():
@@ -453,7 +527,10 @@ def main():
     fake = FakeModels()
 
     environment = dict(os.environ, ERETHEA_MCP_PORT=str(arguments.port))
-    environment.pop("ANTHROPIC_API_KEY", None)
+    # Set, to check that it doesn't reach Claude Code, which uses the subscription.
+    environment["ANTHROPIC_API_KEY"] = "must-not-reach-claude-code"
+    claude_log = work / "fake_claude.log"
+    environment["FAKE_CLAUDE_LOG"] = str(claude_log)
     command = [
         str(Path(arguments.editor).resolve()),
         "--editor",
@@ -476,7 +553,7 @@ def main():
             wait_for_mcp(mcp, editor, arguments.timeout)
             driver = Driver(project, editor)
             driver.wait_ready(60)
-            run_checks(fake, driver, mcp, project)
+            run_checks(fake, driver, mcp, project, claude_log)
         except (Failure, OSError, KeyError, TypeError, ValueError, IndexError) as error:
             failure = error
         finally:

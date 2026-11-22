@@ -330,4 +330,60 @@ TEST_CASE("[Erethea][Assistant] Scene tree summary") {
 	CHECK(EretheaAssistantDock::describe_call(call) == R"(create_node {"name":"Enemy"})");
 }
 
+TEST_CASE("[Erethea][Assistant] Claude Code command line and messages") {
+	const Dictionary config = JSON::parse_string(EretheaAssistantClaudeCode::make_mcp_config(11481));
+	CHECK(String(Dictionary(Dictionary(config["mcpServers"])["erethea"])["type"]) == "http");
+	CHECK(String(Dictionary(Dictionary(config["mcpServers"])["erethea"])["url"]) == "http://127.0.0.1:11481/mcp");
+
+	Vector<String> arguments = EretheaAssistantClaudeCode::make_arguments("/tmp/mcp.json", "Say \"hi\".", "", "");
+	CHECK(arguments.find("-p") >= 0);
+	CHECK(arguments[arguments.find("--input-format") + 1] == "stream-json");
+	CHECK(arguments[arguments.find("--output-format") + 1] == "stream-json");
+	CHECK(arguments.find("--verbose") >= 0);
+	CHECK(arguments[arguments.find("--mcp-config") + 1] == "/tmp/mcp.json");
+	CHECK(arguments.find("--strict-mcp-config") >= 0);
+	// No built-in tools: only the editor's, which go through the undo history.
+	CHECK(arguments.find("--tools=") >= 0);
+	CHECK(arguments[arguments.find("--allowedTools") + 1] == "mcp__erethea");
+	CHECK(arguments[arguments.find("--permission-mode") + 1] == "dontAsk");
+	CHECK(arguments[arguments.find("--append-system-prompt") + 1] == "Say 'hi'.");
+	CHECK(arguments.find("--model") < 0);
+	CHECK(arguments.find("--resume") < 0);
+	CHECK(arguments.find("--bare") < 0);
+	arguments = EretheaAssistantClaudeCode::make_arguments("/tmp/mcp.json", "", "sonnet", "session-1");
+	CHECK(arguments[arguments.find("--model") + 1] == "sonnet");
+	CHECK(arguments[arguments.find("--resume") + 1] == "session-1");
+
+	const Dictionary message = JSON::parse_string(EretheaAssistantClaudeCode::make_user_message("Add \"a\" tree.\nNow."));
+	CHECK(String(message["type"]) == "user");
+	CHECK(Dictionary(message["message"])["role"] == Variant("user"));
+	CHECK(String(Dictionary(message["message"])["content"]) == "Add \"a\" tree.\nNow.");
+	CHECK(message.has("parent_tool_use_id"));
+	CHECK_FALSE(EretheaAssistantClaudeCode::make_user_message("x").contains("\n"));
+
+	EretheaAssistantClaudeCode::Event event = EretheaAssistantClaudeCode::parse_line(R"({"type":"system","subtype":"init","session_id":"abc","tools":[],"mcp_servers":[{"name":"erethea","status":"connected"}]})");
+	CHECK(event.type == EretheaAssistantClaudeCode::Event::TYPE_INIT);
+	CHECK(event.session_id == "abc");
+	event = EretheaAssistantClaudeCode::parse_line(R"({"type":"assistant","session_id":"abc","message":{"role":"assistant","content":[{"type":"text","text":"Placing it. "},{"type":"tool_use","id":"t1","name":"mcp__erethea__create_node","input":{"name":"Tree"}}]},"parent_tool_use_id":null})");
+	CHECK(event.type == EretheaAssistantClaudeCode::Event::TYPE_ASSISTANT);
+	CHECK(event.text == "Placing it.");
+	REQUIRE(event.tool_calls.size() == 1);
+	CHECK(event.tool_calls[0].name == "create_node");
+	CHECK(String(event.tool_calls[0].arguments["name"]) == "Tree");
+	event = EretheaAssistantClaudeCode::parse_line(R"({"type":"result","subtype":"success","is_error":false,"result":"Placed a tree.","session_id":"abc","num_turns":2})");
+	CHECK(event.type == EretheaAssistantClaudeCode::Event::TYPE_RESULT);
+	CHECK_FALSE(event.is_error);
+	CHECK(event.text == "Placed a tree.");
+	event = EretheaAssistantClaudeCode::parse_line(R"({"type":"result","subtype":"error_max_turns","is_error":true,"errors":["Reached the turn limit"],"session_id":"abc"})");
+	CHECK(event.is_error);
+	CHECK(event.error == "Reached the turn limit");
+	event = EretheaAssistantClaudeCode::parse_line(R"({"type":"result","subtype":"success","is_error":true,"result":"Not logged in. Please run /login"})");
+	CHECK(event.is_error);
+	CHECK(event.error.contains("login"));
+	CHECK(EretheaAssistantClaudeCode::parse_line("not json").type == EretheaAssistantClaudeCode::Event::TYPE_OTHER);
+	CHECK(EretheaAssistantClaudeCode::parse_line(R"({"type":"stream_event"})").type == EretheaAssistantClaudeCode::Event::TYPE_OTHER);
+	CHECK(EretheaAssistantClaudeCode::strip_tool_prefix("mcp__erethea__save_scene") == "save_scene");
+	CHECK(EretheaAssistantClaudeCode::strip_tool_prefix("Read") == "Read");
+}
+
 } // namespace TestEretheaAssistant

@@ -41,6 +41,7 @@
 #include "editor/editor_interface.h"
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
+#include "editor/file_system/editor_paths.h"
 #include "editor/settings/editor_settings.h"
 #include "editor/themes/editor_scale.h"
 #include "scene/gui/box_container.h"
@@ -121,7 +122,7 @@ String EretheaAssistantDock::describe_call(const EretheaAssistantToolCall &p_cal
 void EretheaAssistantDock::define_settings() {
 	EditorSettings *settings = EditorSettings::get_singleton();
 	EDITOR_DEF_BASIC(SETTING_PROVIDER, int(PROVIDER_IGNIS));
-	settings->add_property_hint(PropertyInfo(Variant::INT, SETTING_PROVIDER, PROPERTY_HINT_ENUM, "Ignis (this computer),Claude (Anthropic API),OpenAI-compatible server"));
+	settings->add_property_hint(PropertyInfo(Variant::INT, SETTING_PROVIDER, PROPERTY_HINT_ENUM, "Ignis (this computer),Claude (Anthropic API),OpenAI-compatible server,Claude Code (your subscription)"));
 	EDITOR_DEF_BASIC(SETTING_IGNIS_URL, EretheaAssistantIgnis::DEFAULT_URL);
 	EDITOR_DEF_BASIC(SETTING_CLAUDE_API_KEY, "");
 	settings->add_property_hint(PropertyInfo(Variant::STRING, SETTING_CLAUDE_API_KEY, PROPERTY_HINT_PASSWORD));
@@ -132,6 +133,37 @@ void EretheaAssistantDock::define_settings() {
 	EDITOR_DEF_BASIC(SETTING_OPENAI_API_KEY, "");
 	settings->add_property_hint(PropertyInfo(Variant::STRING, SETTING_OPENAI_API_KEY, PROPERTY_HINT_PASSWORD));
 	EDITOR_DEF_BASIC(SETTING_OPENAI_MODEL, "");
+	EDITOR_DEF_BASIC(SETTING_CLAUDE_CODE_PATH, "");
+	settings->add_property_hint(PropertyInfo(Variant::STRING, SETTING_CLAUDE_CODE_PATH, PROPERTY_HINT_GLOBAL_FILE));
+	EDITOR_DEF(SETTING_CLAUDE_CODE_ARGUMENTS, "");
+	EDITOR_DEF(SETTING_CLAUDE_CODE_MODEL, "");
+}
+
+String EretheaAssistantDock::find_claude_code() {
+	OS *os = OS::get_singleton();
+#ifdef WINDOWS_ENABLED
+	const String name = "claude.exe";
+	const String separator = ";";
+	const String home = os->get_environment("USERPROFILE");
+#else
+	const String name = "claude";
+	const String separator = ":";
+	const String home = os->get_environment("HOME");
+#endif
+	PackedStringArray folders;
+	if (!home.is_empty()) {
+		// Where the native installer puts it.
+		folders.push_back(home.path_join(".local").path_join("bin"));
+		folders.push_back(home.path_join(".claude").path_join("local"));
+	}
+	folders.append_array(os->get_environment("PATH").split(separator, false));
+	for (const String &folder : folders) {
+		const String path = folder.strip_edges().path_join(name);
+		if (FileAccess::exists(path)) {
+			return path;
+		}
+	}
+	return String();
 }
 
 EretheaAssistantProvider *EretheaAssistantDock::_create_provider(int p_kind, String &r_problem) {
@@ -167,7 +199,7 @@ EretheaAssistantProvider *EretheaAssistantDock::_create_provider(int p_kind, Str
 	}
 }
 
-String EretheaAssistantDock::_make_context(bool p_include_project_file) {
+String EretheaAssistantDock::_make_context(bool p_include_project_file, int p_node_limit, int p_text_limit) {
 	EditorInterface *editor = EditorInterface::get_singleton();
 	String context = "[What the editor shows now]\n";
 	context += vformat("Project: %s (%s)\n", String(GLOBAL_GET("application/config/name")), ProjectSettings::get_singleton()->get_resource_path());
@@ -194,7 +226,7 @@ String EretheaAssistantDock::_make_context(bool p_include_project_file) {
 		arguments["max_depth"] = 8;
 		const EretheaMcpToolResult tree = EretheaMcpSceneTools::get_scene_tree(arguments);
 		if (!tree.is_error) {
-			context += "Scene tree (paths are relative to the root, \".\"):\n" + format_scene_tree(tree.structured, provider->get_context_node_limit());
+			context += "Scene tree (paths are relative to the root, \".\"):\n" + format_scene_tree(tree.structured, p_node_limit);
 		}
 	} else {
 		context += "No scene is being edited.\n";
@@ -202,7 +234,7 @@ String EretheaAssistantDock::_make_context(bool p_include_project_file) {
 
 	if (fornalha && p_include_project_file) {
 		String text = FileAccess::get_file_as_string(GAME_PROJECT_FILE);
-		const int limit = provider->get_context_text_limit();
+		const int limit = p_text_limit;
 		if (text.length() > limit) {
 			text = text.left(limit) + vformat("\n... (cut; read_file shows all %d characters)", text.length());
 		}
@@ -214,6 +246,10 @@ String EretheaAssistantDock::_make_context(bool p_include_project_file) {
 
 void EretheaAssistantDock::_ask(const String &p_question) {
 	const int kind = EDITOR_GET(SETTING_PROVIDER);
+	if (kind == PROVIDER_CLAUDE_CODE) {
+		_ask_claude_code(p_question);
+		return;
+	}
 	if (!provider || kind != provider_kind) {
 		if (provider) {
 			memdelete(provider);
@@ -248,7 +284,7 @@ void EretheaAssistantDock::_ask(const String &p_question) {
 	}
 
 	_add_message(TTR("You"), p_question);
-	provider->add_user_message(_make_context(include_project_file), p_question);
+	provider->add_user_message(_make_context(include_project_file, provider->get_context_node_limit(), provider->get_context_text_limit()), p_question);
 	busy = true;
 	serial++;
 	tools_used = 0;
@@ -418,6 +454,13 @@ void EretheaAssistantDock::_stop() {
 	if (!busy) {
 		return;
 	}
+	if (claude_answering) {
+		// The next question starts it again, in the same session.
+		_stop_claude_code();
+		_add_note(TTR("Stopped."));
+		_finish_claude_code_answer();
+		return;
+	}
 	http->cancel_request();
 	if (EretheaMcpPlugin::get_singleton()) {
 		EretheaMcpPlugin::get_singleton()->cancel_local_calls();
@@ -425,6 +468,227 @@ void EretheaAssistantDock::_stop() {
 	provider->cancel_question();
 	_add_note(TTR("Stopped."));
 	_finish_question();
+}
+
+bool EretheaAssistantDock::_start_claude_code(String &r_problem) {
+	uint16_t port = 0;
+	const Error server_error = EretheaMcpPlugin::get_singleton()->ensure_server(port);
+	if (server_error != OK) {
+		r_problem = vformat(TTR("The editor's MCP server, through which Claude Code acts, couldn't start (%s). Change its port in Editor Settings > Erethea > MCP."), error_names[server_error]);
+		return false;
+	}
+	String path = String(EDITOR_GET(SETTING_CLAUDE_CODE_PATH)).strip_edges();
+	if (path.is_empty()) {
+		path = find_claude_code();
+	}
+	if (path.is_empty()) {
+		r_problem = TTR("Claude Code isn't installed, or isn't where the editor looks. Install it (on Windows, in PowerShell: irm https://claude.ai/install.ps1 | iex), run claude once in a terminal to log in with your Claude account, then ask again. Or set its path in Editor Settings > Erethea > Assistant > Claude Code.");
+		return false;
+	}
+
+	const String config_path = EditorPaths::get_singleton()->get_cache_dir().path_join("erethea_assistant_mcp.json");
+	{
+		Ref<FileAccess> config = FileAccess::open(config_path, FileAccess::WRITE);
+		if (config.is_null()) {
+			r_problem = vformat(TTR("Couldn't write %s."), config_path);
+			return false;
+		}
+		config->store_string(EretheaAssistantClaudeCode::make_mcp_config(port));
+	}
+
+	List<String> arguments;
+	// Such as a launcher before it ("wsl" as the path, "claude" here).
+	for (const String &argument : String(EDITOR_GET(SETTING_CLAUDE_CODE_ARGUMENTS)).split(" ", false)) {
+		arguments.push_back(argument);
+	}
+	for (const String &argument : EretheaAssistantClaudeCode::make_arguments(config_path, get_system_prompt(), EDITOR_GET(SETTING_CLAUDE_CODE_MODEL), claude_session_id)) {
+		arguments.push_back(argument);
+	}
+
+	// With an API key in the environment, Claude Code would bill it instead of
+	// using the subscription this option is for.
+	OS *os = OS::get_singleton();
+	const String api_key = os->get_environment(API_KEY_ENVIRONMENT);
+	if (!api_key.is_empty()) {
+		os->unset_environment(API_KEY_ENVIRONMENT);
+	}
+	// Blocking pipes: a message is written whole (a non-blocking pipe can take
+	// only part of it on Windows), and only what already arrived is read, so
+	// reading never waits.
+	const Dictionary process = os->execute_with_pipe(path, arguments, true);
+	if (!api_key.is_empty()) {
+		os->set_environment(API_KEY_ENVIRONMENT, api_key);
+	}
+	if (process.is_empty() || !process.has("pid")) {
+		r_problem = vformat(TTR("Couldn't start Claude Code (%s)."), path);
+		return false;
+	}
+	claude_io = process["stdio"];
+	claude_errors = process["stderr"];
+	claude_pid = ProcessID(int64_t(process["pid"]));
+	claude_buffer = String();
+	claude_error_text = String();
+	set_process(true);
+	return true;
+}
+
+void EretheaAssistantDock::_stop_claude_code() {
+	if (claude_pid != 0 && OS::get_singleton()->is_process_running(claude_pid)) {
+		OS::get_singleton()->kill(claude_pid);
+	}
+	claude_pid = 0;
+	claude_io.unref();
+	claude_errors.unref();
+	claude_buffer = String();
+	set_process(false);
+}
+
+void EretheaAssistantDock::_ask_claude_code(const String &p_question) {
+	EretheaMcpPlugin *mcp = EretheaMcpPlugin::get_singleton();
+	if (!mcp) {
+		_add_error(TTR("The editor's tools (the Erethea MCP plugin) aren't loaded."));
+		return;
+	}
+	if (provider) {
+		// The other providers' conversation ends here.
+		memdelete(provider);
+		provider = nullptr;
+		provider_kind = -1;
+	}
+	if (claude_pid == 0 || !OS::get_singleton()->is_process_running(claude_pid)) {
+		_stop_claude_code();
+		String problem;
+		if (!_start_claude_code(problem)) {
+			_add_error(problem);
+			return;
+		}
+	}
+
+	// Claude Code keeps the conversation: game.project.json goes again only
+	// when it changed.
+	bool include_project_file = true;
+	if (FileAccess::exists(GAME_PROJECT_FILE)) {
+		const String hash = FileAccess::get_sha256(GAME_PROJECT_FILE);
+		include_project_file = hash != sent_project_hash;
+		sent_project_hash = hash;
+	}
+
+	_add_message(TTR("You"), p_question);
+	busy = true;
+	serial++;
+	claude_answering = true;
+	claude_answer_shown = false;
+	undo.begin_answer();
+	mcp->set_server_call_observer(callable_mp(this, &EretheaAssistantDock::_claude_code_tool_before), callable_mp(this, &EretheaAssistantDock::_claude_code_tool_after));
+	const String text = _make_context(include_project_file, 400, 20000) + "\n\n" + p_question;
+	claude_io->store_string(EretheaAssistantClaudeCode::make_user_message(text) + "\n");
+	claude_io->flush();
+	_update_controls();
+}
+
+static String _read_available(const Ref<FileAccess> &p_pipe) {
+	if (p_pipe.is_null()) {
+		return String();
+	}
+	const uint64_t available = p_pipe->get_length();
+	if (available == 0 || available > (uint64_t(1) << 30)) {
+		return String();
+	}
+	Vector<uint8_t> bytes;
+	bytes.resize(available);
+	const uint64_t read = p_pipe->get_buffer(bytes.ptrw(), available);
+	return String::utf8((const char *)bytes.ptr(), MIN(read, available));
+}
+
+void EretheaAssistantDock::_read_claude_code() {
+	if (claude_io.is_null()) {
+		return;
+	}
+	const bool running = OS::get_singleton()->is_process_running(claude_pid);
+	claude_buffer += _read_available(claude_io);
+	claude_error_text = (claude_error_text + _read_available(claude_errors)).right(4000);
+	for (int line_end = claude_buffer.find_char('\n'); line_end >= 0; line_end = claude_buffer.find_char('\n')) {
+		const String line = claude_buffer.left(line_end);
+		claude_buffer = claude_buffer.substr(line_end + 1);
+		_claude_code_line(line);
+		if (claude_io.is_null()) {
+			return;
+		}
+	}
+	if (!running) {
+		const String why = claude_error_text.strip_edges();
+		_stop_claude_code();
+		if (claude_answering) {
+			_add_error(why.is_empty() ? TTR("Claude Code stopped before answering.") : vformat(TTR("Claude Code stopped before answering: %s"), why.right(600)));
+			_finish_claude_code_answer();
+		}
+	}
+}
+
+void EretheaAssistantDock::_claude_code_line(const String &p_line) {
+	const EretheaAssistantClaudeCode::Event event = EretheaAssistantClaudeCode::parse_line(p_line);
+	if (!event.session_id.is_empty()) {
+		claude_session_id = event.session_id;
+	}
+	if (!claude_answering) {
+		return;
+	}
+	switch (event.type) {
+		case EretheaAssistantClaudeCode::Event::TYPE_ASSISTANT: {
+			if (!event.text.is_empty()) {
+				_add_message("Claude Code", event.text);
+				claude_answer_shown = true;
+			}
+			for (const EretheaAssistantToolCall &call : event.tool_calls) {
+				_add_note(String::utf8("▸ ") + describe_call(call));
+			}
+		} break;
+
+		case EretheaAssistantClaudeCode::Event::TYPE_RESULT: {
+			if (event.is_error) {
+				String error = event.error;
+				const String lower = error.to_lower();
+				if (lower.contains("login") || lower.contains("log in") || lower.contains("auth") || lower.contains("api key")) {
+					error += " " + TTR("Run claude once in a terminal and log in with your Claude account.");
+				}
+				_add_error(vformat("Claude Code: %s", error));
+			} else if (!claude_answer_shown) {
+				_add_message("Claude Code", event.text.is_empty() ? TTR("(no answer)") : event.text);
+			}
+			_finish_claude_code_answer();
+		} break;
+
+		default:
+			break;
+	}
+}
+
+void EretheaAssistantDock::_finish_claude_code_answer() {
+	claude_answering = false;
+	if (EretheaMcpPlugin::get_singleton()) {
+		EretheaMcpPlugin::get_singleton()->set_server_call_observer(Callable(), Callable());
+	}
+	EretheaMcpSceneTools::set_action_source("MCP");
+	_finish_question();
+}
+
+void EretheaAssistantDock::_claude_code_tool_before(const String &p_name, const Dictionary &p_arguments) {
+	undo.before_tool(p_name, p_arguments);
+	EretheaMcpSceneTools::set_action_source(ACTION_SOURCE);
+}
+
+void EretheaAssistantDock::_claude_code_tool_after(const String &p_name, const Dictionary &p_arguments, const Dictionary &p_result) {
+	EretheaMcpSceneTools::set_action_source("MCP");
+	const EretheaMcpToolResult result = EretheaMcpToolResult::from_dictionary(p_result);
+	undo.after_tool(p_name, p_arguments, result);
+	if (result.is_error && claude_answering) {
+		String text = EretheaAssistantProvider::get_result_text(result).strip_edges();
+		const int line_end = text.find_char('\n');
+		if (line_end > 0) {
+			text = text.left(line_end);
+		}
+		_add_error(vformat("%s: %s", p_name, text.left(300)));
+	}
 }
 
 void EretheaAssistantDock::_add_message(const String &p_who, const String &p_text) {
@@ -475,6 +739,8 @@ void EretheaAssistantDock::_send_pressed() {
 
 void EretheaAssistantDock::_new_conversation() {
 	_stop();
+	_stop_claude_code();
+	claude_session_id = String();
 	if (provider) {
 		memdelete(provider);
 		provider = nullptr;
@@ -518,14 +784,26 @@ void EretheaAssistantDock::_notification(int p_what) {
 			_update_provider_option();
 		} break;
 
+		case NOTIFICATION_PROCESS: {
+			_read_claude_code();
+		} break;
+
+		case NOTIFICATION_EXIT_TREE: {
+			_stop_claude_code();
+		} break;
+
 		case EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED: {
 			if (EditorSettings::get_singleton()->check_changed_settings_in_group("erethea/assistant")) {
 				_update_provider_option();
 				// The next question starts again with the new settings.
-				if (!busy && provider) {
-					memdelete(provider);
-					provider = nullptr;
+				if (!busy && (provider || claude_pid != 0 || !claude_session_id.is_empty())) {
+					if (provider) {
+						memdelete(provider);
+						provider = nullptr;
+					}
 					provider_kind = -1;
+					_stop_claude_code();
+					claude_session_id = String();
 					_add_note(TTR("Settings changed: the next question starts a new conversation."));
 				}
 			}
@@ -554,6 +832,7 @@ EretheaAssistantDock::EretheaAssistantDock() {
 	provider_option->add_item(TTRC("Ignis (this computer)"), PROVIDER_IGNIS);
 	provider_option->add_item(TTRC("Claude (Anthropic API)"), PROVIDER_CLAUDE);
 	provider_option->add_item(TTRC("OpenAI-compatible server"), PROVIDER_OPENAI);
+	provider_option->add_item(TTRC("Claude Code (your subscription)"), PROVIDER_CLAUDE_CODE);
 	provider_option->connect(SceneStringName(item_selected), callable_mp(this, &EretheaAssistantDock::_provider_selected));
 	top->add_child(provider_option);
 	new_button = memnew(Button);
@@ -611,6 +890,7 @@ EretheaAssistantDock::EretheaAssistantDock() {
 }
 
 EretheaAssistantDock::~EretheaAssistantDock() {
+	_stop_claude_code();
 	if (provider) {
 		memdelete(provider);
 	}

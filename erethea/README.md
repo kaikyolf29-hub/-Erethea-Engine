@@ -672,6 +672,12 @@ Erethea › Assistant*, `erethea/assistant/provider`):
 | Ignis (padrão, neste computador) | `POST http://127.0.0.1:11470/v1/chat/completions`, modelo `default`. Como modelos pequenos podem não saber usar "tools", a resposta é um JSON preso por um esquema, como a Fornalha faz com o Ignis: `{"reply": "...", "actions": [{"tool": "...", "arguments": {...}}]}`. O painel tira o `<think>...</think>` do Qwen3, confere cada ação contra o esquema da ferramenta (argumento que não existe ou do tipo errado sai, ação sem os obrigatórios é deixada de lado e o painel avisa), executa e manda os resultados de volta, por até 4 rodadas. Só vão as últimas 6 mensagens, a árvore da cena até ~150 nós e o `game.project.json` até ~6000 caracteres | `erethea/assistant/ignis/url` |
 | Claude (API da Anthropic) | `POST https://api.anthropic.com/v1/messages`, `anthropic-version: 2026-10-21`, modelo `claude-opus-5-5`, ferramentas nativas com `tool_choice` `auto`, cache de prompt e `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`; se a API recusar, o painel tenta de novo sem). O histórico nunca é editado, porque o Opus 5.5 prende os blocos de pensamento à conversa: o prompt de sistema e as ferramentas ficam fixos, o contexto do editor vai em cada pergunta e a resposta do Claude volta byte a byte. Se a API disser que um pensamento é "bound to a different conversation", o painel tira os blocos de pensamento e tenta uma vez | `erethea/assistant/claude/api_key` (ou a variável `ANTHROPIC_API_KEY`), `erethea/assistant/claude/model` |
 | Servidor compatível com OpenAI | `POST <url>/chat/completions` com `tools` do tipo `function` (LM Studio, Ollama, um serviço na nuvem) | `erethea/assistant/openai/url`, `erethea/assistant/openai/api_key`, `erethea/assistant/openai/model` |
+| Claude Code (sua assinatura) | O Claude Code instalado no computador, com o login da assinatura do Claude, sem chave de API. O painel deixa um Claude Code aberto por conversa, sem janela, com mensagens em JSON por linha na entrada e na saída (`-p --input-format stream-json --output-format stream-json --verbose`, como o SDK oficial), ligado só ao servidor MCP do editor (`--mcp-config`, `--strict-mcp-config`), sem as ferramentas próprias de arquivos e terminal (`--tools=`), com as do editor liberadas (`--allowedTools mcp__erethea`) e o resto recusado sem perguntar (`--permission-mode dontAsk`). O servidor MCP liga sozinho se estiver desligado. Se o Claude Code fechar, a próxima pergunta abre outro na mesma sessão (`--resume`). A variável `ANTHROPIC_API_KEY` não passa para ele, para valer a assinatura | `erethea/assistant/claude_code/path` (vazio: procura em `~/.local/bin`, onde o instalador põe, e no `PATH`), `erethea/assistant/claude_code/arguments` (argumentos antes dos do Claude Code, como `claude` com `wsl` no caminho), `erethea/assistant/claude_code/model` (vazio: o modelo padrão do plano) |
+
+Para usar o Claude Code: instale (no Windows, no PowerShell:
+`irm https://claude.ai/install.ps1 | iex`; não precisa de Node nem de
+administrador), rode `claude` uma vez num terminal para entrar com a conta do
+Claude e escolha "Claude Code (your subscription)" no painel.
 
 Em 429, 500, 502, 503 e 529 o painel tenta mais uma vez depois de 3 s. Uma
 recusa do Claude aparece no painel e a pergunta sai do histórico.
@@ -707,17 +713,22 @@ Se a pessoa mexeu na mesma cena ou no mesmo arquivo depois da resposta, o
 painel não desfaz nada e avisa, para não apagar o trabalho dela.
 
 **Teste.** `erethea/tests/assistant/test_assistant.py` sobe um servidor de
-mentira que responde como a API da Anthropic, um servidor OpenAI e o Ignis, e
+mentira que responde como a API da Anthropic, um servidor OpenAI e o Ignis,
+usa um Claude Code de mentira (`fake_claude.py`, que fala o mesmo formato e age
+pelo servidor MCP), e
 abre o editor num projeto com um plugin (`addons/assistant_driver`) que escreve
 no painel e aperta Send, New e Undo. Pelo MCP e pelos arquivos do projeto, o
 teste confere que as respostas criaram nós, salvaram a cena e escreveram e
 mudaram scripts, e que o desfazer voltou tudo; pelo servidor de mentira, que a
 pergunta levou o contexto do editor, que a resposta do Claude voltou byte a
-byte e que os resultados das ferramentas chegaram certos. O CI roda no Linux e
-no Windows. Os testes de unidade (`--test --test-case="*Assistant*"`) cobrem a
-montagem dos pedidos e a leitura das respostas dos três provedores. A conversa
-de verdade com o Ignis e com a API do Claude fica para o teste final no PC do
-criador.
+byte e que os resultados das ferramentas chegaram certos. Com o Claude Code, o
+teste confere a linha de comando, que a chave de API não chega a ele, que a
+segunda pergunta vai para o mesmo processo, que ele volta na mesma sessão
+depois de fechar e que o desfazer pega o que ele fez pelo MCP. O CI roda no
+Linux e no Windows. Os testes de unidade (`--test --test-case="*Assistant*"`)
+cobrem a montagem dos pedidos e a leitura das respostas dos quatro provedores.
+A conversa de verdade com o Ignis, com a API do Claude e com o Claude Code fica
+para o teste final no PC do criador.
 
 ```sh
 python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64

@@ -208,7 +208,11 @@ def make_project(project):
 def wait_for(what, condition, process, timeout):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        result = condition()
+        try:
+            result = condition()
+        except PermissionError:
+            # On Windows, a file can't be opened while the editor writes it.
+            result = None
         if result:
             return result
         if process.poll() is not None:
@@ -219,11 +223,14 @@ def wait_for(what, condition, process, timeout):
 
 def link_checks(fornalha, project, process, log_path, timeout):
     main = project / "principal.tscn"
+    record = project / ".erethea/fornalha_import.json"
     print("A new project")
-    wait_for("the editor builds the scenes", main.is_file, process, timeout)
+    # The record is written just after the main scene: wait for both, or the
+    # check can land between the two.
+    wait_for("the editor builds the scenes", lambda: main.is_file() and record.is_file(), process, timeout)
     check((project / "Characters/heroi/heroi.tscn").is_file(), "the player's scene is built")
     check((project / "World/mundo.tscn").is_file(), "the world is built")
-    check((project / ".erethea/fornalha_import.json").is_file(), "and what was built is recorded")
+    check(record.is_file(), "and what was built is recorded")
 
     print("Over HTTP")
     expected_project = str(project).replace("\\", "/").rstrip("/") + "/"

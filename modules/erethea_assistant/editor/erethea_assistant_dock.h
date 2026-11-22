@@ -33,6 +33,8 @@
 #include "../erethea_assistant_providers.h"
 #include "erethea_assistant_undo.h"
 
+#include "core/io/file_access.h"
+#include "core/os/process_id.h"
 #include "editor/docks/editor_dock.h"
 
 class Button;
@@ -54,6 +56,7 @@ public:
 		PROVIDER_IGNIS,
 		PROVIDER_CLAUDE,
 		PROVIDER_OPENAI,
+		PROVIDER_CLAUDE_CODE,
 	};
 
 	static constexpr const char *SETTING_PROVIDER = "erethea/assistant/provider";
@@ -64,6 +67,9 @@ public:
 	static constexpr const char *SETTING_OPENAI_URL = "erethea/assistant/openai/url";
 	static constexpr const char *SETTING_OPENAI_API_KEY = "erethea/assistant/openai/api_key";
 	static constexpr const char *SETTING_OPENAI_MODEL = "erethea/assistant/openai/model";
+	static constexpr const char *SETTING_CLAUDE_CODE_PATH = "erethea/assistant/claude_code/path";
+	static constexpr const char *SETTING_CLAUDE_CODE_ARGUMENTS = "erethea/assistant/claude_code/arguments";
+	static constexpr const char *SETTING_CLAUDE_CODE_MODEL = "erethea/assistant/claude_code/model";
 	static constexpr const char *API_KEY_ENVIRONMENT = "ANTHROPIC_API_KEY";
 	static constexpr const char *GAME_PROJECT_FILE = "res://game.project.json";
 
@@ -97,8 +103,28 @@ private:
 
 	EretheaAssistantUndo undo;
 
+	// Claude Code, one process per conversation while it lives. A new process
+	// goes on with the same session (--resume).
+	ProcessID claude_pid = 0;
+	Ref<FileAccess> claude_io;
+	Ref<FileAccess> claude_errors;
+	String claude_buffer;
+	String claude_error_text;
+	String claude_session_id;
+	bool claude_answering = false;
+	bool claude_answer_shown = false;
+
+	bool _start_claude_code(String &r_problem);
+	void _stop_claude_code();
+	void _ask_claude_code(const String &p_question);
+	void _read_claude_code();
+	void _claude_code_line(const String &p_line);
+	void _finish_claude_code_answer();
+	void _claude_code_tool_before(const String &p_name, const Dictionary &p_arguments);
+	void _claude_code_tool_after(const String &p_name, const Dictionary &p_arguments, const Dictionary &p_result);
+
 	EretheaAssistantProvider *_create_provider(int p_kind, String &r_problem);
-	String _make_context(bool p_include_project_file);
+	String _make_context(bool p_include_project_file, int p_node_limit, int p_text_limit);
 	void _ask(const String &p_question);
 	void _send_request();
 	void _request_completed(int p_result, int p_code, const PackedStringArray &p_headers, const PackedByteArray &p_body);
@@ -130,6 +156,8 @@ public:
 	// A tool call as one short line.
 	static String describe_call(const EretheaAssistantToolCall &p_call);
 	static void define_settings();
+	// Claude Code where its installer puts it, or on the PATH.
+	static String find_claude_code();
 
 	bool is_busy() const { return busy; }
 
