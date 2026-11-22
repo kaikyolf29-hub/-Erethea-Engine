@@ -50,9 +50,13 @@ jobs:
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP "Erethea"
+          $log = Join-Path $env:RUNNER_TEMP "erethea-install.log"
           $p = Start-Process -Wait -PassThru erethea/installer/erethea-setup-x86_64.exe `
-            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$dir`""
-          if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$dir`"", "/LOG=`"$log`""
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            throw "Installer failed with exit code $($p.ExitCode)"
+          }
           if (-not (Test-Path "$dir/erethea.exe")) { throw "erethea.exe was not installed" }
           foreach ($dll in "amd_fidelityfx_upscaler_vk.dll", "amd_fidelityfx_upscaler_dx12.dll") {
             if (-not (Test-Path "$dir/$dll")) { throw "AMD's FSR runtime ($dll) was not installed" }
@@ -82,17 +86,32 @@ jobs:
 
       - name: Update silently, like the editor does
         shell: pwsh
-        timeout-minutes: 5
+        timeout-minutes: 8
         run: |
           # Same arguments as EretheaUpdate::launch_installer(): the installer
           # must install over the previous one, then start the editor again.
           # Start-Process -Wait would also wait for that editor, so wait for
           # the installer only.
           $exe = Join-Path $env:ERETHEA_DIR "erethea.exe"
+          $log = Join-Path $env:RUNNER_TEMP "erethea-update.log"
           $p = Start-Process -PassThru erethea/installer/erethea-setup-x86_64.exe `
-            -ArgumentList "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/update=1"
-          $p.WaitForExit()
-          if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
+            -ArgumentList "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/update=1", "/LOG=`"$log`""
+          # This step hung twice until the job's time limit, which the step's
+          # own limit didn't stop, and left no log. Give up after 4 minutes
+          # and show where the installer was, and what else was running.
+          if (-not $p.WaitForExit(240000)) {
+            Write-Output "The installer didn't finish in 4 minutes. The end of its log:"
+            if (Test-Path $log) { Get-Content $log -Tail 80 } else { Write-Output "(no log)" }
+            Write-Output "Processes with a window, and the installer's and the editor's:"
+            Get-Process | Where-Object { $_.MainWindowTitle -or $_.Name -match "erethea|setup" } |
+              Format-Table Id, Name, MainWindowTitle, Path -AutoSize | Out-String -Width 300
+            Get-Process | Where-Object { $_.Name -match "erethea" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            throw "The installer hung."
+          }
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            throw "Installer failed with exit code $($p.ExitCode)"
+          }
           $deadline = (Get-Date).AddSeconds(60)
           $editor = $null
           while (-not $editor) {
@@ -102,6 +121,15 @@ jobs:
           }
           Write-Output "The installer updated Erethea and started $exe again."
           $editor | Stop-Process -Force
+
+      - name: Upload the installer's logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-installer-logs
+          path: ${{ runner.temp }}/erethea-*.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload installer
         uses: actions/upload-artifact@v7
