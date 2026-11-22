@@ -56,11 +56,12 @@ novas da Godot sem reescrever nada.
 | Upscalers (AMD FSR 3.1/4, XeSS e DLSS) | `modules/erethea_upscale/` |
 | Streaming de texturas 3D | `modules/erethea_streaming/` |
 | Servidor MCP do editor (agentes como o Claude Code) | `modules/erethea_mcp/` |
+| Modo de teste para agentes (`--agent-test`) | `modules/erethea_agent_test/` |
 | Validações antes de exportar (polígonos, texturas, escala, recibos) | `modules/erethea_export_checks/` |
 | Ponte com a Fornalha (cenas montadas pelo `game.project.json`, elo ao vivo) | `modules/erethea_fornalha/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
-| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`) |
+| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`) |
 
 ## Compilar e testar
 

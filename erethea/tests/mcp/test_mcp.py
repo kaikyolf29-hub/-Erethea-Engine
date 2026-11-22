@@ -46,6 +46,7 @@ EXPECTED_TOOLS = {
     "rescan_files",
     "check_export",
     "build_fornalha_scenes",
+    "run_test",
 }
 
 BOX_SCRIPT = """extends MeshInstance3D
@@ -341,6 +342,23 @@ def run_checks(mcp, project, window, out):
     if window:
         result, _ = mcp.call("take_screenshot", {"target": "3d"}, timeout=30)
         save_screenshot(result, out, "editor_3d")
+
+    print("Test mode")
+    arguments = {"scene": "res://mcp_test/main.tscn", "seconds": 2, "headless": not window}
+    if window:
+        arguments["screenshots"] = [1.0]
+    result, text = mcp.call("run_test", arguments, timeout=90)
+    report = result.get("structuredContent") or json.loads(text)
+    check(report["finished"] and report["ended"] == "time", f"the game played its {report['seconds']} s")
+    check(report["fps"]["frames"] > 0, f"at {report['fps'].get('average_fps')} FPS")
+    error = next((entry for entry in report["errors"] if entry["message"] == "ERETHEA_MCP_GAME_ERROR"), None)
+    check(
+        error is not None and error.get("script_file") == "res://mcp_test/box.gd",
+        "the report has the game's error, in box.gd",
+    )
+    check(report["passed"] is False, "so the test didn't pass")
+    if window:
+        save_screenshot(result, out, "test")
 
     print("End of session")
     status, _, _ = mcp.http("DELETE", "/mcp")

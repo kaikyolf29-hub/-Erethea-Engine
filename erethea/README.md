@@ -12,6 +12,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/smoke_project/` | Projeto Godot simples que o CI abre com o instalador |
 | `tests/reference_scene/` | Cena de referência (vila, floresta, personagem, dia e noite) para comparar com a Godot |
 | `tests/mcp/` | Projeto vazio e teste de ponta a ponta do servidor MCP do editor |
+| `tests/agent_test/` | Jogo pequeno e teste de ponta a ponta do modo de teste para agentes |
 | `tests/export_checks/` | Projeto da Fornalha e teste das validações antes de exportar |
 | `tests/fornalha_import/` | Projeto da Fornalha e teste das cenas montadas pelo `game.project.json` |
 | `tests/fornalha_link/` | Teste do elo ao vivo com a Fornalha, com uma Fornalha de mentira |
@@ -364,6 +365,7 @@ claude mcp add --transport http erethea http://127.0.0.1:11481/mcp
 | `run_game`, `stop_game` | Roda a cena principal, a aberta ou outra, e para |
 | `get_errors` | Erros, avisos e `print` do editor e do jogo, a partir de um ponto |
 | `take_screenshot` | Captura do jogo, do editor ou da vista 2D ou 3D, em PNG |
+| `run_test` | Joga o jogo no modo de teste e devolve o relatório (veja abaixo) |
 | `rescan_files` | Faz o editor ver arquivos criados fora dele |
 | `check_export` | Roda as validações antes de exportar (veja abaixo) |
 | `build_fornalha_scenes` | Monta as cenas do jogo pelo `game.project.json` (veja abaixo) |
@@ -388,6 +390,82 @@ e os logs ficam no artefato `erethea-mcp-linux`.
 
 ```sh
 python erethea/tests/mcp/test_mcp.py bin/erethea.linuxbsd.editor.x86_64 --out capturas/mcp
+```
+
+## Modo de teste para agentes
+
+O jogo pode rodar sozinho por alguns segundos, com os controles apertados por
+um roteiro, e escrever um relatório com o que aconteceu: os erros (com a linha
+do script), os quadros por segundo e até onde o jogador foi. É o que um agente
+(ou o `run_test` da Fornalha) precisa para saber se o jogo funciona sem ninguém
+jogar. O código fica em `modules/erethea_agent_test/` e vale para qualquer
+projeto: o jogo não precisa mudar nada.
+
+```sh
+erethea --path meu_jogo --headless --agent-test=relatorio --agent-test-seconds=10
+erethea --path meu_jogo --agent-test=relatorio --agent-test-inputs=controles.json
+```
+
+| Opção | O que faz |
+| --- | --- |
+| `--agent-test=<pasta>` | Liga o modo de teste; o relatório vai para `<pasta>/report.json` (sem pasta, `user://agent_test`) |
+| `--agent-test-seconds=<s>` | Quanto tempo o jogo roda (padrão 10) |
+| `--agent-test-inputs=<arquivo>` | Roteiro dos controles, em JSON |
+| `--headless` | Sem janela (a opção da Godot): mais rápido, sem capturas nem números de desenho |
+
+**Controles.** O roteiro é uma lista de passos; cada um começa em `at`
+segundos, fica apertado por `for` segundos (padrão 0,1) e é uma ação de input
+(`action`, com `strength` de 0 a 1 se quiser), uma tecla (`key`, como `"W"` ou
+`"Space"`), um botão do mouse (`mouse_button`: `left`, `right`, `middle`,
+`wheel_up`, `wheel_down`) ou um movimento do mouse (`mouse_motion`: `[x, y]` em
+pixels, espalhado pelo tempo do passo). `screenshots` diz em que segundos tirar
+capturas (só com janela).
+
+```json
+{
+  "screenshots": [1, 3.5],
+  "steps": [
+    {"at": 0.5, "for": 2, "action": "move_forward"},
+    {"at": 3, "action": "jump"},
+    {"at": 3.5, "for": 0.5, "key": "W"},
+    {"at": 4, "for": 0.5, "mouse_motion": [200, 0]}
+  ]
+}
+```
+
+Sem roteiro, o teste aperta as ações de input do próprio projeto, uma de cada
+vez. Num projeto da Fornalha, faz a mesma caminhada do teste da Fornalha
+(frente, pula, vira e ataca).
+
+**Relatório.** `report.json` é reescrito a cada segundo, então mesmo um jogo
+que trava deixa o que aconteceu até ali (`finished: false`). No fim, a mesma
+coisa sai numa linha da saída, depois de `ERETHEA_AGENT_TEST `.
+
+| Campo | O que tem |
+| --- | --- |
+| `passed` | `true` se o teste chegou ao fim, sem erros e sem o jogador cair do mundo |
+| `ended` | Por que acabou: `time`, `game_quit` (o jogo fechou sozinho), `bad_inputs`, `bad_options` ou `real_time_limit` |
+| `errors`, `warnings` | Cada erro e aviso, com mensagem, arquivo, linha, `script_file` e `script_line` (onde o script estava), quantas vezes e quando apareceu pela primeira vez |
+| `fps` | Média, mínimo, 1% mais lento, mediana e maior tempo de quadro (sem os primeiros quadros, que carregam a cena) |
+| `rendering` | Chamadas de desenho, primitivas e memória de vídeo (só com janela) |
+| `player` | O primeiro nó do grupo `player` (ou `jogador`, nos projetos da Fornalha): onde começou e terminou, quanto andou, se sumiu e se caiu do mundo |
+| `inputs` | Cada passo do roteiro e se foi feito (`done`) ou pulado, com o motivo (ação que não existe) |
+| `screenshots` | As capturas tiradas |
+| `memory` | Pico de memória, objetos e nós |
+
+O jogo sai com 0 se passou, 1 se não passou e 2 se o roteiro ou as opções
+estão errados. Pelo servidor MCP do editor, a ferramenta `run_test` faz tudo
+isso com a cena principal, a aberta ou outra, espera o fim e devolve o
+relatório (com a última captura, se rodou com janela); dura até 40 segundos.
+
+**Teste.** `erethea/tests/agent_test/test_agent_test.py` roda um jogo pequeno
+(um jogador que anda e pula) com roteiro, com um erro, sem roteiro, com um
+roteiro errado, fechando sozinho e com janela, e confere cada relatório. O CI
+roda no Linux (com janela no Xvfb) e no Windows. O teste do servidor MCP chama
+`run_test` também.
+
+```sh
+python erethea/tests/agent_test/test_agent_test.py bin/erethea.linuxbsd.editor.x86_64 --window
 ```
 
 ## Validações antes de exportar

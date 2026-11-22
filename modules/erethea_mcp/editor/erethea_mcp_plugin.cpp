@@ -43,6 +43,7 @@
 #include "core/io/json.h"
 #include "core/object/callable_mp.h"
 #include "core/os/os.h"
+#include "core/os/time.h"
 #include "core/version.h"
 #include "editor/debugger/editor_debugger_node.h"
 #include "editor/debugger/script_editor_debugger.h"
@@ -54,7 +55,7 @@
 #include "scene/main/viewport.h"
 #include "servers/display/display_server.h"
 
-#include "modules/modules_enabled.gen.h" // For erethea_export_checks and erethea_fornalha.
+#include "modules/modules_enabled.gen.h" // For erethea_export_checks, erethea_fornalha and erethea_agent_test.
 #ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
 #include "editor/export/editor_export.h"
 
@@ -69,6 +70,9 @@ static const char *INSTRUCTIONS = "Erethea Engine editor (a fork of Godot 4). Th
 								  "write_script and attach_script, save_scene, run_game, get_errors and take_screenshot, stop_game; check_export before exporting. "
 								  "In projects made with Fornalha, build_fornalha_scenes builds the game's scenes from game.project.json. "
 								  "Node paths are relative to the root of the scene being edited, which is \".\". "
+#ifdef MODULE_ERETHEA_AGENT_TEST_ENABLED
+								  "run_test plays the game for some seconds while pressing its controls, and reports its errors, frame rate and how far the player went. "
+#endif
 								  "Scene changes are undoable in the editor (Ctrl+Z), and the person can see them as you make them.";
 
 struct EretheaMcpToolSpec {
@@ -129,6 +133,11 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 	{ "rescan_files", "Rescan files", false, false,
 			"Makes the editor look for files added or changed outside it, such as assets from Fornalha, and import them.",
 			R"({"type": "object", "properties": {}})" },
+#ifdef MODULE_ERETHEA_AGENT_TEST_ENABLED
+	{ "run_test", "Test the game", false, false,
+			"Plays the game in test mode for some seconds and waits for its report: errors and warnings (with the script line), frame rate (average, minimum, 1% low), drawing numbers, and the player (the first node in the \"player\" group): where it started and ended and whether it fell off the world. While it plays, it presses the controls given in inputs, or, without them, each input action of the project in turn (in projects made with Fornalha, the Fornalha's walk: forward, jump, turn, attack). Saved files are tested, so the editor saves the open scenes first, as for run_game. In a window, it also takes screenshots and returns the last one.",
+			R"({"type": "object", "properties": {"scene": {"type": "string", "description": "\"main\" for the project's main scene (default), \"current\" for the scene being edited, or a scene path."}, "seconds": {"type": "number", "minimum": 0.5, "maximum": 40, "description": "How long the game plays (default 10)."}, "headless": {"type": "boolean", "description": "Without a window (default true). In a window, screenshots and drawing numbers too."}, "inputs": {"type": "array", "description": "Controls to press, in order: objects with at (second), for (seconds held, default 0.1) and one of action (an input action, with optional strength 0-1), key (such as \"W\" or \"Space\"), mouse_button (\"left\", \"right\", \"middle\") or mouse_motion ([x, y] pixels over the time held).", "items": {"type": "object"}}, "screenshots": {"type": "array", "items": {"type": "number"}, "description": "Seconds at which to take screenshots, in a window."}}})" },
+#endif
 #ifdef MODULE_ERETHEA_EXPORT_CHECKS_ENABLED
 	{ "check_export", "Check for export", true, false,
 			"Checks the project before export: models with too many triangles, textures that are too big, models with the wrong scale (such as centimeters instead of meters), and, in projects made with Fornalha, assets without a license receipt or made with a model that can't be sold. Errors are what shouldn't ship; warnings are worth fixing.",
@@ -161,6 +170,11 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 	if (p_name == "take_screenshot") {
 		return _take_screenshot(p_arguments, p_can_wait, r_result, r_pending_id);
 	}
+#ifdef MODULE_ERETHEA_AGENT_TEST_ENABLED
+	if (p_name == "run_test") {
+		return _run_test(p_arguments, p_can_wait, r_result, r_pending_id);
+	}
+#endif
 	if (p_name == "get_editor_state") {
 		r_result = _get_editor_state();
 	} else if (p_name == "get_scene_tree") {
@@ -438,6 +452,157 @@ bool EretheaMcpPlugin::_take_screenshot(const Dictionary &p_arguments, bool p_ca
 	return false;
 }
 
+void EretheaMcpPlugin::_process_tests() {
+	if (tests.is_empty()) {
+		return;
+	}
+	const uint64_t now = OS::get_singleton()->get_ticks_msec();
+	// _finish_test() changes the list.
+	const LocalVector<PendingTest> current(tests);
+	for (const PendingTest &test : current) {
+		const bool running = OS::get_singleton()->is_process_running(test.pid);
+		if (running && now <= test.deadline_msec) {
+			continue;
+		}
+		if (running) {
+			OS::get_singleton()->kill(test.pid);
+		}
+		_finish_test(test, running);
+	}
+}
+
+void EretheaMcpPlugin::_finish_test(const PendingTest &p_test, bool p_timed_out) {
+	for (uint32_t i = 0; i < tests.size(); i++) {
+		if (tests[i].call_id == p_test.call_id) {
+			tests.remove_at(i);
+			break;
+		}
+	}
+	const String text = FileAccess::get_file_as_string(p_test.folder.path_join("report.json"));
+	Ref<JSON> json;
+	json.instantiate();
+	if (text.is_empty() || json->parse(text) != OK || json->get_data().get_type() != Variant::DICTIONARY) {
+		const String why = p_timed_out ? String("It was still running at the time limit and was stopped.") : vformat("It exited with code %d before writing it; it may have crashed. get_errors or a run_game may show why.", OS::get_singleton()->get_process_exit_code(p_test.pid));
+		server.finish_call(p_test.call_id, EretheaMcpToolResult::error("The game didn't write its test report. " + why));
+		return;
+	}
+	Dictionary report = json->get_data();
+	if (p_timed_out) {
+		report["stopped_by_editor"] = true;
+	}
+	report["report_file"] = p_test.folder.path_join("report.json");
+	EretheaMcpToolResult result = EretheaMcpToolResult::object(report);
+	// The last screenshot, for the agent to see the game.
+	const Array screenshot_files = report.get("screenshots", Array());
+	if (!screenshot_files.is_empty()) {
+		Ref<Image> image;
+		image.instantiate();
+		if (image->load(screenshot_files[screenshot_files.size() - 1]) == OK) {
+			const int largest = MAX(image->get_width(), image->get_height());
+			if (largest > 1280) {
+				image->resize(image->get_width() * 1280 / largest, image->get_height() * 1280 / largest, Image::INTERPOLATE_LANCZOS);
+			}
+			const Vector<uint8_t> png = image->save_png_to_buffer();
+			result.add_image(CryptoCore::b64_encode_str(png.ptr(), png.size()));
+		}
+	}
+	server.finish_call(p_test.call_id, result);
+}
+
+bool EretheaMcpPlugin::_run_test(const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id) {
+	if (!p_can_wait) {
+		r_result = EretheaMcpToolResult::error("run_test can't run in a batch.");
+		return true;
+	}
+	if (!tests.is_empty()) {
+		r_result = EretheaMcpToolResult::error("A test is already running. Wait for its report.");
+		return true;
+	}
+
+	String scene_path;
+	const String scene = p_arguments.get("scene", "main");
+	if (scene == "main") {
+		scene_path = GLOBAL_GET("application/run/main_scene");
+		if (scene_path.is_empty()) {
+			r_result = EretheaMcpToolResult::error("The project has no main scene. Pass scene \"current\" or a scene path, or set application/run/main_scene.");
+			return true;
+		}
+	} else if (scene == "current") {
+		Node *root = EditorNode::get_singleton()->get_edited_scene();
+		if (!root || root->get_scene_file_path().is_empty()) {
+			r_result = EretheaMcpToolResult::error("No saved scene is being edited. Save it with save_scene, or pass a scene path.");
+			return true;
+		}
+		scene_path = root->get_scene_file_path();
+	} else {
+		String error;
+		if (!EretheaMcpSceneTools::project_path(scene, scene_path, error)) {
+			r_result = EretheaMcpToolResult::error(error);
+			return true;
+		}
+		if (!FileAccess::exists(scene_path)) {
+			r_result = EretheaMcpToolResult::error(vformat("%s doesn't exist.", scene_path));
+			return true;
+		}
+	}
+
+	const double seconds = CLAMP(double(p_arguments.get("seconds", 10.0)), 0.5, double(TEST_MAX_SECONDS));
+	PendingTest test;
+	test.folder = OS::get_singleton()->get_user_data_dir().path_join("erethea_agent_test").path_join(Time::get_singleton()->get_datetime_string_from_system().replace(":", "-").replace("T", "_"));
+	DirAccess::make_dir_recursive_absolute(test.folder);
+	DirAccess::remove_absolute(test.folder.path_join("report.json"));
+
+	List<String> arguments;
+	arguments.push_back("--path");
+	arguments.push_back(ProjectSettings::get_singleton()->get_resource_path());
+	arguments.push_back(scene_path);
+	arguments.push_back("--audio-driver");
+	arguments.push_back("Dummy");
+	if (bool(p_arguments.get("headless", true))) {
+		arguments.push_back("--headless");
+	}
+	arguments.push_back("--agent-test=" + test.folder);
+	arguments.push_back("--agent-test-seconds=" + rtos(seconds));
+
+	const Variant inputs = p_arguments.get("inputs", Variant());
+	const Variant screenshot_times = p_arguments.get("screenshots", Variant());
+	if (inputs.get_type() != Variant::NIL || screenshot_times.get_type() != Variant::NIL) {
+		if ((inputs.get_type() != Variant::NIL && inputs.get_type() != Variant::ARRAY) || (screenshot_times.get_type() != Variant::NIL && screenshot_times.get_type() != Variant::ARRAY)) {
+			r_result = EretheaMcpToolResult::error("inputs and screenshots must be lists.");
+			return true;
+		}
+		Dictionary script;
+		script["steps"] = inputs.get_type() == Variant::ARRAY ? inputs : Variant(Array());
+		if (screenshot_times.get_type() == Variant::ARRAY) {
+			script["screenshots"] = screenshot_times;
+		}
+		const String inputs_file = test.folder.path_join("inputs.json");
+		Ref<FileAccess> file = FileAccess::open(inputs_file, FileAccess::WRITE);
+		if (file.is_null()) {
+			r_result = EretheaMcpToolResult::error(vformat("Couldn't write %s.", inputs_file));
+			return true;
+		}
+		file->store_string(JSON::stringify(script));
+		file.unref();
+		arguments.push_back("--agent-test-inputs=" + inputs_file);
+	}
+
+	// The test plays the files, so they have to be saved, as the Run buttons do.
+	if (EDITOR_GET("run/auto_save/save_before_running")) {
+		EditorInterface::get_singleton()->save_all_scenes();
+	}
+	if (OS::get_singleton()->create_process(OS::get_singleton()->get_executable_path(), arguments, &test.pid) != OK) {
+		r_result = EretheaMcpToolResult::error("The game didn't start.");
+		return true;
+	}
+	// The server gives up on a call after a minute.
+	test.deadline_msec = OS::get_singleton()->get_ticks_msec() + TEST_DEADLINE_MSEC;
+	test.call_id = ++last_call_id;
+	tests.push_back(test);
+	r_pending_id = test.call_id;
+	return false;
+}
+
 EretheaMcpToolResult EretheaMcpPlugin::_get_editor_state() {
 	EditorInterface *editor = EditorInterface::get_singleton();
 	EditorRunBar *run_bar = EditorRunBar::get_singleton();
@@ -642,6 +807,7 @@ void EretheaMcpPlugin::_notification(int p_what) {
 				}
 				server.poll();
 				_process_screenshots();
+				_process_tests();
 			}
 		} break;
 

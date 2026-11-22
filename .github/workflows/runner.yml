@@ -88,6 +88,11 @@ jobs:
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_mcp.yml
 
+  erethea-agent-test:
+    name: 🔥 Erethea agent test
+    needs: [linux-build, windows-build]
+    uses: ./.github/workflows/erethea_agent_test.yml
+
   erethea-export-checks:
     name: 🔥 Erethea export checks
     needs: [linux-build, windows-build]

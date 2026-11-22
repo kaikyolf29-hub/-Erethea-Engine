@@ -1,0 +1,20 @@
+; Erethea: the project of the agent test mode test (test_agent_test.py).
+
+config_version=5
+
+[application]
+
+config/name="Agent test"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.8")
+
+[input]
+
+move_forward={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":87)]
+}
+jump={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":32)]
+}
