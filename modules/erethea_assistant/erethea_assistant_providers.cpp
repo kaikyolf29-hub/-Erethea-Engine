@@ -949,3 +949,111 @@ void EretheaAssistantIgnis::add_tool_results(const Vector<EretheaAssistantToolCa
 	message["content"] = text;
 	messages.push_back(message);
 }
+
+/* EretheaAssistantClaudeCode */
+
+String EretheaAssistantClaudeCode::make_mcp_config(int p_port) {
+	Dictionary server;
+	server["type"] = "http";
+	server["url"] = vformat("http://127.0.0.1:%d/mcp", p_port);
+	Dictionary servers;
+	servers[SERVER_NAME] = server;
+	Dictionary config;
+	config["mcpServers"] = servers;
+	return _stringify(config);
+}
+
+Vector<String> EretheaAssistantClaudeCode::make_arguments(const String &p_mcp_config_path, const String &p_system_prompt, const String &p_model, const String &p_resume_session_id) {
+	Vector<String> arguments;
+	arguments.push_back("-p");
+	arguments.push_back("--input-format");
+	arguments.push_back("stream-json");
+	arguments.push_back("--output-format");
+	arguments.push_back("stream-json");
+	arguments.push_back("--verbose");
+	arguments.push_back("--mcp-config");
+	arguments.push_back(p_mcp_config_path);
+	arguments.push_back("--strict-mcp-config");
+	// No built-in tools: an empty list. The "=" keeps the empty value as one
+	// argument on every system.
+	arguments.push_back("--tools=");
+	arguments.push_back("--allowedTools");
+	arguments.push_back(vformat("mcp__%s", SERVER_NAME));
+	arguments.push_back("--permission-mode");
+	arguments.push_back("dontAsk");
+	arguments.push_back("--max-turns");
+	arguments.push_back(itos(MAX_TURNS));
+	if (!p_system_prompt.is_empty()) {
+		// The editor quotes arguments with spaces, but doesn't escape quotes
+		// inside them on Windows.
+		arguments.push_back("--append-system-prompt");
+		arguments.push_back(p_system_prompt.replace("\"", "'"));
+	}
+	if (!p_model.strip_edges().is_empty()) {
+		arguments.push_back("--model");
+		arguments.push_back(p_model.strip_edges());
+	}
+	if (!p_resume_session_id.is_empty()) {
+		arguments.push_back("--resume");
+		arguments.push_back(p_resume_session_id);
+	}
+	return arguments;
+}
+
+String EretheaAssistantClaudeCode::make_user_message(const String &p_text) {
+	Dictionary message;
+	message["role"] = "user";
+	message["content"] = p_text;
+	Dictionary line;
+	line["type"] = "user";
+	line["message"] = message;
+	line["parent_tool_use_id"] = Variant();
+	return _stringify(line);
+}
+
+String EretheaAssistantClaudeCode::strip_tool_prefix(const String &p_name) {
+	const String prefix = vformat("mcp__%s__", SERVER_NAME);
+	return p_name.begins_with(prefix) ? p_name.substr(prefix.length()) : p_name;
+}
+
+EretheaAssistantClaudeCode::Event EretheaAssistantClaudeCode::parse_line(const String &p_line) {
+	Event event;
+	Dictionary line;
+	if (!_parse_object(p_line.strip_edges(), line)) {
+		return event;
+	}
+	const String type = _string(line.get("type", Variant()));
+	event.session_id = _string(line.get("session_id", Variant()));
+	if (type == "system" && _string(line.get("subtype", Variant())) == "init") {
+		event.type = Event::TYPE_INIT;
+	} else if (type == "assistant") {
+		event.type = Event::TYPE_ASSISTANT;
+		const Dictionary message = _object(line.get("message", Variant()));
+		for (const Variant &item : _array(message.get("content", Variant()))) {
+			const Dictionary block = _object(item);
+			const String block_type = _string(block.get("type", Variant()));
+			if (block_type == "text") {
+				event.text += _string(block.get("text", Variant()));
+			} else if (block_type == "tool_use") {
+				EretheaAssistantToolCall call;
+				call.id = _string(block.get("id", Variant()));
+				call.name = strip_tool_prefix(_string(block.get("name", Variant())));
+				call.arguments = _object(block.get("input", Variant()));
+				event.tool_calls.push_back(call);
+			}
+		}
+		event.text = event.text.strip_edges();
+	} else if (type == "result") {
+		event.type = Event::TYPE_RESULT;
+		event.is_error = bool(line.get("is_error", false)) || _string(line.get("subtype", Variant())).begins_with("error");
+		event.text = _string(line.get("result", Variant())).strip_edges();
+		PackedStringArray errors;
+		for (const Variant &error : _array(line.get("errors", Variant()))) {
+			errors.push_back(_string(error));
+		}
+		if (event.is_error) {
+			event.error = errors.is_empty() ? (event.text.is_empty() ? _string(line.get("subtype", Variant())) : event.text) : String("; ").join(errors);
+		}
+	}
+	return event;
+}

@@ -234,3 +234,46 @@ public:
 	virtual EretheaAssistantReply read_response(int p_http_code, const String &p_body) override;
 	virtual void add_tool_results(const Vector<EretheaAssistantToolCall> &p_calls, const Vector<EretheaMcpToolResult> &p_results) override;
 };
+
+// Claude Code installed on the computer, which answers with the person's
+// Claude subscription instead of an API key. The panel keeps one Claude Code
+// running per conversation, in print mode with JSON lines on its input and
+// output (as the Claude Agent SDK runs it), connected only to the editor's MCP
+// server, so that every change goes through the tools and can be undone.
+// These are the parts that don't need the editor: the command line, the
+// messages it reads and what it writes.
+class EretheaAssistantClaudeCode {
+public:
+	static constexpr const char *SERVER_NAME = "erethea";
+	static constexpr int MAX_TURNS = 30;
+
+	struct Event {
+		enum Type {
+			TYPE_OTHER,
+			// The first line: the session, to go on with --resume.
+			TYPE_INIT,
+			// Text and tool calls of one answer of the model.
+			TYPE_ASSISTANT,
+			// The end of the answer to one message.
+			TYPE_RESULT,
+		};
+		Type type = TYPE_OTHER;
+		String session_id;
+		String text;
+		// Tool calls, without the "mcp__erethea__" prefix.
+		Vector<EretheaAssistantToolCall> tool_calls;
+		bool is_error = false;
+		String error;
+	};
+
+	// The --mcp-config file: the editor's server, by HTTP.
+	static String make_mcp_config(int p_port);
+	// Built-in tools off (files, terminal), only the editor's tools allowed,
+	// and everything else refused without asking.
+	static Vector<String> make_arguments(const String &p_mcp_config_path, const String &p_system_prompt, const String &p_model, const String &p_resume_session_id);
+	// One message for its input, as a JSON line (without the line break).
+	static String make_user_message(const String &p_text);
+	static Event parse_line(const String &p_line);
+	// The name of an editor tool as Claude Code calls it.
+	static String strip_tool_prefix(const String &p_name);
+};
