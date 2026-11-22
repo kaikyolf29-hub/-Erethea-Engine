@@ -111,6 +111,17 @@ private:
 	// Set once a client inside the editor called a tool: the game's errors,
 	// screenshots and tests are then followed even without the server.
 	bool local_client = false;
+	bool in_local_call = false;
+
+	// Told before and after each tool that a client of the server calls, such
+	// as Claude Code started by the assistant panel.
+	Callable server_call_before;
+	Callable server_call_after;
+	struct ObservedCall {
+		String name;
+		Dictionary arguments;
+	};
+	HashMap<uint64_t, ObservedCall> observed_calls;
 
 	static void _error_handler(void *p_self, const char *p_function, const char *p_file, int p_line, const char *p_error, const char *p_message, bool p_editor_notify, ErrorHandlerType p_type);
 	void _add_log(const String &p_source, const String &p_level, const String &p_message, const String &p_file = String(), int p_line = 0, const String &p_function = String());
@@ -119,6 +130,7 @@ private:
 	void _connect_debuggers();
 	void _debug_data(const String &p_message, const Array &p_data);
 	void _process_screenshots();
+	bool _call_tool(const String &p_name, const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id);
 	void _finish_call(uint64_t p_call_id, const EretheaMcpToolResult &p_result);
 	void _finish_screenshot(uint64_t p_call_id, const Ref<Image> &p_image, const String &p_failure);
 	Dictionary _get_status();
@@ -155,6 +167,16 @@ public:
 	// Forgets the calls still waiting for `p_on_finished`, such as when the
 	// person stops the assistant. The screenshots and tests still finish.
 	void cancel_local_calls();
+
+	// Starts the server if it isn't listening, on the port of the settings,
+	// for a client that the editor starts itself (Claude Code from the
+	// assistant panel). It keeps listening until the editor closes.
+	Error ensure_server(uint16_t &r_port);
+	// `p_before` is called with (name, arguments) before each tool that a
+	// client of the server calls, and `p_after` with (name, arguments,
+	// result as EretheaMcpToolResult::to_dictionary()) once it finished.
+	// Empty Callables stop it.
+	void set_server_call_observer(const Callable &p_before, const Callable &p_after);
 
 	EretheaMcpPlugin();
 	~EretheaMcpPlugin();

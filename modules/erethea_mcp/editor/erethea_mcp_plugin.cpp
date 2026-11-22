@@ -177,6 +177,25 @@ Vector<EretheaMcpTool> EretheaMcpPlugin::get_tools() const {
 }
 
 bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id) {
+	// A client of the server, while the assistant panel follows it.
+	const bool observed = !in_local_call && server_call_before.is_valid();
+	if (observed) {
+		server_call_before.call(p_name, p_arguments);
+	}
+	const bool finished = _call_tool(p_name, p_arguments, p_can_wait, r_result, r_pending_id);
+	if (observed) {
+		if (finished) {
+			if (server_call_after.is_valid()) {
+				server_call_after.call(p_name, p_arguments, r_result.to_dictionary());
+			}
+		} else {
+			observed_calls[r_pending_id] = ObservedCall{ p_name, p_arguments };
+		}
+	}
+	return finished;
+}
+
+bool EretheaMcpPlugin::_call_tool(const String &p_name, const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id) {
 	print_verbose(vformat("Erethea MCP: %s", p_name));
 	if (p_name == "take_screenshot") {
 		return _take_screenshot(p_arguments, p_can_wait, r_result, r_pending_id);
@@ -240,11 +259,38 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 bool EretheaMcpPlugin::call_tool_local(const String &p_name, const Dictionary &p_arguments, const Callable &p_on_finished, EretheaMcpToolResult &r_result) {
 	local_client = true;
 	uint64_t pending_id = 0;
-	if (call_tool(p_name, p_arguments, true, r_result, pending_id)) {
+	in_local_call = true;
+	const bool finished = call_tool(p_name, p_arguments, true, r_result, pending_id);
+	in_local_call = false;
+	if (finished) {
 		return true;
 	}
 	local_calls[pending_id] = p_on_finished;
 	return false;
+}
+
+Error EretheaMcpPlugin::ensure_server(uint16_t &r_port) {
+	if (!server.is_listening()) {
+		int port = EDITOR_GET(SETTING_PORT);
+		const String port_environment = OS::get_singleton()->get_environment(PORT_ENVIRONMENT);
+		if (port_environment.is_valid_int() && port_environment.to_int() > 0 && port_environment.to_int() <= 65535) {
+			port = port_environment.to_int();
+		}
+		const Error error = server.start(port);
+		if (error != OK) {
+			return error;
+		}
+		print_line(vformat("Erethea MCP: server listening on http://127.0.0.1:%d%s, for the assistant panel.", port, EretheaMcpServer::ENDPOINT));
+		_connect_debuggers();
+	}
+	r_port = server.get_port();
+	return OK;
+}
+
+void EretheaMcpPlugin::set_server_call_observer(const Callable &p_before, const Callable &p_after) {
+	server_call_before = p_before;
+	server_call_after = p_after;
+	observed_calls.clear();
 }
 
 void EretheaMcpPlugin::cancel_local_calls() {
@@ -252,6 +298,14 @@ void EretheaMcpPlugin::cancel_local_calls() {
 }
 
 void EretheaMcpPlugin::_finish_call(uint64_t p_call_id, const EretheaMcpToolResult &p_result) {
+	HashMap<uint64_t, ObservedCall>::Iterator observed = observed_calls.find(p_call_id);
+	if (observed) {
+		const ObservedCall call = observed->value;
+		observed_calls.remove(observed);
+		if (server_call_after.is_valid()) {
+			server_call_after.call(call.name, call.arguments, p_result.to_dictionary());
+		}
+	}
 	HashMap<uint64_t, Callable>::Iterator local = local_calls.find(p_call_id);
 	if (local) {
 		const Callable callable = local->value;
