@@ -71,7 +71,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática). Falta só a assinatura (no lançamento) e dois extras opcionais, abaixo |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) no `main`; quarta opção do painel, bloco de som e prévia com LibGodot por fazer |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) no `main`; quarta opção do painel (Claude Code) no PR #24; bloco de som e prévia com LibGodot por fazer |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Não começou |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
@@ -83,31 +83,41 @@ PRs #19, #20 e #22 no `main`. O painel de IA está em `modules/erethea_assistant
 e em `erethea/README.md`, "Painel de IA". O teste com o Ignis de verdade e com a
 API do Claude de verdade fica para o teste final do Kaiky.
 
-Depois do #22, um PR pequeno fez o teste do instalador parar em 4 minutos no
-passo "Update silently" (que travou duas vezes até o limite do job) e guardar o
-log do instalador (veja "Falhas conhecidas do CI").
+Depois do #22, o PR #23 fez o teste do instalador parar em 4 minutos no passo
+"Update silently" (que travou duas vezes até o limite do job) e guardar o log do
+instalador (veja "Falhas conhecidas do CI"), e trouxe este plano.
 
-### 3a. Quarta opção do painel: Claude Code com a assinatura
+### 3a. Quarta opção do painel: Claude Code com a assinatura (PR #24)
 
-Decidido pelo Kaiky em 22/11. Um provedor "Claude Code (your subscription)" no
-painel, que chama o Claude Code instalado no PC sem janela, ligado às
-ferramentas do editor. Assim o Kaiky usa a assinatura do Claude, sem chave de
-API e sem o Node (que a ponte do app de desktop pediria).
+Decidido pelo Kaiky em 22/11 e feito no PR #24 (falta CI verde e merge). O
+provedor "Claude Code (your subscription)" chama o Claude Code instalado no PC,
+que usa a assinatura do Claude, sem chave de API e sem Node.
 
-1. Antes de escrever código, confira na documentação oficial do Claude Code
-   (code.claude.com/docs) o instalador do Windows, o modo sem janela
-   (`claude -p`, saída em JSON por linhas, continuar a conversa) e como passar
-   um servidor MCP e limitar as ferramentas na linha de comando. Não invente
-   opções.
-2. O painel liga o servidor MCP do editor para essa conversa e deixa o Claude
-   Code usar só as ferramentas da Erethea (sem as dele de arquivo e terminal),
-   para tudo passar pelo desfazer.
-3. Desfazer: hoje o `EretheaAssistantUndo` só vê as chamadas locais. Para as
-   que chegam pelo servidor durante a resposta, o `EretheaMcpPlugin` avisa o
-   painel antes e depois de cada ferramenta.
-4. Sem o Claude Code instalado, o painel diz como instalar.
-5. Teste no CI com um `claude` de mentira (um script que fala o mesmo formato e
-   chama o MCP), como o servidor de mentira do `test_assistant.py`.
+- Como roda (conferido na documentação oficial e no pacote do Claude Agent
+  SDK): um processo por conversa, `claude -p --input-format stream-json
+  --output-format stream-json --verbose`, mensagens `{"type":"user","message":
+  {"role":"user","content":...},"parent_tool_use_id":null}` na entrada e as
+  linhas `system/init`, `assistant` e `result` na saída. Só o servidor MCP do
+  editor (`--mcp-config` com um arquivo no cache do editor,
+  `--strict-mcp-config`), sem as ferramentas próprias (`--tools=`), com as do
+  editor liberadas (`--allowedTools mcp__erethea`) e o resto recusado
+  (`--permission-mode dontAsk`), `--max-turns 30`. Se o processo fechar, a
+  próxima pergunta abre outro com `--resume <session_id>`. Não use `--bare`
+  (ele ignora o login da assinatura). A `ANTHROPIC_API_KEY` é tirada do
+  ambiente só na hora de abrir o processo.
+- Canos com espera (`execute_with_pipe(..., true)`): no Windows, um cano sem
+  espera pode aceitar só parte de uma mensagem. A leitura só pega o que já
+  chegou (`get_length()`), então não trava o editor. A Erethea não escapa aspas
+  dentro de argumentos no Windows: por isso a pergunta vai pela entrada, o
+  `--mcp-config` é um arquivo e o prompt de sistema vai sem aspas duplas.
+- O servidor MCP liga sozinho (`EretheaMcpPlugin::ensure_server`) e o painel
+  acompanha as ferramentas que chegam por ele
+  (`set_server_call_observer`), para o desfazer funcionar.
+- Teste: `erethea/tests/assistant/fake_claude.py` faz o papel do Claude Code
+  (mesmo formato, age pelo MCP); o `test_assistant.py` confere linha de
+  comando, chave fora do ambiente, segunda pergunta no mesmo processo, volta na
+  mesma sessão e desfazer.
+- O teste com o Claude Code de verdade fica para o teste final do Kaiky.
 
 ### 3b. Bloco de som (decidido em 22/11)
 
