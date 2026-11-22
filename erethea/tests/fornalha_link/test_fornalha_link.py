@@ -208,7 +208,11 @@ def make_project(project):
 def wait_for(what, condition, process, timeout):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        result = condition()
+        try:
+            result = condition()
+        except PermissionError:
+            # On Windows, a file can't be opened while the editor writes it.
+            result = None
         if result:
             return result
         if process.poll() is not None:
