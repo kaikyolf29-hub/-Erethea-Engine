@@ -1,0 +1,67 @@
+name: 🔥 Erethea agent test
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Runs a small game in the test mode for agents (modules/erethea_agent_test)
+# with erethea/tests/agent_test/test_agent_test.py: the game plays by itself
+# with --agent-test, its controls are pressed from a file of inputs, and the
+# report must have the errors, the frame rate and how far the player walked.
+#
+# Without a window, then in a window (on Linux under Xvfb, on Windows on the
+# runner's desktop with ANGLE), where the screenshots must be real images. The
+# runners have no GPU, so the window uses the Compatibility renderer.
+
+jobs:
+  agent-test-linux:
+    runs-on: ubuntu-24.04
+    name: Agent test on Linux
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Test mode
+        run: |
+          chmod +x bin/erethea.*
+          xvfb-run -a -s "-screen 0 1920x1080x24" \
+            python3 erethea/tests/agent_test/test_agent_test.py bin/erethea.linuxbsd.editor.x86_64.mono --window --out "$PWD/agent_test/linux"
+
+      - name: Upload reports and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-agent-test-linux
+          path: agent_test
+          retention-days: 14
+
+  agent-test-windows:
+    runs-on: windows-latest
+    name: Agent test on Windows
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Test mode
+        run: python erethea/tests/agent_test/test_agent_test.py bin/erethea.windows.editor.x86_64.exe --window --out "${{ github.workspace }}/agent_test/windows"
+
+      - name: Upload reports and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-agent-test-windows
+          path: agent_test
+          retention-days: 14
