@@ -54,6 +54,16 @@ namespace EretheaMcpSceneTools {
 static constexpr int DEFAULT_TREE_DEPTH = 12;
 static constexpr int MAX_TREE_NODES = 2000;
 
+static const char *action_source = "MCP";
+
+void set_action_source(const char *p_source) {
+	action_source = p_source;
+}
+
+const char *get_action_source() {
+	return action_source;
+}
+
 static EretheaMcpToolResult _error(const String &p_message) {
 	return EretheaMcpToolResult::error(p_message);
 }
@@ -379,7 +389,7 @@ EretheaMcpToolResult create_node(const Dictionary &p_arguments) {
 	child->set_name(parent->prevalidate_child_name(child, name.is_empty() ? child->get_class() : name));
 
 	EditorUndoRedoManager *undo_redo = EditorUndoRedoManager::get_singleton();
-	undo_redo->create_action(vformat("MCP: Create %s", child->get_name()), UndoRedo::MERGE_DISABLE, root);
+	undo_redo->create_action(vformat("%s: Create %s", String(action_source), child->get_name()), UndoRedo::MERGE_DISABLE, root);
 	undo_redo->add_do_method(parent, "add_child", child, true);
 	undo_redo->add_do_method(child, "set_owner", root);
 	undo_redo->add_do_reference(child);
@@ -424,7 +434,7 @@ EretheaMcpToolResult set_node_properties(const Dictionary &p_arguments) {
 
 	Node *root = EditorNode::get_singleton()->get_edited_scene();
 	EditorUndoRedoManager *undo_redo = EditorUndoRedoManager::get_singleton();
-	undo_redo->create_action(vformat("MCP: Set %s on %s", String(", ").join(names), node->get_name()), UndoRedo::MERGE_DISABLE, root);
+	undo_redo->create_action(vformat("%s: Set %s on %s", String(action_source), String(", ").join(names), node->get_name()), UndoRedo::MERGE_DISABLE, root);
 	for (const Pair<StringName, Variant> &value : values) {
 		undo_redo->add_do_property(node, value.first, value.second);
 		undo_redo->add_undo_property(node, value.first, node->get(value.first));
@@ -469,7 +479,7 @@ EretheaMcpToolResult delete_node(const Dictionary &p_arguments) {
 
 	Node *parent = node->get_parent();
 	EditorUndoRedoManager *undo_redo = EditorUndoRedoManager::get_singleton();
-	undo_redo->create_action(vformat("MCP: Delete %s", node->get_name()), UndoRedo::MERGE_DISABLE, root);
+	undo_redo->create_action(vformat("%s: Delete %s", String(action_source), node->get_name()), UndoRedo::MERGE_DISABLE, root);
 	undo_redo->add_do_method(parent, "remove_child", node);
 	undo_redo->add_undo_method(parent, "add_child", node, true);
 	undo_redo->add_undo_method(parent, "move_child", node, node->get_index(false));
@@ -596,7 +606,7 @@ EretheaMcpToolResult attach_script(const Dictionary &p_arguments) {
 
 	Node *root = EditorNode::get_singleton()->get_edited_scene();
 	EditorUndoRedoManager *undo_redo = EditorUndoRedoManager::get_singleton();
-	undo_redo->create_action(vformat("MCP: Attach %s to %s", path.get_file(), node->get_name()), UndoRedo::MERGE_DISABLE, root);
+	undo_redo->create_action(vformat("%s: Attach %s to %s", String(action_source), path.get_file(), node->get_name()), UndoRedo::MERGE_DISABLE, root);
 	undo_redo->add_do_method(node, "set_script", script);
 	undo_redo->add_undo_method(node, "set_script", node->get_script());
 	undo_redo->commit_action();

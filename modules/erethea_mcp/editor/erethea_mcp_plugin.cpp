@@ -31,6 +31,7 @@
 #include "erethea_mcp_plugin.h"
 
 #include "../erethea_mcp_values.h"
+#include "erethea_mcp_file_tools.h"
 #include "erethea_mcp_scene_tools.h"
 
 #include "core/config/project_settings.h"
@@ -68,6 +69,7 @@
 static const char *INSTRUCTIONS = "Erethea Engine editor (a fork of Godot 4). These tools act on the project open in this editor. "
 								  "Usual flow: get_editor_state, then open_scene or create_scene, get_scene_tree, create_node and set_node_properties, "
 								  "write_script and attach_script, save_scene, run_game, get_errors and take_screenshot, stop_game; check_export before exporting. "
+								  "list_files, read_file and edit_file read the project's files and change scripts and other text files. "
 								  "In projects made with Fornalha, build_fornalha_scenes builds the game's scenes from game.project.json. "
 								  "Node paths are relative to the root of the scene being edited, which is \".\". "
 #ifdef MODULE_ERETHEA_AGENT_TEST_ENABLED
@@ -94,6 +96,12 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 	{ "get_node_properties", "Node properties", true, false,
 			"Reads a node's properties: the ones you name, or all that the Inspector shows. Vectors, colors and transforms come as Godot literals such as \"Vector3(0, 1, 0)\", which set_node_properties accepts back; resources come as their path, or as {\"type\": ...} when they live in the scene.",
 			R"({"type": "object", "properties": {"node": {"type": "string", "description": "Node path from get_scene_tree; \".\" is the root."}, "properties": {"type": "array", "items": {"type": "string"}, "description": "Property names, such as [\"position\", \"mesh\"]. Leave out for all."}}, "required": ["node"]})" },
+	{ "list_files", "List files", true, false,
+			"Lists the project's files, with their resource type, such as scenes, scripts, models and game.project.json. Hidden folders and the editor's own files are left out.",
+			R"({"type": "object", "properties": {"folder": {"type": "string", "description": "Folder to list (default \"res://\")."}, "pattern": {"type": "string", "description": "Only file names that match, such as \"*.gd\" or \"boss*\" (default all)."}, "recursive": {"type": "boolean", "description": "Also list the subfolders' files (default true)."}}})" },
+	{ "read_file", "Read file", true, false,
+			"Reads a text file of the project, such as a script, a scene (.tscn), game.project.json or a shader, a part at a time for long files.",
+			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://scripts/enemy.gd\"."}, "from_line": {"type": "integer", "minimum": 1, "description": "First line (default 1)."}, "max_lines": {"type": "integer", "minimum": 1, "maximum": 2000, "description": "How many lines (default 400)."}}, "required": ["path"]})" },
 	{ "open_scene", "Open scene", false, false,
 			"Opens a scene file (.tscn or .scn) in the editor, or switches to it if it's open, and makes it the scene being edited.",
 			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://levels/forest.tscn\"."}}, "required": ["path"]})" },
@@ -112,6 +120,9 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 	{ "write_script", "Write script", false, true,
 			"Writes a script file (GDScript .gd, or another script language of the project), creating or replacing it, and checks it: the result lists errors and warnings with their line. The file is written even with errors, so that another write_script can fix them.",
 			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://scripts/enemy.gd\"."}, "source": {"type": "string", "description": "The whole code of the script."}}, "required": ["path", "source"]})" },
+	{ "edit_file", "Edit file", false, true,
+			"Changes part of a script or another text file (such as game.project.json): replaces old_text, copied exactly from read_file, with new_text. Scripts are checked as with write_script. With an empty old_text, creates a file that doesn't exist. Scenes and resources are changed with the scene tools instead.",
+			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://scripts/enemy.gd\"."}, "old_text": {"type": "string", "description": "Text to replace; it must be in the file exactly once, unless replace_all."}, "new_text": {"type": "string", "description": "The text to put in its place."}, "replace_all": {"type": "boolean", "description": "Replace every occurrence of old_text (default false)."}}, "required": ["path", "new_text"]})" },
 	{ "attach_script", "Attach script", false, false,
 			"Attaches a script file to a node of the scene being edited, replacing its script. Undoable.",
 			R"({"type": "object", "properties": {"node": {"type": "string", "description": "Node path."}, "path": {"type": "string", "description": "Script file, such as \"res://scripts/enemy.gd\"."}}, "required": ["node", "path"]})" },
@@ -193,6 +204,12 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 		r_result = EretheaMcpSceneTools::delete_node(p_arguments);
 	} else if (p_name == "write_script") {
 		r_result = EretheaMcpSceneTools::write_script(p_arguments);
+	} else if (p_name == "edit_file") {
+		r_result = EretheaMcpFileTools::edit_file(p_arguments);
+	} else if (p_name == "read_file") {
+		r_result = EretheaMcpFileTools::read_file(p_arguments);
+	} else if (p_name == "list_files") {
+		r_result = EretheaMcpFileTools::list_files(p_arguments);
 	} else if (p_name == "attach_script") {
 		r_result = EretheaMcpSceneTools::attach_script(p_arguments);
 	} else if (p_name == "save_scene") {
