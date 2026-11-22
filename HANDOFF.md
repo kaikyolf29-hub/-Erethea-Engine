@@ -56,6 +56,10 @@ mudou.
 | DLSS | Pelo Streamline no Direct3D 12; quem desenvolve baixa as DLLs da NVIDIA (licença), o CI testa o caminho sem DLL. |
 | Assinatura do instalador | Sai sem assinatura por enquanto. No lançamento o Kaiky paga a assinatura (Azure Artifact Signing, ~US$ 10/mês; a Microsoft pode não aceitar pessoa do Brasil, então conferir; alternativas: SignPath Foundation, grátis para código aberto, ou certificado open source da Certum). Os passos de assinatura já estão no workflow de release, desligados até existir a variável `ARTIFACT_SIGNING_ENDPOINT` (`erethea/README.md`, "Assinatura do instalador"). |
 | Execuções longas | Builds completos e suítes longas rodam no GitHub Actions (o repositório é público, os minutos são grátis): suba o branch e leia os checks. |
+| Painel de IA | Quatro provedores: Ignis (padrão), Claude pela API, servidor OpenAI e, decidido pelo Kaiky em 22/11, o **Claude Code instalado no PC** (usa a assinatura dele, sem chave de API). |
+| Erethea completa a Fornalha | A Erethea não só roda o que a Fornalha 3D gera: usa as ferramentas da engine para deixar o resultado melhor (visual, som, animação). Os pedidos da Fornalha para a Erethea entram nas fases abaixo. |
+| Som | Bloco de som decidido em 22/11 (passo 3b): WAV da dublagem sem travar, eco por área, música que muda com o jogo e boca mexendo com a fala. |
+| Teste conjunto | O CI da Fornalha testa com a Godot 4.6.1 enquanto a Erethea não fica pronta. No fim, o Kaiky instala a Erethea e a Fornalha 3D (versões de desktop) e pede as gerações por um prompt no PC dele; a qualidade da Fornalha é provada já ligada à Erethea. |
 | Em aberto | Juntar a Fornalha dentro da Erethea no futuro ou manter dois apps ligados (a LibGodot deixa os dois caminhos abertos). Não precisa decidir agora. |
 
 ## Onde cada fase está
@@ -67,31 +71,68 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática). Falta só a assinatura (no lançamento) e dois extras opcionais, abaixo |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19) e modo de teste (#20) no `main`; painel de IA no PR #22; prévia com LibGodot por fazer |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) no `main`; quarta opção do painel, bloco de som e prévia com LibGodot por fazer |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Não começou |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
 ## O que fazer agora (na ordem)
 
-### 1 e 2. PRs #19 e #20: feitos
+### 1 a 3. Elo ao vivo, modo de teste e painel de IA: feitos
 
-O elo ao vivo com a Fornalha (#19) e o modo de teste para agentes (#20) estão
-no `main`.
+PRs #19, #20 e #22 no `main`. O painel de IA está em `modules/erethea_assistant/`
+e em `erethea/README.md`, "Painel de IA". O teste com o Ignis de verdade e com a
+API do Claude de verdade fica para o teste final do Kaiky.
 
-### 3. Painel de IA (PR #22)
+Depois do #22, um PR pequeno fez o teste do instalador parar em 4 minutos no
+passo "Update silently" (que travou duas vezes até o limite do job) e guardar o
+log do instalador (veja "Falhas conhecidas do CI").
 
-Branch `claude/happy-dijkstra-gueto9`, PR #22. Módulo `modules/erethea_assistant/`:
-aba "Assistant" no editor com três provedores (Ignis local com resposta em JSON
-preso por esquema; Claude pela API com ferramentas nativas e histórico nunca
-editado; servidor compatível com OpenAI), as ferramentas do MCP chamadas sem
-rede (`EretheaMcpPlugin::call_tool_local`) e o botão "Undo last answer". Tudo
-documentado em `erethea/README.md`, "Painel de IA". Testes: unidade
-(`--test-case="*Assistant*"`) e `erethea/tests/assistant/test_assistant.py`
-(servidor de mentira + plugin que aperta os botões), no workflow
-`erethea_assistant.yml`.
+### 3a. Quarta opção do painel: Claude Code com a assinatura
 
-Falta: CI verde e merge (método "merge"). O teste com o Ignis de verdade e com
-a API do Claude de verdade fica para o teste final do Kaiky.
+Decidido pelo Kaiky em 22/11. Um provedor "Claude Code (your subscription)" no
+painel, que chama o Claude Code instalado no PC sem janela, ligado às
+ferramentas do editor. Assim o Kaiky usa a assinatura do Claude, sem chave de
+API e sem o Node (que a ponte do app de desktop pediria).
+
+1. Antes de escrever código, confira na documentação oficial do Claude Code
+   (code.claude.com/docs) o instalador do Windows, o modo sem janela
+   (`claude -p`, saída em JSON por linhas, continuar a conversa) e como passar
+   um servidor MCP e limitar as ferramentas na linha de comando. Não invente
+   opções.
+2. O painel liga o servidor MCP do editor para essa conversa e deixa o Claude
+   Code usar só as ferramentas da Erethea (sem as dele de arquivo e terminal),
+   para tudo passar pelo desfazer.
+3. Desfazer: hoje o `EretheaAssistantUndo` só vê as chamadas locais. Para as
+   que chegam pelo servidor durante a resposta, o `EretheaMcpPlugin` avisa o
+   painel antes e depois de cada ferramenta.
+4. Sem o Claude Code instalado, o painel diz como instalar.
+5. Teste no CI com um `claude` de mentira (um script que fala o mesmo formato e
+   chama o MCP), como o servidor de mentira do `test_assistant.py`.
+
+### 3b. Bloco de som (decidido em 22/11)
+
+A Fornalha gera efeitos (`Audio/efeitos/<evento>_<n>.wav`), música por situação
+(`Audio/musica/<situacao>.wav`: exploracao, vila, floresta, combate, chefe,
+masmorra) e dublagem (`Audio/dublagem/<id>_<nn>.wav` com
+`<id>_<nn>.boca.json`: `{"quadros_por_segundo": 30, "abertura": [...]}`). Um PR
+por item, só em projetos da Fornalha ou desligado por padrão:
+
+1. **WAV da dublagem sem travar**: o importador de WAV aceita o cabeçalho de
+   stream do Ignis (tamanhos do RIFF e do `data` errados). Correção genérica:
+   proponha também à Godot.
+2. **Eco por área**: o `build_fornalha_scenes` dá a cada área um barramento de
+   áudio com reverberação pelo tipo (caverna, floresta, castelo, vila...) ou
+   pelo campo opcional `acustica`.
+3. **Música que muda com o jogo**: `AudioStreamInteractive` com as músicas da
+   Fornalha, trocando no fim do compasso (bpm e compassos do
+   `<situacao>.musica.json`), num nó do grupo `erethea_musica` que o `Sons` da
+   Fornalha chama.
+4. **Boca mexendo com a fala**: a curva do `.boca.json` move o osso da
+   mandíbula ou a forma de boca aberta que o `<id>.forja.json` disser.
+
+Os itens 2 a 4 dependem dos pedidos 1 a 5 para a Fornalha (abaixo), enviados
+ao Kaiky em 22/11. Enquanto a Fornalha não mudar, siga com o que já existe e
+confira no repositório público dela (`kaikyolf29-hub/fornalha`, só leitura).
 
 ### 4. Prévia com LibGodot (último item da Fase 3)
 
@@ -123,8 +164,8 @@ jeito que vai ficar no jogo."
   Erethea monta as cenas sozinho e o personagem anda (o teste
   `erethea/tests/fornalha_link/test_fornalha_link.py` e o `run_test` provam
   isso no CI; a prova com a Fornalha de verdade fica para o teste final).
-- Mande ao Kaiky, numa mensagem só, os pedidos para a Fornalha (abaixo), para
-  ele colar no chat da Fornalha.
+- Os pedidos para a Fornalha (abaixo) foram mandados ao Kaiky em 22/11. Mande
+  de novo só o que mudar.
 
 ### 6. Extras pendentes das Fases 1 e 2 (pequenos, opcionais)
 
@@ -162,19 +203,27 @@ comparado na cena de referência:
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
 5. **Materiais em camadas** (terra, sujeira, molhado), pele com subsuperfície
-   melhor, cabelo, tecido e olhos: recursos de material num módulo
-   (`modules/erethea_materials/`), com exemplos na cena de referência.
+   melhor (perfil de espalhamento por canal, mapa de espessura e sombra de
+   contato), cabelo (incluindo **fio a fio**: fitas viradas para a câmera ou
+   curvas, alfa por hash e brilho anisotrópico, para a Fornalha mandar o
+   penteado direto), tecido e olhos: recursos de material num módulo
+   (`modules/erethea_materials/`), com exemplos na cena de referência. Pele e
+   cabelo fio a fio são pedidos da Fornalha.
 6. **Terreno nativo** com pintura de materiais, criado a partir do blockout do
    Plano 1 (`World/blockout.glb` e as áreas do `game.project.json`): malha por
    clipmap, colisão `HeightMapShape3D`, pintura no editor. O Terrain3D (MIT)
-   serve de referência.
+   serve de referência; a Fornalha pede compatibilidade com ele (32 materiais,
+   detiling, triplanar).
 7. **Vegetação**: espalhador com LOD, impostores e vento (MultiMesh,
    `visibility_range`, sombreador de vento).
-8. **Animação**: retarget automático para o esqueleto padrão do Plano 1 (veja
-   como a Forja/Fornalha monta o esqueleto) e locomoção com o MotionBricks da
-   NVIDIA (conferir a licença antes).
-9. Teste de pronto no CI com o que der (WARP/lavapipe); a prova na RTX e na RX
-   580 entra na lista do teste final do Kaiky.
+8. **Animação**: retarget automático para o esqueleto padrão do Plano 1 (a
+   Fornalha passou a usar o esqueleto de jogo do MakeHuman com nomes da Unreal;
+   confira no repositório dela) e locomoção com o MotionBricks da NVIDIA
+   (conferir a licença antes).
+9. **Efeitos de compositor** prontos: névoa de altura e raios de luz (pedido da
+   Fornalha).
+10. Teste de pronto no CI com o que der (WARP/lavapipe); a prova na RTX e na
+    RX 580 entra na lista do teste final do Kaiky.
 
 ### 8. Fase 5 · Geometria densa
 
@@ -188,6 +237,8 @@ Pronto quando: um modelo de milhões de polígonos roda sem LOD feito à mão.
 3. Streaming das páginas de clusters do disco conforme a câmera.
 4. Opção por malha (desligada por padrão), comparação na cena de referência
    e um teste com um modelo de milhões de polígonos medindo FPS e memória.
+   É também o pedido da Fornalha de "geometria virtual" para cenário denso
+   (castelos, vilas).
 
 ### 9. Godot 4.8 estável
 
@@ -204,28 +255,49 @@ passar.
 3. `erethea/TESTE_DO_CRIADOR.md`: lista curta do que o Kaiky testa no PC dele
    (instalador, abrir projeto da Godot, barra de título, presets, upscalers na
    RTX, ray tracing na RTX e sem ele na RX 580, Fornalha ligada, painel de IA
-   com o Ignis e com a API, modelo pesado).
+   com o Ignis, com a API e com o Claude Code, modelo pesado). Inclui o
+   **teste conjunto**: o Kaiky instala a Erethea e a Fornalha 3D de desktop,
+   pede por um prompt um jogo (personagem, movimento, cenário, efeitos,
+   música, dublagem), e a Erethea abre, monta as cenas e roda o jogo; ele
+   procura falhas e o que melhorar.
 4. Tag `v1.0.0` (ou a versão que o Kaiky quiser) e o release com o
    instalador. Só então avise o Kaiky para baixar e testar.
 
 ## Pedidos para a Fornalha (o Kaiky cola no chat da Fornalha)
 
+Mandados ao Kaiky em 22/11 (os itens 1 a 5 são do bloco de som).
+
 ```text
-Pedidos da Erethea para a Fornalha:
-1. Elo ao vivo: um WebSocket em /fornalha/ponte/ws na API local (porta 11480)
-   e o campo "websocket": "/fornalha/ponte/ws" na resposta do
-   GET /fornalha/ponte. A Erethea manda {"tipo":"ola","programa","versao",
-   "projeto","monta_cenas":true} e {"tipo":"cenas", ...relatório}; a Fornalha
-   empurra {"tipo":"ponte","versao","arquivos"} quando grava algo. Quando a
-   Erethea disser monta_cenas, a Fornalha não precisa rodar o montar.gd.
-   Até lá a Erethea funciona pelo GET de hoje.
-2. Teste: chamar a Erethea com --agent-test=<pasta> (e
-   --agent-test-seconds=<s>, --agent-test-inputs=<arquivo.json>) e ler
-   <pasta>/report.json; sai com 0 quando passa, 1 quando falha, 2 quando as
-   opções estão erradas. O teste_automatico da Fornalha continua funcionando.
-3. (Depois da prévia com LibGodot) embutir a prévia da Erethea como descrito
-   em erethea/README.md.
+Pedidos da Erethea Engine para a Fornalha 3D (complemento; se preferir outro formato, a Erethea se adapta).
+
+SOM: a Erethea vai cuidar do eco de cada área, da música que muda com o jogo e da boca mexendo com a fala. Para isso, precisa destes dados:
+
+1. Música: junto de cada Audio/musica/<situacao>.wav, gravar Audio/musica/<situacao>.musica.json com {"situacao", "bpm", "compassos", "tonica", "loop": true}. Com isso a Erethea marca o laço certo e troca de música no fim do compasso.
+
+2. Troca de música num lugar só: o jogo pede a música pela situação (Sons.tocar_musica("combate")), não pelo caminho do arquivo. Quando existirem nós no grupo "erethea_musica", o Sons só chama get_tree().call_group("erethea_musica", "tocar", situacao) e deixa a Erethea fazer a transição. Sem esse grupo (na Godot comum), toca como hoje.
+
+3. Fala: no <id>_<nn>.boca.json, acrescentar "personagem": "<id de quem fala>" e "texto": "<a frase>". No jogo, uma função Sons.falar(personagem, arquivo) que toca a fala presa ao personagem (AudioStreamPlayer3D filho dele). Hoje a dublagem é gerada, mas o jogo não toca.
+
+4. Boca no modelo: cada personagem precisa de um osso da mandíbula ou de uma forma (blend shape) de boca aberta, sempre com o mesmo nome, e esse nome no <id>.forja.json, por exemplo "boca": {"osso": "jaw"} ou "boca": {"forma": "jawOpen"}. A Erethea usa a curva da boca para mexer nele.
+
+5. Áreas: nada a mudar. A Erethea escolhe o eco pelo tipo de cada área do game.project.json (caverna, floresta, castelo, vila...). Se quiser escolher à mão, um campo opcional "acustica" na área.
+
+Sobre o WAV da dublagem: a Fornalha já conserta o cabeçalho que vem do Ignis. A Erethea também vai aceitar o WAV do Ignis direto, então o conserto pode ficar, não atrapalha.
+
+JÁ PEDIDOS ANTES (continuam valendo):
+
+6. Elo ao vivo: um WebSocket em /fornalha/ponte/ws na API local (porta 11480) e o campo "websocket": "/fornalha/ponte/ws" na resposta do GET /fornalha/ponte. A Erethea manda {"tipo":"ola","programa","versao","projeto","monta_cenas":true} e {"tipo":"cenas", ...relatório}; a Fornalha empurra {"tipo":"ponte","versao","arquivos"} quando grava algo. Quando a Erethea disser monta_cenas, a Fornalha não precisa rodar o montar.gd. Até lá a Erethea funciona pelo GET de hoje.
+
+7. Teste: chamar a Erethea com --agent-test=<pasta> (e --agent-test-seconds=<s>, --agent-test-inputs=<arquivo.json>) e ler <pasta>/report.json; sai com 0 quando passa, 1 quando falha, 2 quando as opções estão erradas. O teste_automatico da Fornalha continua funcionando.
+
+8. Depois (quando a Erethea tiver a prévia com LibGodot): embutir a prévia da Erethea na Galeria, como vai estar descrito no erethea/README.md.
 ```
+
+A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md
+dela (cabelo fio a fio, pele, geometria virtual, terreno, FSR, névoa de altura e
+raios de luz); esses pedidos estão nas Fases 4 e 5 acima. A Fornalha acha a
+Erethea em `%LOCALAPPDATA%\Erethea` (`erethea.console.exe`), que é onde o
+instalador põe.
 
 ## Como compilar e testar
 
@@ -281,8 +353,13 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
   do mesmo código passou. O `title_bar_test.ps1` agora imprime o fim dos logs e
   os eventos 1000/1001/1026 do Windows quando falha, então o log do job mostra o
   módulo que caiu se acontecer de novo.
-- Instalador, passo "Update silently": travou uma vez além do tempo e passou na
-  nova tentativa. Se repetir, investigue o `/SILENT /update=1`.
+- Instalador, passo "Update silently": travou duas vezes até o limite do job
+  (o limite do próprio passo não parou) e passou na nova tentativa; o job
+  cancelado não deixou log. Agora o passo desiste em 4 minutos, imprime o fim do
+  log do instalador (`/LOG`) e os processos abertos, e o artefato
+  `erethea-installer-logs` guarda os logs. Se travar de novo, leia isso antes de
+  mexer; suspeitas: o Restart Manager do `/CLOSEAPPLICATIONS` ou um arquivo
+  preso por outro processo.
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
   um build novo, suba um commit.
 

@@ -224,5 +224,7 @@ Error EretheaUpdate::launch_installer(const String &p_path) {
 	args.push_back("/NORESTART");
 	args.push_back("/CLOSEAPPLICATIONS");
 	args.push_back("/update=1");
+	// What the installer did, to find out why an update failed.
+	args.push_back("/LOG=" + OS::get_singleton()->get_temp_path().path_join("erethea-update.log"));
 	return OS::get_singleton()->create_process(p_path, args);
 }

@@ -747,6 +747,8 @@ online, como na Godot. Ao clicar no aviso "Update available", a Erethea
 instalada pelo instalador baixa o instalador novo, confere o SHA-256 que o
 GitHub informa, instala por cima sem perguntas e abre de novo. Builds de
 desenvolvimento (sem `BUILD_NAME=erethea-<versão>`) não procuram atualizações.
+O instalador deixa o que fez em `%TEMP%\erethea-update.log`, para descobrir por
+que uma atualização falhou.
 
 ## Assinatura do instalador
 
