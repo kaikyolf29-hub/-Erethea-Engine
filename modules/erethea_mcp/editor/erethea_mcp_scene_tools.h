@@ -48,6 +48,11 @@ EretheaMcpToolResult attach_script(const Dictionary &p_arguments);
 EretheaMcpToolResult save_scene(const Dictionary &p_arguments);
 EretheaMcpToolResult rescan_files(const Dictionary &p_arguments);
 
+// Names in the undo history start with "<source>: ", "MCP" by default. The
+// assistant panel names its own changes. `p_source` must outlive the calls.
+void set_action_source(const char *p_source);
+const char *get_action_source();
+
 // "levels/forest.tscn" or an absolute path inside the project becomes
 // "res://levels/forest.tscn". Paths outside the project are refused.
 bool project_path(const Variant &p_path, String &r_path, String &r_error);

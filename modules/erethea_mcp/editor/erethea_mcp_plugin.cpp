@@ -31,6 +31,7 @@
 #include "erethea_mcp_plugin.h"
 
 #include "../erethea_mcp_values.h"
+#include "erethea_mcp_file_tools.h"
 #include "erethea_mcp_scene_tools.h"
 
 #include "core/config/project_settings.h"
@@ -68,6 +69,7 @@
 static const char *INSTRUCTIONS = "Erethea Engine editor (a fork of Godot 4). These tools act on the project open in this editor. "
 								  "Usual flow: get_editor_state, then open_scene or create_scene, get_scene_tree, create_node and set_node_properties, "
 								  "write_script and attach_script, save_scene, run_game, get_errors and take_screenshot, stop_game; check_export before exporting. "
+								  "list_files, read_file and edit_file read the project's files and change scripts and other text files. "
 								  "In projects made with Fornalha, build_fornalha_scenes builds the game's scenes from game.project.json. "
 								  "Node paths are relative to the root of the scene being edited, which is \".\". "
 #ifdef MODULE_ERETHEA_AGENT_TEST_ENABLED
@@ -94,6 +96,12 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 	{ "get_node_properties", "Node properties", true, false,
 			"Reads a node's properties: the ones you name, or all that the Inspector shows. Vectors, colors and transforms come as Godot literals such as \"Vector3(0, 1, 0)\", which set_node_properties accepts back; resources come as their path, or as {\"type\": ...} when they live in the scene.",
 			R"({"type": "object", "properties": {"node": {"type": "string", "description": "Node path from get_scene_tree; \".\" is the root."}, "properties": {"type": "array", "items": {"type": "string"}, "description": "Property names, such as [\"position\", \"mesh\"]. Leave out for all."}}, "required": ["node"]})" },
+	{ "list_files", "List files", true, false,
+			"Lists the project's files, with their resource type, such as scenes, scripts, models and game.project.json. Hidden folders and the editor's own files are left out.",
+			R"({"type": "object", "properties": {"folder": {"type": "string", "description": "Folder to list (default \"res://\")."}, "pattern": {"type": "string", "description": "Only file names that match, such as \"*.gd\" or \"boss*\" (default all)."}, "recursive": {"type": "boolean", "description": "Also list the subfolders' files (default true)."}}})" },
+	{ "read_file", "Read file", true, false,
+			"Reads a text file of the project, such as a script, a scene (.tscn), game.project.json or a shader, a part at a time for long files.",
+			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://scripts/enemy.gd\"."}, "from_line": {"type": "integer", "minimum": 1, "description": "First line (default 1)."}, "max_lines": {"type": "integer", "minimum": 1, "maximum": 2000, "description": "How many lines (default 400)."}}, "required": ["path"]})" },
 	{ "open_scene", "Open scene", false, false,
 			"Opens a scene file (.tscn or .scn) in the editor, or switches to it if it's open, and makes it the scene being edited.",
 			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://levels/forest.tscn\"."}}, "required": ["path"]})" },
@@ -112,6 +120,9 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 	{ "write_script", "Write script", false, true,
 			"Writes a script file (GDScript .gd, or another script language of the project), creating or replacing it, and checks it: the result lists errors and warnings with their line. The file is written even with errors, so that another write_script can fix them.",
 			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://scripts/enemy.gd\"."}, "source": {"type": "string", "description": "The whole code of the script."}}, "required": ["path", "source"]})" },
+	{ "edit_file", "Edit file", false, true,
+			"Changes part of a script or another text file (such as game.project.json): replaces old_text, copied exactly from read_file, with new_text. Scripts are checked as with write_script. With an empty old_text, creates a file that doesn't exist. Scenes and resources are changed with the scene tools instead.",
+			R"({"type": "object", "properties": {"path": {"type": "string", "description": "Such as \"res://scripts/enemy.gd\"."}, "old_text": {"type": "string", "description": "Text to replace; it must be in the file exactly once, unless replace_all."}, "new_text": {"type": "string", "description": "The text to put in its place."}, "replace_all": {"type": "boolean", "description": "Replace every occurrence of old_text (default false)."}}, "required": ["path", "new_text"]})" },
 	{ "attach_script", "Attach script", false, false,
 			"Attaches a script file to a node of the scene being edited, replacing its script. Undoable.",
 			R"({"type": "object", "properties": {"node": {"type": "string", "description": "Node path."}, "path": {"type": "string", "description": "Script file, such as \"res://scripts/enemy.gd\"."}}, "required": ["node", "path"]})" },
@@ -193,6 +204,12 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 		r_result = EretheaMcpSceneTools::delete_node(p_arguments);
 	} else if (p_name == "write_script") {
 		r_result = EretheaMcpSceneTools::write_script(p_arguments);
+	} else if (p_name == "edit_file") {
+		r_result = EretheaMcpFileTools::edit_file(p_arguments);
+	} else if (p_name == "read_file") {
+		r_result = EretheaMcpFileTools::read_file(p_arguments);
+	} else if (p_name == "list_files") {
+		r_result = EretheaMcpFileTools::list_files(p_arguments);
 	} else if (p_name == "attach_script") {
 		r_result = EretheaMcpSceneTools::attach_script(p_arguments);
 	} else if (p_name == "save_scene") {
@@ -218,6 +235,33 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 		r_result = EretheaMcpToolResult::error(vformat("Unknown tool: %s", p_name));
 	}
 	return true;
+}
+
+bool EretheaMcpPlugin::call_tool_local(const String &p_name, const Dictionary &p_arguments, const Callable &p_on_finished, EretheaMcpToolResult &r_result) {
+	local_client = true;
+	uint64_t pending_id = 0;
+	if (call_tool(p_name, p_arguments, true, r_result, pending_id)) {
+		return true;
+	}
+	local_calls[pending_id] = p_on_finished;
+	return false;
+}
+
+void EretheaMcpPlugin::cancel_local_calls() {
+	local_calls.clear();
+}
+
+void EretheaMcpPlugin::_finish_call(uint64_t p_call_id, const EretheaMcpToolResult &p_result) {
+	HashMap<uint64_t, Callable>::Iterator local = local_calls.find(p_call_id);
+	if (local) {
+		const Callable callable = local->value;
+		local_calls.remove(local);
+		if (callable.is_valid()) {
+			callable.call_deferred(p_result.to_dictionary());
+		}
+		return;
+	}
+	server.finish_call(p_call_id, p_result);
 }
 
 void EretheaMcpPlugin::_error_handler(void *p_self, const char *p_function, const char *p_file, int p_line, const char *p_error, const char *p_message, bool p_editor_notify, ErrorHandlerType p_type) {
@@ -328,7 +372,7 @@ void EretheaMcpPlugin::_finish_screenshot(uint64_t p_call_id, const Ref<Image> &
 		}
 	}
 	if (!p_failure.is_empty() || p_image.is_null() || p_image->is_empty()) {
-		server.finish_call(p_call_id, EretheaMcpToolResult::error(p_failure.is_empty() ? String("Nothing was drawn to capture.") : p_failure));
+		_finish_call(p_call_id, EretheaMcpToolResult::error(p_failure.is_empty() ? String("Nothing was drawn to capture.") : p_failure));
 		return;
 	}
 
@@ -351,7 +395,7 @@ void EretheaMcpPlugin::_finish_screenshot(uint64_t p_call_id, const Ref<Image> &
 																			   : vformat("editor's %s view", target.to_upper());
 	EretheaMcpToolResult result = EretheaMcpToolResult::text(vformat("Screenshot of the %s, %dx%d.", what, image->get_width(), image->get_height()));
 	result.add_image(CryptoCore::b64_encode_str(png.ptr(), png.size()));
-	server.finish_call(p_call_id, result);
+	_finish_call(p_call_id, result);
 }
 
 void EretheaMcpPlugin::_process_screenshots() {
@@ -483,7 +527,7 @@ void EretheaMcpPlugin::_finish_test(const PendingTest &p_test, bool p_timed_out)
 	json.instantiate();
 	if (text.is_empty() || json->parse(text) != OK || json->get_data().get_type() != Variant::DICTIONARY) {
 		const String why = p_timed_out ? String("It was still running at the time limit and was stopped.") : vformat("It exited with code %d before writing it; it may have crashed. get_errors or a run_game may show why.", OS::get_singleton()->get_process_exit_code(p_test.pid));
-		server.finish_call(p_test.call_id, EretheaMcpToolResult::error("The game didn't write its test report. " + why));
+		_finish_call(p_test.call_id, EretheaMcpToolResult::error("The game didn't write its test report. " + why));
 		return;
 	}
 	Dictionary report = json->get_data();
@@ -506,7 +550,7 @@ void EretheaMcpPlugin::_finish_test(const PendingTest &p_test, bool p_timed_out)
 			result.add_image(CryptoCore::b64_encode_str(png.ptr(), png.size()));
 		}
 	}
-	server.finish_call(p_test.call_id, result);
+	_finish_call(p_test.call_id, result);
 }
 
 bool EretheaMcpPlugin::_run_test(const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id) {
@@ -798,14 +842,16 @@ void EretheaMcpPlugin::_notification(int p_what) {
 				start_attempted = true;
 				_apply_settings();
 			}
-			if (server.is_listening()) {
+			if (server.is_listening() || local_client) {
 				const uint64_t now = OS::get_singleton()->get_ticks_msec();
 				if (now - last_debugger_scan_msec >= 1000) {
 					// Game instances get their debugger when they start.
 					last_debugger_scan_msec = now;
 					_connect_debuggers();
 				}
-				server.poll();
+				if (server.is_listening()) {
+					server.poll();
+				}
 				_process_screenshots();
 				_process_tests();
 			}
@@ -836,9 +882,13 @@ EretheaMcpPlugin::EretheaMcpPlugin() {
 	add_error_handler(&error_handler);
 
 	set_process_internal(true);
+	singleton = this;
 }
 
 EretheaMcpPlugin::~EretheaMcpPlugin() {
+	if (singleton == this) {
+		singleton = nullptr;
+	}
 	remove_error_handler(&error_handler);
 	server.stop();
 }

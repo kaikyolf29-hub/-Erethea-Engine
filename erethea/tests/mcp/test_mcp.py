@@ -47,6 +47,9 @@ EXPECTED_TOOLS = {
     "check_export",
     "build_fornalha_scenes",
     "run_test",
+    "list_files",
+    "read_file",
+    "edit_file",
 }
 
 BOX_SCRIPT = """extends MeshInstance3D

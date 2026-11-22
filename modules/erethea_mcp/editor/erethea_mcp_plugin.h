@@ -34,6 +34,7 @@
 
 #include "core/os/mutex.h"
 #include "core/os/process_id.h"
+#include "core/templates/hash_map.h"
 #include "editor/plugins/editor_plugin.h"
 
 #include "modules/modules_enabled.gen.h" // For erethea_export_checks.
@@ -53,6 +54,8 @@ public:
 	static constexpr const char *PORT_ENVIRONMENT = "ERETHEA_MCP_PORT";
 
 private:
+	static inline EretheaMcpPlugin *singleton = nullptr;
+
 	static constexpr int MAX_LOG_ENTRIES = 2000;
 	static constexpr uint64_t SCREENSHOT_TIMEOUT_MSEC = 10000;
 	// Frames to wait after showing an editor view, so that it's drawn.
@@ -102,6 +105,13 @@ private:
 	int64_t last_screenshot_request = 0;
 	uint64_t last_debugger_scan_msec = 0;
 
+	// Calls from inside the editor (the assistant panel) whose result comes
+	// later, by call id.
+	HashMap<uint64_t, Callable> local_calls;
+	// Set once a client inside the editor called a tool: the game's errors,
+	// screenshots and tests are then followed even without the server.
+	bool local_client = false;
+
 	static void _error_handler(void *p_self, const char *p_function, const char *p_file, int p_line, const char *p_error, const char *p_message, bool p_editor_notify, ErrorHandlerType p_type);
 	void _add_log(const String &p_source, const String &p_level, const String &p_message, const String &p_file = String(), int p_line = 0, const String &p_function = String());
 
@@ -109,6 +119,7 @@ private:
 	void _connect_debuggers();
 	void _debug_data(const String &p_message, const Array &p_data);
 	void _process_screenshots();
+	void _finish_call(uint64_t p_call_id, const EretheaMcpToolResult &p_result);
 	void _finish_screenshot(uint64_t p_call_id, const Ref<Image> &p_image, const String &p_failure);
 	Dictionary _get_status();
 
@@ -128,10 +139,22 @@ protected:
 	void _notification(int p_what);
 
 public:
+	static EretheaMcpPlugin *get_singleton() { return singleton; }
+
 	virtual String get_plugin_name() const override { return "Erethea MCP"; }
 
 	virtual Vector<EretheaMcpTool> get_tools() const override;
 	virtual bool call_tool(const String &p_name, const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id) override;
+
+	// Runs a tool for a client inside the editor, such as the assistant panel,
+	// without going through the server. Returns true with the result in
+	// `r_result`, or false when the result comes later (a screenshot or a
+	// test): `p_on_finished` is then called, deferred, with the result as
+	// EretheaMcpToolResult::to_dictionary().
+	bool call_tool_local(const String &p_name, const Dictionary &p_arguments, const Callable &p_on_finished, EretheaMcpToolResult &r_result);
+	// Forgets the calls still waiting for `p_on_finished`, such as when the
+	// person stops the assistant. The screenshots and tests still finish.
+	void cancel_local_calls();
 
 	EretheaMcpPlugin();
 	~EretheaMcpPlugin();

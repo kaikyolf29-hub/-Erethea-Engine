@@ -360,6 +360,8 @@ claude mcp add --transport http erethea http://127.0.0.1:11481/mcp
 | `set_node_properties` | Muda propriedades; aceita `[1, 2, 3]`, `"Vector3(1, 2, 3)"`, `"#ff8800"`, nomes de enum e recursos |
 | `delete_node` | Apaga um nó (nunca a raiz) |
 | `write_script` | Escreve um script e devolve os erros com linha e coluna |
+| `list_files`, `read_file` | Lista os arquivos do projeto e lê arquivos de texto (scripts, cenas, `game.project.json`) aos pedaços |
+| `edit_file` | Troca um trecho de um script ou de outro arquivo de texto (não cenas), conferindo o script como o `write_script` |
 | `attach_script` | Anexa um script a um nó |
 | `save_scene` | Salva a cena aberta |
 | `run_game`, `stop_game` | Roda a cena principal, a aberta ou outra, e para |
@@ -651,6 +653,74 @@ Linux e no Windows.
 
 ```sh
 python erethea/tests/fornalha_link/test_fornalha_link.py bin/erethea.linuxbsd.editor.x86_64
+```
+
+## Painel de IA
+
+Uma aba **Assistant** no lado direito do editor (ao lado do Inspetor, pode ser
+fechada) conversa com um modelo que enxerga a cena aberta e o
+`game.project.json` e age no editor. Pedidos como "coloque 10 inimigos na
+floresta" ou "faça o sistema de combate" viram nós, propriedades, cenas e
+scripts GDScript, e cada resposta pode ser desfeita. O código fica em
+`modules/erethea_assistant/`.
+
+**Quem responde.** Escolha no topo do painel (ou em *Configurações do Editor ›
+Erethea › Assistant*, `erethea/assistant/provider`):
+
+| Provedor | Como fala | Configurações |
+| --- | --- | --- |
+| Ignis (padrão, neste computador) | `POST http://127.0.0.1:11470/v1/chat/completions`, modelo `default`. Como modelos pequenos podem não saber usar "tools", a resposta é um JSON preso por um esquema, como a Fornalha faz com o Ignis: `{"reply": "...", "actions": [{"tool": "...", "arguments": {...}}]}`. O painel tira o `<think>...</think>` do Qwen3, confere cada ação contra o esquema da ferramenta (argumento que não existe ou do tipo errado sai, ação sem os obrigatórios é deixada de lado e o painel avisa), executa e manda os resultados de volta, por até 4 rodadas. Só vão as últimas 6 mensagens, a árvore da cena até ~150 nós e o `game.project.json` até ~6000 caracteres | `erethea/assistant/ignis/url` |
+| Claude (API da Anthropic) | `POST https://api.anthropic.com/v1/messages`, `anthropic-version: 2026-10-21`, modelo `claude-opus-5-5`, ferramentas nativas com `tool_choice` `auto`, cache de prompt e `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`; se a API recusar, o painel tenta de novo sem). O histórico nunca é editado, porque o Opus 5.5 prende os blocos de pensamento à conversa: o prompt de sistema e as ferramentas ficam fixos, o contexto do editor vai em cada pergunta e a resposta do Claude volta byte a byte. Se a API disser que um pensamento é "bound to a different conversation", o painel tira os blocos de pensamento e tenta uma vez | `erethea/assistant/claude/api_key` (ou a variável `ANTHROPIC_API_KEY`), `erethea/assistant/claude/model` |
+| Servidor compatível com OpenAI | `POST <url>/chat/completions` com `tools` do tipo `function` (LM Studio, Ollama, um serviço na nuvem) | `erethea/assistant/openai/url`, `erethea/assistant/openai/api_key`, `erethea/assistant/openai/model` |
+
+Em 429, 500, 502, 503 e 529 o painel tenta mais uma vez depois de 3 s. Uma
+recusa do Claude aparece no painel e a pergunta sai do histórico.
+
+**O que o modelo vê.** Em cada pergunta: o nome do projeto, se é da Fornalha,
+as cenas abertas, a cena editada com a árvore resumida, os nós selecionados e
+o `game.project.json` (para o Claude e o servidor OpenAI, só quando ele muda; o
+Ignis recebe sempre). As ferramentas são as mesmas do servidor MCP (tabela
+acima), chamadas sem passar pela rede, e o servidor MCP não precisa estar
+ligado. No máximo 30 ferramentas por pergunta. O prompt de sistema pede que o
+modelo responda na língua da pessoa, salve as cenas que mudar e, em projetos
+da Fornalha, prefira mudar as propriedades exportadas nas cenas ou o
+`game.project.json` e chamar `build_fornalha_scenes` em vez de mexer nos
+scripts de `Scripts/fornalha/`.
+
+**Usar.** Escreva no campo de baixo e aperte Enter (Shift+Enter quebra a
+linha). Enquanto responde, o botão Send vira Stop. Cada ação aparece em cinza e
+os erros em vermelho. *New* começa outra conversa.
+
+**Desfazer.** *Undo last answer* desfaz a última resposta que mudou algo:
+
+- nós e propriedades voltam pelo histórico de desfazer da cena (as mudanças
+  entram nele com o nome `Assistant: ...`, então Ctrl+Z também funciona);
+- cena salva pela resposta (por `save_scene`, `run_game` ou `run_test`) é
+  salva de novo depois que o histórico volta;
+- scripts e outros arquivos voltam ao conteúdo de antes, e os que a resposta
+  criou são apagados;
+- cena criada pela resposta é fechada e apagada;
+- cenas que o `build_fornalha_scenes` regravou voltam ao arquivo antigo e
+  recarregam.
+
+Se a pessoa mexeu na mesma cena ou no mesmo arquivo depois da resposta, o
+painel não desfaz nada e avisa, para não apagar o trabalho dela.
+
+**Teste.** `erethea/tests/assistant/test_assistant.py` sobe um servidor de
+mentira que responde como a API da Anthropic, um servidor OpenAI e o Ignis, e
+abre o editor num projeto com um plugin (`addons/assistant_driver`) que escreve
+no painel e aperta Send, New e Undo. Pelo MCP e pelos arquivos do projeto, o
+teste confere que as respostas criaram nós, salvaram a cena e escreveram e
+mudaram scripts, e que o desfazer voltou tudo; pelo servidor de mentira, que a
+pergunta levou o contexto do editor, que a resposta do Claude voltou byte a
+byte e que os resultados das ferramentas chegaram certos. O CI roda no Linux e
+no Windows. Os testes de unidade (`--test --test-case="*Assistant*"`) cobrem a
+montagem dos pedidos e a leitura das respostas dos três provedores. A conversa
+de verdade com o Ignis e com a API do Claude fica para o teste final no PC do
+criador.
+
+```sh
+python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64
 ```
 
 ## Lançar uma versão

@@ -67,153 +67,31 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática). Falta só a assinatura (no lançamento) e dois extras opcionais, abaixo |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18) no `main`; elo ao vivo (#19) e modo de teste (#20) abertos; painel de IA começado; prévia com LibGodot por fazer |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19) e modo de teste (#20) no `main`; painel de IA no PR #22; prévia com LibGodot por fazer |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Não começou |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
 ## O que fazer agora (na ordem)
 
-### 1. PR #19, elo ao vivo com a Fornalha
+### 1 e 2. PRs #19 e #20: feitos
 
-Branch `claude/project-thread-ipvi6s`. O editor pergunta à Fornalha
-(`GET 127.0.0.1:11480/fornalha/ponte`) a cada 2 s e, quando ela anunciar um
-WebSocket, passa a usá-lo; quando o projeto muda, importa e monta as cenas
-sozinho. Se o CI estiver verde, faça o merge (método "merge", para manter os
-commits pequenos). Se algum job falhar, veja "Falhas conhecidas do CI" antes de
-mexer.
+O elo ao vivo com a Fornalha (#19) e o modo de teste para agentes (#20) estão
+no `main`.
 
-### 2. PR #20, modo de teste para agentes
+### 3. Painel de IA (PR #22)
 
-Branch `claude/erethea-agent-test`, em cima do #19 (por isso está como
-rascunho). Depois do merge do #19: marque como pronto, espere o CI (inclui o
-workflow novo `erethea_agent_test.yml` em Linux e Windows) e faça o merge. Se o
-GitHub pedir, atualize o branch com o `main` por merge (não reescreva o
-histórico). Detalhes no próprio PR e em `erethea/README.md`, "Modo de teste
-para agentes".
+Branch `claude/happy-dijkstra-gueto9`, PR #22. Módulo `modules/erethea_assistant/`:
+aba "Assistant" no editor com três provedores (Ignis local com resposta em JSON
+preso por esquema; Claude pela API com ferramentas nativas e histórico nunca
+editado; servidor compatível com OpenAI), as ferramentas do MCP chamadas sem
+rede (`EretheaMcpPlugin::call_tool_local`) e o botão "Undo last answer". Tudo
+documentado em `erethea/README.md`, "Painel de IA". Testes: unidade
+(`--test-case="*Assistant*"`) e `erethea/tests/assistant/test_assistant.py`
+(servidor de mentira + plugin que aperta os botões), no workflow
+`erethea_assistant.yml`.
 
-### 3. Painel de IA (último item grande da Fase 3)
-
-Plano 2: "chat com o cérebro (Ignis local ou API) que enxerga a cena aberta e o
-`game.project.json`. Pedidos como 'coloque 10 inimigos na floresta' ou 'faça o
-sistema de combate' viram ações no editor e scripts GDScript, sempre com
-desfazer."
-
-Já feito, no branch `claude/erethea-assistant-wip` (1 commit em cima do
-`claude/erethea-agent-test`, compila sem avisos e o teste do MCP passa):
-ferramentas MCP `list_files`, `read_file` e `edit_file`
-(`modules/erethea_mcp/editor/erethea_mcp_file_tools.*`),
-`EretheaMcpToolResult::to_dictionary()/from_dictionary()` e
-`EretheaMcpSceneTools::set_action_source()` (nome de quem fez a mudança no
-histórico de desfazer). Faça o rebase desse commit no `main` depois do #20.
-
-Desenho decidido:
-
-- **Módulo novo** `modules/erethea_assistant/` (só editor; `config.py` com
-  `env.module_add_dependencies("erethea_assistant", ["erethea_mcp"])` e
-  `can_build` só em `env.editor_build`). Um `EditorDock` chamado "Assistant",
-  aberto como aba no lado direito (`DOCK_SLOT_RIGHT_UL`), fechável. Textos da
-  interface em inglês com `TTR()`, como os outros módulos da Erethea.
-- **Reusa as ferramentas do MCP** sem passar pela rede. Em `EretheaMcpPlugin`:
-  um `get_singleton()`, e `call_tool_local(name, args, Callable on_finished,
-  EretheaMcpToolResult &r_result)` que chama `call_tool(..., p_can_wait=true,
-  ...)`; quando a ferramenta responde depois (`take_screenshot`, `run_test`),
-  guarda o id num `HashMap<uint64_t, Callable>` e troca as chamadas diretas a
-  `server.finish_call(...)` por um `_finish_call(id, result)` que entrega ao
-  `Callable` (com `call_deferred(result.to_dictionary())`) ou ao servidor. O
-  processamento de capturas, testes e depuradores em
-  `NOTIFICATION_INTERNAL_PROCESS` hoje só roda com o servidor ligado; passe a
-  rodar também quando houver um cliente local (`local_client = true`).
-- **Três provedores** (configuração do editor `erethea/assistant/provider`):
-  1. **Ignis** (padrão, local): `POST http://127.0.0.1:11470/v1/chat/completions`,
-     modelo `"default"`. Como não se sabe se o Ignis aceita "tools", use o
-     mesmo jeito que a Fornalha já provou com o Ignis 0.4.0 (Qwen3) em
-     `crates/fornalha-core/src/plano.rs`: `response_format` com `json_schema`
-     estrito pedindo `{"reply": "...", "actions": [{"tool": "<nome>",
-     "arguments": {...}}]}`; o Qwen3 pode mandar `<think>...</think>` antes do
-     JSON (corte até o último `</think>` e pegue do primeiro `{` ao último
-     `}`). Confira cada ação contra o esquema da ferramenta (tire argumento que
-     não existe ou do tipo errado, descarte ação sem os obrigatórios), execute,
-     mande os resultados de volta e repita até 4 rodadas ou `actions` vazio.
-     Errors do Ignis vêm em `error` ou `error.message` (códigos `sem_modelo`,
-     `sem_motor`: "abra o Ignis e clique em Preparar"). Contexto curto
-     (modelos pequenos): árvore da cena até ~150 nós e `game.project.json` até
-     ~6000 characters, só as últimas 6 mensagens.
-  2. **Claude pela API** (opcional, só com chave): `POST
-     https://api.anthropic.com/v1/messages`, cabeçalhos `x-api-key`,
-     `anthropic-version: 2026-10-21`, `content-type: application/json`; modelo
-     padrão `claude-opus-5-5` (configurável); `max_tokens` 16000; ferramentas
-     nativas (cada ferramenta MCP vira `{name, description, input_schema}`);
-     `tool_choice` só `auto` (o Opus 5.5 recusa `any`/`tool` com error 400);
-     não mande `thinking` (no Opus 5.5 ele sempre pensa; `{"type":"disabled"}`
-     dá 400); `cache_control: {"type": "ephemeral"}` no topo do corpo; e
-     `fallbacks: "default"` com o cabeçalho `anthropic-beta:
-     server-side-fallback-2026-07-01` (se der 400 citando fallback, tente de
-     novo sem). Chave na configuração `erethea/assistant/claude/api_key`
-     (`PROPERTY_HINT_PASSWORD`) ou na variável `ANTHROPIC_API_KEY`. **O
-     histórico não pode set editado**: no Opus 5.5 os blocos de pensamento
-     ficam presos à conversa. Então o prompt de sistema e a lista de
-     ferramentas são fixos durante a conversa, o contexto do editor vai no
-     começo de cada mensagem do usuário (não no sistema), e a resposta do
-     assistente volta igualzinha (guarde o trecho JSON cru de `content` e
-     monte o corpo por concatenação). Se vier 400 com "bound to a different
-     conversation", tire todos os blocos `thinking`/`redacted_thinking` do
-     histórico e tente uma vez. `stop_reason`: `end_turn` terminou;
-     `tool_use` executa todas as ferramentas e manda todos os `tool_result`
-     numa só mensagem do usuário (com `is_error` quando falhar; capturas como
-     bloco `image` base64 PNG); `max_tokens` não executa ferramentas da
-     resposta cortada; `refusal` mostra que o modelo recusou e tira do
-     histórico a última pergunta (remover do fim é permitido). Repetir uma
-     vez depois de 3 s em 429, 500, 502, 503 e 529.
-  3. **Servidor compatível com OpenAI** (opcional): URL base com `/v1`, chave
-     `Bearer`, `tools` do tipo `function`, resultado como mensagens `tool`
-     com `tool_call_id`.
-- **Contexto do editor** em cada pergunta: nome do projeto, se é da Fornalha,
-  cenas abertas, a cena editada com a árvore resumida (use
-  `EretheaMcpSceneTools::get_scene_tree` e limit profundidade e nós), os nós
-  selecionados e o `game.project.json` (mande de novo só quando mudar).
-- **Prompt de sistema** (inglês, responde na língua da pessoa): assistente
-  dentro do editor da Erethea (fork da Godot 4); use as ferramentas para agir;
-  salve as cenas que mudar com `save_scene`; em projetos da Fornalha, os
-  scripts em `Scripts/fornalha/` são da Fornalha (prefira mudar propriedades
-  exportadas nas cenas ou o `game.project.json` e depois
-  `build_fornalha_scenes`); "nessa área" é a cena aberta ou o nó selecionado;
-  responda curto dizendo o que mudou.
-- **Desfazer** ("sempre com desfazer"): um botão "Undo last answer". Antes de
-  cada ferramenta que muda algo, guarde o estado: para `create_node`,
-  `set_node_properties`, `delete_node` e `attach_script`, o id do histórico da
-  cena (`EditorUndoRedoManager::get_history_id_for_object(root)`) e a versão
-  (`get_history_undo_redo(id)->get_version()`); para `write_script`,
-  `edit_file` e `create_scene`, o conteúdo anterior do arquivo (ou que ele não
-  existia); para `save_scene`, `run_game` e `run_test`, os arquivos das cenas
-  abertas (elas são salvas antes de rodar); para `build_fornalha_scenes`, os
-  arquivos de texto do projeto (`.tscn .tres .gd .json .cfg` e
-  `project.godot`, com limit de tamanho). Ao desfazer: chame
-  `undo_history(id)` até voltar à versão guardada; cena aberta cujo arquivo
-  mudou e cujo histórico voltou é salva de novo
-  (`EditorNode::save_scene_if_open`); cena mexida pelo `build_fornalha_scenes`
-  recebe o arquivo antigo e `EditorNode::reload_scene`; scripts e outros
-  arquivos voltam ao conteúdo antigo (ou são apagados) e recarregam como no
-  `write_script`; cena criada na resposta é fechada e apagada. Se a pessoa
-  mexeu depois da resposta, avise em vez de desfazer o trabalho dela.
-- **Interface**: selector de provedor, botão de nova conversa, conversa num
-  `RichTextLabel` (pergunta, resposta e cada ação em cinza, errors em
-  vermelho), campo de texto (Enter envia, Shift+Enter quebra linha), botão
-  Send que vira Stop enquanto roda, e o botão de desfazer. Limit de 30
-  ferramentas por pergunta.
-- **Testes**: testes de unidade da montagem dos pedidos e da leitura das
-  respostas dos três provedores (incluindo o trecho JSON cru, o corte do
-  `<think>` e a conferência das ações do Ignis). Teste de ponta a ponta
-  `erethea/tests/assistant/test_assistant.py` com um servidor false em Python
-  que responde como Anthropic, OpenAI e Ignis; um plugin GDScript no projeto
-  de teste muda as configurações do editor, escreve no campo do painel e
-  aperta Send e Undo (procurando os nós pelo nome); o Python confere pelo MCP
-  (`get_scene_tree`, `read_file`) que a mudança aconteceu e que o desfazer
-  voltou tudo, e confere no servidor false que o contexto e os resultados das
-  ferramentas chegaram certos. Workflow `erethea_assistant.yml` (Linux e
-  Windows), linha no `runner.yml`, `CODEOWNERS`, `CLAUDE.md` e seção
-  "Painel de IA" no `erethea/README.md`.
-- O teste de verdade com o Ignis e com a API fica para o teste final do Kaiky
-  (o CI só usa o servidor false): diga isso no PR.
+Falta: CI verde e merge (método "merge"). O teste com o Ignis de verdade e com
+a API do Claude de verdade fica para o teste final do Kaiky.
 
 ### 4. Prévia com LibGodot (último item da Fase 3)
 
@@ -352,7 +230,10 @@ Pedidos da Erethea para a Fornalha:
 ## Como compilar e testar
 
 ```sh
-# Linux (o que roda na nuvem; 4 núcleos, ~4 min incremental com scu_build)
+# Linux (o que roda na nuvem; 4 núcleos, ~15 min do zero e ~4 min incremental com scu_build).
+# Num contêiner novo: pip install scons zstandard prek. Sem wayland-scanner, acrescente
+# wayland=no; linker=lld deixa o link mais rápido. O teste [IP] resolve_hostname falha
+# em contêiner sem IPv6, o que não é problema do código.
 scons platform=linuxbsd target=editor -j4 scu_build=yes tests=yes debug_symbols=no accesskit=no
 E=bin/erethea.linuxbsd.editor.x86_64
 $E --headless --test --test-case="*Erethea*"            # testes de unidade da Erethea
@@ -360,6 +241,7 @@ python3 erethea/tests/mcp/test_mcp.py $E                 # servidor MCP (imprime
 python3 erethea/tests/agent_test/test_agent_test.py $E   # modo de teste
 python3 erethea/tests/fornalha_link/test_fornalha_link.py $E
 python3 erethea/tests/fornalha_import/test_fornalha_import.py $E
+python3 erethea/tests/assistant/test_assistant.py $E      # painel de IA (imprime ERETHEA_ASSISTANT_OK)
 python3 erethea/tools/rebrand.py --check
 prek run --all-files                                     # estilo (ou pre-commit)
 ```
@@ -406,6 +288,11 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
 
 ## Detalhes técnicos úteis
 
+- Painel de IA (`modules/erethea_assistant/`): os provedores só montam pedidos e
+  leem respostas (`erethea_assistant_providers.*`, testáveis sem editor); o painel
+  (`editor/erethea_assistant_dock.*`) faz o laço pergunta → ferramentas →
+  resultados com `HTTPRequest`; o desfazer fica em `editor/erethea_assistant_undo.*`.
+  As ferramentas vêm do `EretheaMcpPlugin::get_singleton()->call_tool_local()`.
 - Servidor MCP do editor (`modules/erethea_mcp/`): HTTP só em 127.0.0.1, porta
   11481 (a Fornalha usa 11480, o Ignis 11470), desligado por padrão
   (Configurações do Editor `erethea/mcp/enabled` ou variável

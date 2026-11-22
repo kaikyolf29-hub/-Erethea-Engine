@@ -68,6 +68,22 @@ void EretheaMcpToolResult::add_image(const String &p_base64_png) {
 	content.push_back(block);
 }
 
+Dictionary EretheaMcpToolResult::to_dictionary() const {
+	Dictionary dictionary;
+	dictionary["content"] = content;
+	dictionary["structured"] = structured;
+	dictionary["is_error"] = is_error;
+	return dictionary;
+}
+
+EretheaMcpToolResult EretheaMcpToolResult::from_dictionary(const Dictionary &p_dictionary) {
+	EretheaMcpToolResult result;
+	result.content = p_dictionary.get("content", Array());
+	result.structured = p_dictionary.get("structured", Dictionary());
+	result.is_error = p_dictionary.get("is_error", false);
+	return result;
+}
+
 // JSON numbers arrive as floats: give whole request ids back as integers.
 static Variant _clean_id(const Variant &p_id) {
 	if (p_id.get_type() == Variant::FLOAT) {

@@ -102,3 +102,8 @@ jobs:
     name: 🔥 Erethea Fornalha import
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_fornalha_import.yml
+
+  erethea-assistant:
+    name: 🔥 Erethea assistant
+    needs: [linux-build, windows-build]
+    uses: ./.github/workflows/erethea_assistant.yml
