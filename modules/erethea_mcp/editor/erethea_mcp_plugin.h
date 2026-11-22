@@ -33,6 +33,7 @@
 #include "../erethea_mcp_server.h"
 
 #include "core/os/mutex.h"
+#include "core/os/process_id.h"
 #include "editor/plugins/editor_plugin.h"
 
 #include "modules/modules_enabled.gen.h" // For erethea_export_checks.
@@ -86,6 +87,17 @@ private:
 		int frames_left = 0;
 	};
 	LocalVector<PendingScreenshot> screenshots;
+
+	// A game run by run_test, until it exits.
+	struct PendingTest {
+		uint64_t call_id = 0;
+		ProcessID pid = 0;
+		String folder;
+		uint64_t deadline_msec = 0;
+	};
+	static constexpr int TEST_MAX_SECONDS = 40;
+	static constexpr uint64_t TEST_DEADLINE_MSEC = 55000;
+	LocalVector<PendingTest> tests;
 	uint64_t last_call_id = 0;
 	int64_t last_screenshot_request = 0;
 	uint64_t last_debugger_scan_msec = 0;
@@ -108,6 +120,9 @@ private:
 	EretheaMcpToolResult _check_export(const Dictionary &p_arguments);
 #endif
 	bool _take_screenshot(const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id);
+	bool _run_test(const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id);
+	void _process_tests();
+	void _finish_test(const PendingTest &p_test, bool p_timed_out);
 
 protected:
 	void _notification(int p_what);
