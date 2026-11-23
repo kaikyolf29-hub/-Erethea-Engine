@@ -399,9 +399,17 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
   passo não o achava. Correção (PR #28): o instalador abre por ShellExecute,
   sem herdar nada do passo, o editor é procurado pelo caminho via
   `Win32_Process`, e tudo que a atualização abriu é fechado no fim (`finally`),
-  com a lista impressa no log. O job agora tem 20 minutos. Se travar de novo
-  mesmo assim, a hipótese caiu: aí a suspeita passa a ser a própria máquina
-  (o editor reaberto sem `--rendering-driver`, num executor sem placa de vídeo).
+  com a lista impressa no log. O job agora tem 20 minutos. **Não resolveu**:
+  em 23/11 travou de novo no PR #30, já com o #28 (no total, umas 4 em cada 10
+  execuções, antes e depois). Então é o próprio executor que para de
+  responder durante o passo (nem o limite do passo funciona), e não o script.
+  Experimento 2 (PR #30): o editor que o instalador reabre é fechado assim que
+  aparece, antes de montar a parte gráfica (ele abre com o renderizador padrão
+  num executor sem placa de vídeo; o teste da janela força o ANGLE por isso).
+  Conte as próximas execuções: se não travar mais em umas 8, a causa é essa
+  inicialização gráfica; se travar, a suspeita passa ao instalador (o Restart
+  Manager do `/CLOSEAPPLICATIONS`, que pode querer fechar o Explorer, que
+  segura o ícone do `erethea.exe`).
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
   um build novo, suba um commit.
 
