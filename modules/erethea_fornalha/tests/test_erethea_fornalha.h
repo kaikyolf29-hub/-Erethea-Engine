@@ -355,4 +355,54 @@ TEST_CASE("[Modules][EretheaFornalha] Messages from the Fornalha") {
 	CHECK(String(hello["programa"]).length() > 0);
 }
 
+TEST_CASE("[Modules][EretheaFornalha] How each area sounds") {
+	EretheaFornalhaArea area;
+	area.type = "caverna";
+	EretheaFornalhaAcoustics acoustics = EretheaFornalhaImport::get_acoustics(area);
+	CHECK(acoustics.name == "caverna");
+	CHECK(acoustics.get_bus_name() == "Eco_caverna");
+	area.type = "masmorra";
+	CHECK(EretheaFornalhaImport::get_acoustics(area).name == "caverna");
+	area.type = "Coliseu";
+	CHECK(EretheaFornalhaImport::get_acoustics(area).name == "ruinas");
+	area.type = "pantano";
+	CHECK(EretheaFornalhaImport::get_acoustics(area).name == "floresta");
+	area.type = "vulcao";
+	CHECK(EretheaFornalhaImport::get_acoustics(area).name == "montanha");
+	area.type = "castelo";
+	CHECK(EretheaFornalhaImport::get_acoustics(area).name == "salao");
+	area.type = "aldeia";
+	CHECK(EretheaFornalhaImport::get_acoustics(area).name == "vila");
+	// "acustica" in game.project.json wins over the type.
+	area.acoustics = "caverna";
+	CHECK(EretheaFornalhaImport::get_acoustics(area).name == "caverna");
+	// Unknown: no echo.
+	area.acoustics = String();
+	area.type = "espaco";
+	CHECK_FALSE(EretheaFornalhaImport::get_acoustics(area).is_valid());
+
+	// The 15 types of the Fornalha's blockout all have one.
+	const char *types[] = { "vila", "cidade", "aldeia", "floresta", "bosque", "pantano", "montanha", "colina", "vulcao", "masmorra", "caverna", "castelo", "ruinas", "arena", "coliseu" };
+	for (const char *type : types) {
+		area.type = type;
+		CHECK_MESSAGE(EretheaFornalhaImport::get_acoustics(area).is_valid(), type);
+	}
+
+	EretheaFornalhaProject project;
+	EretheaFornalhaArea village;
+	village.center = Vector3(0, 0, 0);
+	project.areas.push_back(village);
+	CHECK(EretheaFornalhaImport::get_area_radius(project, 0) == doctest::Approx(80.0));
+	EretheaFornalhaArea forest;
+	forest.center = Vector3(0, 5, -40);
+	project.areas.push_back(forest);
+	// Half the way to the nearest area, on the ground.
+	CHECK(EretheaFornalhaImport::get_area_radius(project, 0) == doctest::Approx(20.0));
+	EretheaFornalhaArea camp;
+	camp.center = Vector3(10, 0, 0);
+	project.areas.push_back(camp);
+	CHECK(EretheaFornalhaImport::get_area_radius(project, 0) == doctest::Approx(12.0));
+	CHECK(EretheaFornalhaImport::get_area_radius(project, 1) == doctest::Approx(20.0));
+}
+
 } // namespace TestEretheaFornalha

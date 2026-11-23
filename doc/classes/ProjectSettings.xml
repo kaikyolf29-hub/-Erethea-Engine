@@ -1166,6 +1166,9 @@
 		<member name="editor/erethea_export_checks/run_on_export" type="int" setter="" getter="" default="1">
 			When the Erethea checks run during export: [code]Never[/code], only in projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), or in all projects. They list too many triangles, too big textures, wrong scale and missing license receipts in the export log. They can also be run with [b]Project &gt; Tools &gt; Check Project for Export...[/b]. Erethea only.
 		</member>
+		<member name="editor/erethea_fornalha/area_acoustics" type="bool" setter="" getter="" default="true">
+			In projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), give each area built from it an [Area3D] that sends the sounds made inside it to a reverb bus that matches the area: [code]caverna[/code], [code]salao[/code], [code]ruinas[/code], [code]vila[/code], [code]floresta[/code] or [code]montanha[/code], by the area's type or its [code]"acustica"[/code] field. The buses the project doesn't have yet are added to its audio bus layout. Erethea only.
+		</member>
 		<member name="editor/erethea_fornalha/build_automatically" type="bool" setter="" getter="" default="true">
 			In projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), build the scenes again by themselves when what they are built from changes, such as a new character from the Fornalha. Scenes changed by hand are kept. Before the first build, this only happens in a project with no [code]res://principal.tscn[/code] yet. Erethea only.
 		</member>

@@ -198,6 +198,18 @@ def build_checks(mcp, project):
     check('path="res://Scripts/fornalha/inimigo.gd"' in enemy, "the enemy has the Fornalha's enemy script")
     forest = (project / "World/areas/floresta.tscn").read_text(encoding="utf-8")
     check(forest.count('instance=ExtResource("') == 2, "the forest has its two enemies")
+    check(
+        '[node name="Eco" type="Area3D"' in forest and 'reverb_bus_name = &"Eco_floresta"' in forest,
+        "the forest echoes as a forest",
+    )
+    village = (project / "World/areas/vila.tscn").read_text(encoding="utf-8")
+    check('reverb_bus_name = &"Eco_vila"' in village, "and the village as a village")
+    check(report.get("audio_buses") == ["Eco_vila", "Eco_floresta"], "their reverb buses are added")
+    layout = (project / "default_bus_layout.tres").read_text(encoding="utf-8")
+    check(
+        '"Eco_vila"' in layout and '"Eco_floresta"' in layout and "AudioEffectReverb" in layout,
+        "to the project's bus layout",
+    )
     world = (project / "World/mundo.tscn").read_text(encoding="utf-8")
     check('path="res://World/blockout.glb"' in world, "the world uses the blockout's file")
     check(
@@ -206,8 +218,10 @@ def build_checks(mcp, project):
     )
 
     print("Second build")
-    found = results(mcp.data("build_fornalha_scenes"))
+    report = mcp.data("build_fornalha_scenes")
+    found = results(report)
     check(all(found[scene] == "unchanged" for scene in SCENES[:-1]), "nothing changes")
+    check("audio_buses" not in report, "the buses aren't added again")
     check(found["res://principal.tscn"] == "kept", "the main scene is still kept")
 
     print("Forced build")
