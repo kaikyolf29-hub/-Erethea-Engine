@@ -247,7 +247,12 @@ comparado na cena de referência:
    confira no repositório dela) e locomoção com o MotionBricks da NVIDIA
    (conferir a licença antes).
 9. **Efeitos de compositor** prontos: névoa de altura e raios de luz (pedido da
-   Fornalha).
+   Fornalha). **Raios de luz: feito no PR #32** (`EretheaLightShafts` em
+   `modules/erethea_post/`, `--post=shafts` e `--sun=front` na cena de
+   referência, passo próprio no CI). **Névoa de altura: não precisa de código**,
+   é a do `Environment` da Godot (`fog_enabled` + `fog_height_density`),
+   documentada no README. Falta a prova de velocidade na RX 580 (lista do teste
+   final).
 10. Teste de pronto no CI com o que der (WARP/lavapipe); a prova na RTX e na
     RX 580 entra na lista do teste final do Kaiky.
 
