@@ -1,0 +1,15 @@
+config_version=5
+
+[application]
+
+config/name="rtscene"
+run/main_scene="res://main.tscn"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=360
+
+[rendering]
+
+anti_aliasing/quality/use_taa=false
