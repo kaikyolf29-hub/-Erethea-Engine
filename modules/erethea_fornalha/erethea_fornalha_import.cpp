@@ -37,6 +37,7 @@
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
+#include "core/object/class_db.h"
 #include "core/object/script_language.h"
 #include "core/os/time.h"
 #include "editor/editor_node.h"
@@ -61,6 +62,8 @@
 #include "scene/resources/sky.h"
 #include "servers/audio/audio_server.h"
 #include "servers/audio/effects/audio_effect_reverb.h"
+
+#include "modules/modules_enabled.gen.h" // For MODULE_INTERACTIVE_MUSIC_ENABLED.
 
 #ifdef MODULE_INTERACTIVE_MUSIC_ENABLED
 #include "modules/interactive_music/audio_stream_interactive.h"
@@ -323,7 +326,7 @@ String EretheaFornalhaProject::get_signature() const {
 	inputs.push_back(vformat("music %s", music));
 	// Each music by its tempo and date, so that a new one builds the scenes again.
 	for (const EretheaFornalhaMusic &track : music_tracks) {
-		inputs.push_back(vformat("music track %s %s %d %d %d", track.situation, track.bpm, track.bars, track.imported, int64_t(FileAccess::get_modified_time(track.info))));
+		inputs.push_back(vformat("music track %s %s %d %d %d", track.situation, track.bpm, track.bars, int(track.imported), int64_t(FileAccess::get_modified_time(track.info))));
 	}
 	inputs.push_back(vformat("sky %s", sky));
 	return JSON::stringify(inputs).md5_text();
@@ -666,8 +669,7 @@ String EretheaFornalhaImport::set_music_import_options(const String &p_import_te
 	};
 	bool changed = false;
 	for (const auto &option : options) {
-		const Variant current = config->get_value("params", option.key, Variant());
-		if (current.get_type() != option.value.get_type() || current != option.value) {
+		if (!config->has_section_key("params", option.key) || config->get_value("params", option.key).get_type() != option.value.get_type() || config->get_value("params", option.key) != option.value) {
 			config->set_value("params", option.key, option.value);
 			changed = true;
 		}

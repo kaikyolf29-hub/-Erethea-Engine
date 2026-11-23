@@ -228,7 +228,8 @@ def music_import_checks(project):
             f"{situation}.wav loops forward over all of it",
         )
         check(
-            float(params.get("bpm", "0")) == bpm and params.get("beat_count") == str(bars * 4)
+            float(params.get("bpm", "0")) == bpm
+            and params.get("beat_count") == str(bars * 4)
             and params.get("bar_beats") == "4",
             f"{situation}.wav has its bpm, beat count and beats per bar",
         )
@@ -330,18 +331,31 @@ def build_checks(mcp, project):
         'path="res://World/mundo.tscn"' in main and 'path="res://Characters/heroi/heroi.tscn"' in main,
         "the main scene has the world and the player",
     )
-    check('[node name="Musica" type="AudioStreamPlayer" parent="." groups=["erethea_musica"]' in main, "the main scene has the Musica node in its group")
+    check(
+        '[node name="Musica" type="AudioStreamPlayer" parent="."' in main and 'groups=["erethea_musica"]' in main,
+        "the main scene has the Musica node in its group",
+    )
     check("volume_db = -8.0" in main, "at the volume of the Sons")
-    check(main.count("type=\"AudioStreamWAV\"") == 0 and all(f'path="{wav}"' in main for wav in MUSIC_FILES), "using the WAV files as external resources")
+    check(
+        main.count('type="AudioStreamWAV"') == 0 and all(f'path="{wav}"' in main for wav in MUSIC_FILES),
+        "using the WAV files as external resources",
+    )
     check('[sub_resource type="AudioStreamInteractive"' in main, "with an interactive stream")
     check('clip_0/name = &"combate"' in main and 'clip_1/name = &"vila"' in main, "one clip per music, by situation")
     check("initial_clip = 1" in main, "starting by the music of the main scene")
     check("clip_count = 2" in main, "no more clips than music")
     check(
-        "transitions" in main and "from_time" in main or "-1 -> -1" in main or "transitions =" in main,
-        "with a transition between any two clips",
+        "Vector2i(-1, -1)" in main
+        and '"fade_beats": 2.0' in main
+        and '"fade_mode": 3' in main
+        and '"from_time": 2' in main
+        and '"to_time": 1' in main,
+        "with one transition from any clip to any: next bar, to the start, cross fade of two beats",
     )
-    check('func tocar(situacao: String)' in main and 'switch_to_clip_by_name' in main, "and the script that changes the music")
+    check(
+        "func tocar(situacao: String)" in main and "switch_to_clip_by_name" in main,
+        "and the script that changes the music",
+    )
 
     print("A scene changed by hand")
     village = project / "World/areas/vila.tscn"
@@ -380,7 +394,10 @@ def main():
         check(code == 0, f"the project imports (exit code {code})")
 
         print("Editor with the MCP server")
-        imports = {situation: (project / f"Audio/musica/{situation}.wav.import").read_text(encoding="utf-8") for situation, *_ in MUSIC}
+        imports = {
+            situation: (project / f"Audio/musica/{situation}.wav.import").read_text(encoding="utf-8")
+            for situation, *_ in MUSIC
+        }
         with editor_session(editor, project, out / "editor.log", args.port, args.timeout) as mcp:
             build_checks(mcp, project)
 
