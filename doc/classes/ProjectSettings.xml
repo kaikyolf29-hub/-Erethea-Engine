@@ -981,6 +981,11 @@
 		<member name="display/window/energy_saving/keep_screen_on" type="bool" setter="" getter="" default="true">
 			If [code]true[/code], keeps the screen on (even in case of inactivity), so the screensaver does not take over. Works on desktop and mobile platforms.
 		</member>
+		<member name="display/window/erethea/modern_title_bar" type="bool" setter="" getter="" default="false">
+			Erethea: if [code]true[/code], the main window of the project has no system title bar on Windows 10 and 11, but keeps its resize borders, shadow, rounded corners and snapping to the screen edges (Aero Snap). The window content extends over the area of the title bar, like the editor's window. This is the same window as with [constant DisplayServer.WINDOW_FLAG_EXTEND_TO_TITLE].
+			Without the system title bar, the project has to draw its own, with the minimize, maximize and close buttons. Use [method DisplayServer.window_start_drag] to move the window from it, [method DisplayServer.window_set_mode] to minimize and maximize, and [method DisplayServer.window_set_color] to color the window frame like the title bar.
+			[b]Note:[/b] This setting only has an effect on Windows. On other platforms it is ignored, and the project behaves as in Godot. It is also ignored in the editor, which always uses its own title bar.
+		</member>
 		<member name="display/window/frame_pacing/android/enable_frame_pacing" type="bool" setter="" getter="" default="true">
 			Enable Swappy for stable frame pacing on Android. Highly recommended.
 			[b]Note:[/b] This option will be forced off when using OpenXR.

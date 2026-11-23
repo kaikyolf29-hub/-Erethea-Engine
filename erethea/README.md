@@ -736,6 +736,52 @@ para o teste final no PC do criador.
 python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64
 ```
 
+## Janela moderna e barra de título (Windows)
+
+No Windows, o editor e o Gerenciador de Projetos não usam a barra de título do
+sistema: a janela continua com as bordas de redimensionar, a sombra, os cantos
+arredondados do Windows 11 e o encaixe nas bordas da tela (Aero Snap), mas o
+conteúdo sobe até o topo e os botões de minimizar, maximizar e fechar são
+desenhados pelo próprio editor. O código está em
+`platform/windows/display_server_windows_title_bar.cpp`, e o teste
+(`erethea/tests/window/title_bar_test.ps1`, no CI `erethea_window.yml`) abre a
+janela numa área de trabalho do Windows e confere cada comportamento.
+
+### Janela moderna nos jogos
+
+Os jogos rodando ou exportados no Windows podem usar a mesma janela com a
+configuração de projeto `display/window/erethea/modern_title_bar` (em
+**Configurações do Projeto > Display > Window > Erethea**, com as configurações
+avançadas ligadas). Ela vem **desligada**: desligada, o jogo se comporta
+exatamente como na Godot, com a barra do sistema. Em outros sistemas a opção
+não faz nada. No editor ela também não muda nada: o editor sempre usa a barra
+própria.
+
+```ini
+[display]
+
+window/erethea/modern_title_bar=true
+```
+
+Ligada, o jogo **perde a barra do sistema, inclusive os botões**. Quem liga
+tem que desenhar a própria barra de título no jogo:
+
+- `DisplayServer.window_start_drag()` move a janela a partir dela (chame ao
+  apertar o botão esquerdo do mouse na barra; o encaixe nas bordas vale);
+- `DisplayServer.window_set_mode()` minimiza e maximiza, e `get_tree().quit()`
+  fecha;
+- `DisplayServer.window_set_color()` pinta a moldura da janela com a cor da
+  barra (no Windows 11, a borda fica um tom mais clara);
+- a borda de cima continua redimensionando a janela; deixe uns pixels de
+  folga no topo da barra, e desligue `display/window/size/resizable` se o jogo
+  não pode mudar de tamanho.
+
+O jogo de exemplo está em `erethea/tests/window/game_project`. Esta opção é
+independente de `display/window/size/extend_to_title`, que continua só do macOS.
+O mesmo teste de CI roda esse jogo com a opção ligada (sem barra do sistema,
+bordas de redimensionar, maximizar cobrindo a área de trabalho e o botão de
+fechar do próprio jogo) e desligada (com a barra do sistema).
+
 ## Som
 
 Os sons que a Fornalha gera (efeitos, música por situação e dublagem com a
