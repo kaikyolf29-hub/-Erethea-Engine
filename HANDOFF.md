@@ -375,13 +375,19 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
   do mesmo código passou. O `title_bar_test.ps1` agora imprime o fim dos logs e
   os eventos 1000/1001/1026 do Windows quando falha, então o log do job mostra o
   módulo que caiu se acontecer de novo.
-- Instalador, passo "Update silently": travou duas vezes até o limite do job
-  (o limite do próprio passo não parou) e passou na nova tentativa; o job
-  cancelado não deixou log. Agora o passo desiste em 4 minutos, imprime o fim do
-  log do instalador (`/LOG`) e os processos abertos, e o artefato
-  `erethea-installer-logs` guarda os logs. Se travar de novo, leia isso antes de
-  mexer; suspeitas: o Restart Manager do `/CLOSEAPPLICATIONS` ou um arquivo
-  preso por outro processo.
+- Instalador, passo "Update silently": travou quatro vezes (duas antes do
+  PR #23, duas em 23/11 mesmo com o limite de 4 minutos dele), sempre além do
+  limite do passo e do job e sem log nenhum, nem dos passos anteriores; passou
+  em todas as novas tentativas. Esse é o jeito do executor do GitHub quando um
+  processo aberto pelo passo sobrevive a ele segurando a saída do passo: espera
+  essa saída acabar para sempre. O `Start-Process` passava a saída do passo ao
+  instalador (e ao que ele abre), e o editor reaberto ficava vivo quando o
+  passo não o achava. Correção (PR #28): o instalador abre por ShellExecute,
+  sem herdar nada do passo, o editor é procurado pelo caminho via
+  `Win32_Process`, e tudo que a atualização abriu é fechado no fim (`finally`),
+  com a lista impressa no log. O job agora tem 20 minutos. Se travar de novo
+  mesmo assim, a hipótese caiu: aí a suspeita passa a ser a própria máquina
+  (o editor reaberto sem `--rendering-driver`, num executor sem placa de vídeo).
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
   um build novo, suba um commit.
 
