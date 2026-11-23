@@ -515,6 +515,9 @@ vec3 get_energy_compensation(vec3 f0, float env) {
 	return 1.0 + f0 * (1.0 / env - 1.0);
 }
 
+// Erethea: The ray traced shadow of the first directional light, a screen space mask (modules/erethea_raytracing).
+layout(set = 1, binding = 39) uniform texture2D erethea_rt_shadow_mask;
+
 #ifdef TEXTURE_STREAMING
 // Texture streaming material feedback buffer access
 layout(set = 1, binding = 38, std430) buffer restrict MaterialFeedbackBuffer {

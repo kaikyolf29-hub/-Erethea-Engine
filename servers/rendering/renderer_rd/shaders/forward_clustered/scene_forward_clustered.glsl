@@ -2734,6 +2734,12 @@ void fragment_shader(in SceneData scene_data) {
 			}
 
 			shadow = mix(1.0, shadow, directional_lights.data[i].shadow_opacity);
+
+			// Erethea: The ray traced shadow of the first directional light, which works
+			// with or without the light's own shadow map (modules/erethea_raytracing).
+			if (i == 0u && bool(scene_data.flags & SCENE_DATA_FLAGS_USE_ERETHEA_RT_SHADOWS)) {
+				shadow = min(shadow, textureLod(sampler2D(erethea_rt_shadow_mask, SAMPLER_LINEAR_CLAMP), screen_uv, 0.0).r);
+			}
 #endif
 
 			blur_shadow(shadow);
