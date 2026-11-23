@@ -122,6 +122,12 @@ private:
 	uint32_t mix_rate = 44100;
 	TightLocalVector<uint8_t, uint64_t> data;
 
+	// Erethea: Tempo of the music, so that AudioStreamInteractive and AudioStreamPlaylist can
+	// switch WAV clips at the end of a bar like they do with Ogg Vorbis and MP3.
+	double bpm = 0;
+	int beat_count = 0;
+	int bar_beats = 4;
+
 	Dictionary tags;
 
 protected:
@@ -151,6 +157,16 @@ public:
 
 	void set_tags(const Dictionary &p_tags);
 	virtual Dictionary get_tags() const override;
+
+	// Erethea: Same as AudioStreamOggVorbis.
+	void set_bpm(double p_bpm);
+	virtual double get_bpm() const override;
+
+	void set_beat_count(int p_beat_count);
+	virtual int get_beat_count() const override;
+
+	void set_bar_beats(int p_bar_beats);
+	virtual int get_bar_beats() const override;
 
 	virtual double get_length() const override; //if supported, otherwise return 0
 

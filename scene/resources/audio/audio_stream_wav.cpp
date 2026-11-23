@@ -487,6 +487,37 @@ Dictionary AudioStreamWAV::get_tags() const {
 	return tags;
 }
 
+// Erethea: Same as AudioStreamOggVorbis, so the music of a WAV file can change at the end of a bar.
+void AudioStreamWAV::set_bpm(double p_bpm) {
+	ERR_FAIL_COND(p_bpm < 0);
+	bpm = p_bpm;
+	emit_changed();
+}
+
+double AudioStreamWAV::get_bpm() const {
+	return bpm;
+}
+
+void AudioStreamWAV::set_beat_count(int p_beat_count) {
+	ERR_FAIL_COND(p_beat_count < 0);
+	beat_count = p_beat_count;
+	emit_changed();
+}
+
+int AudioStreamWAV::get_beat_count() const {
+	return beat_count;
+}
+
+void AudioStreamWAV::set_bar_beats(int p_bar_beats) {
+	ERR_FAIL_COND(p_bar_beats < 2);
+	bar_beats = p_bar_beats;
+	emit_changed();
+}
+
+int AudioStreamWAV::get_bar_beats() const {
+	return bar_beats;
+}
+
 double AudioStreamWAV::get_length() const {
 	uint64_t len = data.size();
 	switch (format) {
@@ -1192,6 +1223,11 @@ Ref<AudioStreamWAV> AudioStreamWAV::load_from_buffer(const Vector<uint8_t> &p_st
 	sample->set_loop_end(loop_end);
 	sample->set_stereo(format_channels == 2);
 
+	// Erethea: Tempo of the music, written by the Fornalha next to its WAV files.
+	sample->set_bpm(p_options.get("bpm", 0.0));
+	sample->set_beat_count(p_options.get("beat_count", 0));
+	sample->set_bar_beats(p_options.get("bar_beats", 4));
+
 	if (!tag_map.is_empty()) {
 		// Used to make the metadata tags more unified across different AudioStreams.
 		// See https://www.recordingblogs.com/wiki/list-chunk-of-a-wave-file
@@ -1274,6 +1310,15 @@ void AudioStreamWAV::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_tags", "tags"), &AudioStreamWAV::set_tags);
 	ClassDB::bind_method(D_METHOD("get_tags"), &AudioStreamWAV::get_tags);
 
+	ClassDB::bind_method(D_METHOD("set_bpm", "bpm"), &AudioStreamWAV::set_bpm);
+	ClassDB::bind_method(D_METHOD("get_bpm"), &AudioStreamWAV::get_bpm);
+
+	ClassDB::bind_method(D_METHOD("set_beat_count", "count"), &AudioStreamWAV::set_beat_count);
+	ClassDB::bind_method(D_METHOD("get_beat_count"), &AudioStreamWAV::get_beat_count);
+
+	ClassDB::bind_method(D_METHOD("set_bar_beats", "count"), &AudioStreamWAV::set_bar_beats);
+	ClassDB::bind_method(D_METHOD("get_bar_beats"), &AudioStreamWAV::get_bar_beats);
+
 	ClassDB::bind_method(D_METHOD("save_to_wav", "path"), &AudioStreamWAV::save_to_wav);
 
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "data", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_data", "get_data");
@@ -1283,6 +1328,9 @@ void AudioStreamWAV::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "loop_end"), "set_loop_end", "get_loop_end");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "mix_rate"), "set_mix_rate", "get_mix_rate");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "stereo"), "set_stereo", "is_stereo");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bpm", PROPERTY_HINT_RANGE, "0,400,0.01,or_greater"), "set_bpm", "get_bpm");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "beat_count", PROPERTY_HINT_RANGE, "0,512,1,or_greater"), "set_beat_count", "get_beat_count");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "bar_beats", PROPERTY_HINT_RANGE, "2,32,1,or_greater"), "set_bar_beats", "get_bar_beats");
 	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "tags", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_tags", "get_tags");
 
 	BIND_ENUM_CONSTANT(FORMAT_8_BITS);
