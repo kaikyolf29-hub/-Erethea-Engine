@@ -181,10 +181,11 @@ float EretheaLightShafts::project_sun(const Projection &p_projection, const Tran
 	const Vector3 view_direction = p_camera_transform.basis.orthonormalized().xform_inv(p_sun_direction.normalized());
 	const Vector4 clip = p_projection.xform(Vector4(view_direction.x, view_direction.y, view_direction.z, 0.0f));
 	// For a perspective projection, w is the distance in front of the camera.
-	if (clip.w <= CMP_EPSILON) {
+	const float w = float(clip.w);
+	if (w <= float(CMP_EPSILON)) {
 		return 0.0f;
 	}
-	Vector2 ndc = Vector2(clip.x, clip.y) / clip.w;
+	Vector2 ndc = Vector2(float(clip.x), float(clip.y)) / w;
 	if (p_flip_y) {
 		ndc.y = -ndc.y;
 	}
@@ -194,7 +195,7 @@ float EretheaLightShafts::project_sun(const Projection &p_projection, const Tran
 	// the camera, before it goes behind it.
 	const float edge = MAX(Math::abs(ndc.x), Math::abs(ndc.y));
 	const float edge_fade = 1.0f - Math::smoothstep(1.0f, 1.6f, edge);
-	const float front_fade = Math::smoothstep(0.0f, 0.2f, clip.w / view_direction.length());
+	const float front_fade = Math::smoothstep(0.0f, 0.2f, w / float(view_direction.length()));
 	return edge_fade * front_fade;
 }
 
