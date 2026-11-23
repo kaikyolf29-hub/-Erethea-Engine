@@ -120,13 +120,31 @@ function Write-LogTails {
 
 # Windows records the module and the offset of a crash that the engine's own
 # crash handler doesn't see (such as a fast fail, code 0xC0000409).
+# Windows Error Reporting writes these events a few seconds after the crash, so
+# wait for them a while: looking right away found none (23/11).
 function Write-CrashEvents {
 	$since = (Get-Date).AddMinutes(-30)
-	$events = Get-WinEvent -FilterHashtable @{ LogName = "Application"; Id = 1000, 1001, 1026; StartTime = $since } -ErrorAction SilentlyContinue
+	$deadline = (Get-Date).AddSeconds(30)
+	do {
+		$events = @(Get-WinEvent -FilterHashtable @{ LogName = "Application"; Id = 1000, 1001, 1026; StartTime = $since } -ErrorAction SilentlyContinue |
+				Where-Object { $_.Message -match "erethea" })
+		if ($events.Count -gt 0) {
+			break
+		}
+		Start-Sleep -Seconds 2
+	} while ((Get-Date) -lt $deadline)
+	if ($events.Count -eq 0) {
+		Write-Output "----- No Windows crash events for the engine -----"
+	}
 	foreach ($entry in $events) {
-		if ($entry.Message -match "erethea") {
-			Write-Output "----- Windows event $($entry.Id) at $($entry.TimeCreated) -----"
-			Write-Output $entry.Message
+		Write-Output "----- Windows event $($entry.Id) at $($entry.TimeCreated) -----"
+		Write-Output $entry.Message
+	}
+	# Minidumps, when the workflow asks Windows for them (LocalDumps).
+	$dumps = Join-Path $OutDir "dumps"
+	if (Test-Path $dumps) {
+		foreach ($dump in Get-ChildItem -Path $dumps -Filter "*.dmp") {
+			Write-Output "----- Crash dump: $($dump.Name), $($dump.Length) bytes, in the artifact -----"
 		}
 	}
 }
