@@ -137,6 +137,10 @@ int EretheaUpdate::compare_versions(const String &p_a, const String &p_b) {
 	return _compare_prerelease(a_prerelease, b_prerelease);
 }
 
+bool EretheaUpdate::is_stable_only(bool p_stable_mode, bool p_include_prereleases) {
+	return p_stable_mode && !p_include_prereleases;
+}
+
 bool EretheaUpdate::find_newer_release(const Array &p_releases, const String &p_current, bool p_stable_only, bool p_patch_only, Release &r_release) {
 	int current[3];
 	String current_prerelease;

@@ -761,6 +761,12 @@ desenvolvimento (sem `BUILD_NAME=erethea-<versão>`) não procuram atualizaçõe
 O instalador deixa o que fez em `%TEMP%\erethea-update.log`, para descobrir por
 que uma atualização falhou.
 
+Quem quer testar as versões de teste (como `0.3.0-beta.1`) mesmo estando numa
+versão estável liga, nas Configurações do Editor, a opção
+`erethea/update/prereleases`. Ela vem desligada: sem ela, os modos "Check
+Newest Stable" e "Check Newest Patch" (e o "Auto" numa versão estável) ignoram
+as versões de teste, como sempre. Ligada, elas também são oferecidas.
+
 ## Assinatura do instalador
 
 Por enquanto o instalador sai sem assinatura digital. Ele funciona do mesmo

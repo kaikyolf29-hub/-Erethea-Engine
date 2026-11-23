@@ -70,6 +70,11 @@ public:
 	// version of p_current.
 	static bool find_newer_release(const Array &p_releases, const String &p_current, bool p_stable_only, bool p_patch_only, Release &r_release);
 
+	// Whether releases with a dash ("0.3.0-beta.1") are skipped. They are when
+	// the update mode only wants stable versions, unless the editor setting
+	// "erethea/update/prereleases" asks for them too.
+	static bool is_stable_only(bool p_stable_mode, bool p_include_prereleases);
+
 	// True when this editor was installed by the Erethea installer on Windows,
 	// so that an update can be installed over it.
 	static bool can_install_update();
