@@ -9,14 +9,19 @@
 #   snaps at all);
 # - a maximized window covers the work area exactly;
 # - the editor's minimize, maximize and close buttons work, and Windows knows
-#   where the maximize button is, to show the snap layouts.
+#   where the maximize button is, to show the snap layouts;
+# - a game with `display/window/erethea/modern_title_bar` on gets the same
+#   window (no system title bar, resize borders, maximize), and closes from
+#   its own button; with the setting off, it keeps the system title bar, as in
+#   Godot.
 #
 # Screenshots of every step are saved in -OutDir.
 
 param(
 	[Parameter(Mandatory = $true)][string]$Editor,
 	[Parameter(Mandatory = $true)][string]$Project,
-	[Parameter(Mandatory = $true)][string]$OutDir
+	[Parameter(Mandatory = $true)][string]$OutDir,
+	[string]$GameProject = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -498,6 +503,62 @@ Test-TitleBar $editorHwnd "Editor"
 Test-Maximize $editorHwnd "Editor"
 Test-Buttons $editorHwnd $editorProcess "Editor"
 if (-not $editorProcess.HasExited) { Stop-Process -Id $editorProcess.Id -Force }
+
+# Game, with the project setting `display/window/erethea/modern_title_bar`.
+# The same small project runs with the setting on and off; the game draws its
+# own title bar, with a close button at the top right.
+function Test-GameWindow([string]$name, [bool]$modern) {
+	$dir = Join-Path $OutDir "game-$name"
+	if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+	Copy-Item -Recurse -Path $GameProject -Destination $dir
+	$projectFile = Join-Path $dir "project.godot"
+	$text = Get-Content -Raw $projectFile
+	$value = if ($modern) { "true" } else { "false" }
+	$edited = $text -replace 'window/erethea/modern_title_bar=\w+', "window/erethea/modern_title_bar=$value"
+	if ($edited -eq $text -and -not $modern) { throw "The game project has no modern_title_bar setting to turn off." }
+	Set-Content -Path $projectFile -Value $edited -NoNewline
+
+	$import = Start-Process -FilePath $Editor -ArgumentList (@("--headless", "--import", "--path", $dir)) -PassThru -Wait -NoNewWindow `
+		-RedirectStandardOutput (Join-Path $OutDir "game-$name-import.log") -RedirectStandardError (Join-Path $OutDir "game-$name-import.err.log")
+	Write-Output "      Imported the game project, exit code $($import.ExitCode)"
+
+	$process = Start-Engine (@("--path", $dir) + $renderer) "game-$name"
+	$hwnd = Wait-MainWindow $process 120
+	Start-Sleep -Seconds 5
+	$hwnd = Wait-MainWindow $process 60
+	$title = "Game (modern_title_bar $value)"
+	if ($modern) {
+		Check "$title extends to the title" (Wait-Extended $hwnd 60)
+	} else {
+		Check "$title keeps the system title bar" (-not (Test-Extended $hwnd))
+	}
+	Place-Window $hwnd
+	Save-Screenshot "game-$name"
+	if ($modern) {
+		Test-TitleBar $hwnd $title
+		Test-Maximize $hwnd $title
+	} else {
+		$style = [Win]::GetWindowLong($hwnd, -16)
+		Check "$title has WS_CAPTION" (($style -band $WS_CAPTION) -eq $WS_CAPTION) ("style=0x{0:X8}" -f $style)
+		$w = Get-Rect $hwnd
+		$c = Get-ClientScreenRect $hwnd
+		Check "$title client area starts below the caption" ($c.Top -gt $w.Top) "window $(Format-Rect $w), client $(Format-Rect $c)"
+	}
+
+	# The game's own close button, at the top right of its title bar.
+	Place-Window $hwnd
+	[void][Win]::SetForegroundWindow($hwnd)
+	$c = Get-ClientScreenRect $hwnd
+	Click ($c.Right - 23) ($c.Top + 16)
+	$exited = $process.WaitForExit(30000)
+	Check "$title closes from its own close button" $exited
+	if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+}
+
+if ($GameProject) {
+	Test-GameWindow "on" $true
+	Test-GameWindow "off" $false
+}
 
 $errors = Select-String -Path (Join-Path $OutDir "*.log") -Pattern "SCRIPT ERROR|Parse Error|CrashHandlerException|Program crashed"
 if ($errors) {

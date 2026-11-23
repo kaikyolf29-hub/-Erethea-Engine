@@ -39,6 +39,8 @@
 //   border.
 // The application draws its own title bar and caption buttons (the editor
 // uses EditorWindowButtons), and moves the window with window_start_drag().
+// A game gets the same window with the project setting
+// `display/window/erethea/modern_title_bar`, which is off by default.
 //
 // The application also tells where its maximize button is, with
 // window_set_maximize_button_rect(). WM_NCHITTEST reports that area as
@@ -55,6 +57,7 @@
 #include "display_server_windows.h"
 
 #include "core/config/engine.h"
+#include "core/config/project_settings.h"
 
 #include <dwmapi.h>
 #include <shellapi.h>
@@ -80,11 +83,15 @@ bool DisplayServerWindows::_is_extend_to_title_supported() const {
 	if (os_ver.dwBuildNumber < 10240) {
 		return false; // Windows 10+ only. Also excludes Wine, which leaves `os_ver` empty.
 	}
-	// Only the editor and the project manager draw their own caption buttons.
+	// The editor and the project manager draw their own caption buttons.
+	if (Engine::get_singleton()->is_editor_hint() || Engine::get_singleton()->is_project_manager_hint()) {
+		return true;
+	}
 	// Exported projects keep the system title bar, so a project that enables
 	// `display/window/size/extend_to_title` for macOS looks the same on Windows
-	// as it does in Godot.
-	return Engine::get_singleton()->is_editor_hint() || Engine::get_singleton()->is_project_manager_hint();
+	// as it does in Godot. A project opts in with
+	// `display/window/erethea/modern_title_bar`, and then draws its own title bar.
+	return GLOBAL_GET("display/window/erethea/modern_title_bar");
 }
 
 bool DisplayServerWindows::_is_window_extended_to_title(const WindowData &p_wd) const {

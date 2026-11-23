@@ -179,8 +179,10 @@ jeito que vai ficar no jogo."
 
 ### 6. Extras pendentes das Fases 1 e 2 (pequenos, opcionais)
 
-- Janela moderna também nos jogos: configuração de projeto (desligada por
-  padrão) para o jogo exportado no Windows não ter a barra do sistema.
+- ~~Janela moderna também nos jogos~~ (pronto no PR da tarefa): configuração
+  de projeto `display/window/erethea/modern_title_bar`, desligada por padrão;
+  o jogo que a liga desenha a própria barra. Documentada em `erethea/README.md`
+  ("Janela moderna e barra de título") e testada no `erethea_window.yml`.
 - Canal de testes da atualização: opção no editor para receber prereleases
   (as versões com traço já saem como prerelease).
 - Geração de quadros (FSR 3.1 e DLSS): o plano cita "upscaling e geração de
