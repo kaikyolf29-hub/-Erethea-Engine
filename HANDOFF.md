@@ -71,7 +71,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática). Falta só a assinatura (no lançamento) e dois extras opcionais, abaixo |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) e Claude Code no painel (#24) no `main`; som: WAV da dublagem no PR #25, o resto do bloco de som e a prévia com LibGodot por fazer |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) e Claude Code no painel (#24) no `main`; som: WAV da dublagem e eco por área no PR #25; música interativa, boca com a fala e prévia com LibGodot por fazer |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Não começou |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
@@ -136,9 +136,12 @@ por item, só em projetos da Fornalha ou desligado por padrão:
    `tests/erethea/test_erethea_wav_stream.cpp`. Correção genérica: falta
    propor à Godot (issue e PR no `godotengine/godot`, quando o Kaiky quiser
    abrir com a conta dele).
-2. **Eco por área**: o `build_fornalha_scenes` dá a cada área um barramento de
-   áudio com reverberação pelo tipo (caverna, floresta, castelo, vila...) ou
-   pelo campo opcional `acustica`.
+2. **Eco por área** (PR #25): o `build_fornalha_scenes` dá a cada área um
+   `Area3D` "Eco" que manda os sons para um barramento com reverberação pelo
+   tipo (seis acústicas: caverna, salao, ruinas, vila, floresta, montanha) ou
+   pelo campo opcional `acustica`; os barramentos que faltam entram no
+   `default_bus_layout.tres`. Desliga em `editor/erethea_fornalha/area_acoustics`.
+   Veja `erethea/README.md`, "Som".
 3. **Música que muda com o jogo**: `AudioStreamInteractive` com as músicas da
    Fornalha, trocando no fim do compasso (bpm e compassos do
    `<situacao>.musica.json`), num nó do grupo `erethea_musica` que o `Sons` da
