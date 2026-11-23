@@ -20,8 +20,11 @@ extends Node3D
 ## correction, which needs the project imported once with --headless --import),
 ## flare, vignette, aberration and grain (EretheaPostEffect), and motion
 ## (EretheaMotionBlur: the camera pans and the character turns, and both are
-## back in their usual place, at full speed, on the captured frame). Stock
-## Godot ignores both with a warning.
+## back in their usual place, at full speed, on the captured frame), and shafts
+## (EretheaLightShafts: the sun is moved to sit low in front of the camera,
+## over the houses, the trees and the character, so the shafts show). Stock
+## Godot ignores both with a warning. --sun=front moves the sun the same way
+## without any effect, to compare the shafts with and without them.
 ##
 ## --upscaler=<fsr2|amd_fsr|xess|dlss> renders at 67% of the resolution and
 ## upscales with Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 or XeSS
@@ -41,7 +44,14 @@ const VIEW_KEYS := {KEY_1: "vila", KEY_2: "floresta", KEY_3: "personagem"}
 # The values of EretheaQuality.Preset, written out so stock Godot can parse the
 # script.
 const QUALITY_PRESETS := {"low": 1, "balanced": 2, "cinematic": 3, "automatic": 4}
-const POST_EFFECTS: Array[String] = ["lut", "flare", "vignette", "aberration", "grain", "motion"]
+const POST_EFFECTS: Array[String] = ["lut", "flare", "vignette", "aberration", "grain", "motion", "shafts"]
+# The effects that EretheaPostEffect draws.
+const LENS_EFFECTS: Array[String] = ["flare", "vignette", "aberration", "grain"]
+# For the light shafts, how high the sun is in front of each view, in degrees,
+# so that it peeks over the roofs and the trees. In the character view it is
+# placed behind the character's head.
+const SHAFTS_SUN_ELEVATION := {"vila": 7.0, "floresta": 10.0, "personagem": 9.0}
+const SHAFTS_CHARACTER_HEAD := Vector3(0.0, 1.85, 0.0)
 # Swing of the camera pan and of the character's turn, in degrees, for motion blur.
 const MOTION_PAN := 12.0
 const MOTION_TURN := 60.0
@@ -69,6 +79,8 @@ var character_transform := Transform3D()
 var motion_enabled := false
 var motion_frame := 0
 var motion_period := 40
+# The sun is moved in front of the camera, for the light shafts.
+var sun_in_front := false
 
 
 func _ready() -> void:
@@ -88,6 +100,9 @@ func _ready() -> void:
 	var arguments := _get_user_arguments()
 	if arguments.has("quality"):
 		_apply_quality(arguments["quality"])
+	if arguments.get("sun", "") == "front":
+		sun_in_front = true
+		_aim_sun_in_front()
 	if arguments.has("post"):
 		_apply_post(arguments["post"])
 	if arguments.has("upscaler"):
@@ -125,6 +140,8 @@ func set_view(view: String) -> void:
 	camera_transform = camera.transform
 	character.transform = character_transform
 	motion_frame = 0
+	if sun_in_front:
+		_aim_sun_in_front()
 
 
 func set_time(time: String) -> void:
@@ -162,6 +179,20 @@ func set_time(time: String) -> void:
 		lantern_material.emission_energy_multiplier = 0.0
 	for light in lantern_lights:
 		light.visible = night
+	if sun_in_front:
+		_aim_sun_in_front()
+
+
+func _aim_sun_in_front() -> void:
+	# Light shafts need the sun in front of the camera, behind something.
+	var forward := -camera_transform.basis.z
+	if current_view == "personagem":
+		forward = character_transform.origin + SHAFTS_CHARACTER_HEAD - camera_transform.origin
+	forward.y = 0.0
+	var elevation := deg_to_rad(SHAFTS_SUN_ELEVATION[current_view])
+	var direction := forward.normalized() * cos(elevation) + Vector3.UP * sin(elevation)
+	# A light shines along its -Z axis, towards the scene.
+	sun.basis = Basis.looking_at(-direction)
 
 
 func _apply_quality(preset: String) -> void:
@@ -198,15 +229,6 @@ func _apply_post(effects_argument: String) -> void:
 		if not ClassDB.class_exists("EretheaPostEffect"):
 			push_warning("This engine has no EretheaPostEffect, ignoring --post=%s." % effects_argument)
 			return
-		var effect: CompositorEffect = ClassDB.instantiate("EretheaPostEffect")
-		if "flare" in effects:
-			effect.set("lens_flare_intensity", 0.5)
-		if "vignette" in effects:
-			effect.set("vignette_intensity", 0.4)
-		if "aberration" in effects:
-			effect.set("chromatic_aberration", 0.3)
-		if "grain" in effects:
-			effect.set("film_grain_intensity", 0.2)
 		var compositor_effects: Array[CompositorEffect] = []
 		if "motion" in effects:
 			# Before the other effects, so the grain isn't blurred.
@@ -215,7 +237,25 @@ func _apply_post(effects_argument: String) -> void:
 				motion_enabled = true
 			else:
 				push_warning("This engine has no EretheaMotionBlur, ignoring motion.")
-		compositor_effects.append(effect)
+		if "shafts" in effects:
+			# Also before the grain, which the shafts would cover.
+			if ClassDB.class_exists("EretheaLightShafts"):
+				compositor_effects.append(ClassDB.instantiate("EretheaLightShafts"))
+				sun_in_front = true
+				_aim_sun_in_front()
+			else:
+				push_warning("This engine has no EretheaLightShafts, ignoring shafts.")
+		if effects.any(func(effect_name: String) -> bool: return effect_name in LENS_EFFECTS):
+			var effect: CompositorEffect = ClassDB.instantiate("EretheaPostEffect")
+			if "flare" in effects:
+				effect.set("lens_flare_intensity", 0.5)
+			if "vignette" in effects:
+				effect.set("vignette_intensity", 0.4)
+			if "aberration" in effects:
+				effect.set("chromatic_aberration", 0.3)
+			if "grain" in effects:
+				effect.set("film_grain_intensity", 0.2)
+			compositor_effects.append(effect)
 		var compositor := Compositor.new()
 		compositor.compositor_effects = compositor_effects
 		camera.compositor = compositor
@@ -265,6 +305,7 @@ func _capture(folder: String, warmup: int, frames: int) -> void:
 		"size": [CAPTURE_SIZE.x, CAPTURE_SIZE.y],
 		"quality": _get_user_arguments().get("quality", "default"),
 		"post": _get_user_arguments().get("post", "none"),
+		"sun": _get_user_arguments().get("sun", "default"),
 		"upscaler": _get_user_arguments().get("upscaler", "none"),
 		"captures": [],
 	}
