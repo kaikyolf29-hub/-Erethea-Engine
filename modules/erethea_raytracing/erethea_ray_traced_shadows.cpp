@@ -158,7 +158,9 @@ RID get_mesh_blas(RID p_mesh, uint64_t p_frame) {
 	RD *rd = RD::get_singleton();
 	LocalVector<RD::AccelerationStructureGeometry> geometries;
 	for (int surface = 0; surface < surface_count; surface++) {
-		const RenderingServerTypes::SurfaceData data = mesh_storage->mesh_get_surface(p_mesh, surface);
+		// Through a const pointer, so that the virtual (RID, int) overload is
+		// chosen instead of the inline one that returns the internal surface.
+		const RenderingServerTypes::SurfaceData data = static_cast<const RendererRD::MeshStorage *>(mesh_storage)->mesh_get_surface(p_mesh, surface);
 		if (data.primitive != RSE::PRIMITIVE_TRIANGLES) {
 			continue;
 		}
