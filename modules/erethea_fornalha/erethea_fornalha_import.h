@@ -53,6 +53,23 @@ struct EretheaFornalhaArea {
 	String type;
 	Vector3 center;
 	String scene; // res://World/areas/<id>.tscn
+	// "acustica" of the area in game.project.json, to choose how it sounds
+	// instead of by its type. Optional.
+	String acoustics;
+};
+
+// How an area sounds: the reverb of the audio bus that its sounds go through.
+struct EretheaFornalhaAcoustics {
+	String name; // caverna, salao, ruinas, vila, floresta or montanha.
+	float room_size = 0.5;
+	float damping = 0.5;
+	float wet = 0.2;
+	float predelay_msec = 50.0;
+	float predelay_feedback = 0.3;
+	float hipass = 0.0;
+
+	bool is_valid() const { return !name.is_empty(); }
+	String get_bus_name() const { return "Eco_" + name; }
 };
 
 struct EretheaFornalhaEnemy {
@@ -114,6 +131,9 @@ public:
 		Vector<FileResult> files;
 		Vector<String> warnings;
 		String backup_folder;
+		// The reverb buses added for the areas' echo, and the file they went to.
+		Vector<String> audio_buses;
+		String bus_layout;
 
 		int count(Action p_action) const;
 		int count_kept() const;
@@ -130,6 +150,7 @@ public:
 	static constexpr const char *SETTING_LOOPING_ANIMATIONS = "editor/erethea_fornalha/looping_animations";
 	static constexpr const char *SETTING_BUILD_AUTOMATICALLY = "editor/erethea_fornalha/build_automatically";
 	static constexpr const char *SETTING_LIVE_LINK = "editor/erethea_fornalha/live_link";
+	static constexpr const char *SETTING_AREA_ACOUSTICS = "editor/erethea_fornalha/area_acoustics";
 
 	static constexpr uint32_t LAYER_WORLD = 1;
 	static constexpr uint32_t LAYER_PLAYER = 2;
@@ -150,6 +171,16 @@ public:
 	// random ids of its resources), so that two builds of a scene compare equal.
 	static String normalize_scene_text(const String &p_text);
 	static String hash_scene_text(const String &p_text);
+
+	// By "acustica", or else by the area's type; invalid for a type that has none.
+	static EretheaFornalhaAcoustics get_acoustics(const EretheaFornalhaArea &p_area);
+	// How far an area's sound reaches from its center: half the way to the
+	// nearest other area, between 12 and 80 m.
+	static real_t get_area_radius(const EretheaFornalhaProject &p_project, int p_area);
+	// Adds the reverb buses that the areas use, and that the project doesn't
+	// have yet, to its audio bus layout, and saves it. Returns the layout's
+	// file when it changed.
+	static String add_reverb_buses(const EretheaFornalhaProject &p_project, Vector<String> &r_added, String &r_error);
 
 	static Node *make_character(const EretheaFornalhaCharacter &p_character, Vector<String> &r_warnings);
 	static Node *make_area(const EretheaFornalhaProject &p_project, int p_area, Vector<String> &r_warnings);
