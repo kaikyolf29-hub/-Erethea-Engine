@@ -2733,6 +2733,12 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		if (bool(GLOBAL_GET("display/window/size/extend_to_title"))) {
 			window_flags |= DisplayServerEnums::WINDOW_FLAG_EXTEND_TO_TITLE_BIT;
 		}
+#ifdef WINDOWS_ENABLED
+		// Erethea: Modern title bar for games, see platform/windows/display_server_windows_title_bar.cpp.
+		if (bool(GLOBAL_GET("display/window/erethea/modern_title_bar"))) {
+			window_flags |= DisplayServerEnums::WINDOW_FLAG_EXTEND_TO_TITLE_BIT;
+		}
+#endif
 		if (bool(GLOBAL_GET("display/window/size/no_focus"))) {
 			window_flags |= DisplayServerEnums::WINDOW_FLAG_NO_FOCUS_BIT;
 		}
