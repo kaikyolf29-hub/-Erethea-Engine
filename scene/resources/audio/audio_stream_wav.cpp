@@ -675,9 +675,15 @@ Ref<AudioStreamWAV> AudioStreamWAV::load_from_buffer(const Vector<uint8_t> &p_st
 	// The file size in header is 8 bytes less than the actual size.
 	// See https://docs.fileformat.com/audio/wav/
 	const int FILE_SIZE_HEADER_OFFSET = 8;
-	uint32_t file_size_header = file->get_32() + FILE_SIZE_HEADER_OFFSET;
+	const uint32_t riff_size = file->get_32();
+	uint32_t file_size_header = riff_size + FILE_SIZE_HEADER_OFFSET;
 	uint64_t file_size = file->get_length();
-	if (file_size != file_size_header) {
+	// Erethea: A WAV file written as a stream (such as the speech of Ignis, the
+	// local model server) doesn't know its size when it starts, and leaves 0 or
+	// 0xFFFFFFFF in the RIFF and data sizes. It isn't damaged: its data lasts
+	// until the end of the file.
+	const bool streamed_header = riff_size == 0 || riff_size == 0xFFFFFFFF;
+	if (file_size != file_size_header && !streamed_header) {
 		WARN_PRINT(vformat("File size %d is %s than the expected size %d.", file_size, file_size > file_size_header ? "larger" : "smaller", file_size_header));
 	}
 
@@ -769,7 +775,12 @@ Ref<AudioStreamWAV> AudioStreamWAV::load_from_buffer(const Vector<uint8_t> &p_st
 
 			uint64_t remaining_bytes = file_size - file_pos;
 			frames = chunksize;
-			if (remaining_bytes < chunksize) {
+			// Erethea: The data of a streamed file lasts until the end of the file.
+			const bool streamed_data = chunksize == 0xFFFFFFFF || (chunksize == 0 && (streamed_header || file_size != file_size_header));
+			if (streamed_data) {
+				frames = remaining_bytes;
+				chunksize = uint32_t(MIN(remaining_bytes, uint64_t(0xFFFFFFFE)));
+			} else if (remaining_bytes < chunksize) {
 				WARN_PRINT("Data chunk size is smaller than expected. Proceeding with actual data size.");
 				frames = remaining_bytes;
 			}
@@ -913,7 +924,13 @@ Ref<AudioStreamWAV> AudioStreamWAV::load_from_buffer(const Vector<uint8_t> &p_st
 
 		// Move to the start of the next chunk. Note that RIFF requires a padding byte for odd
 		// chunk sizes.
-		file->seek(file_pos + chunksize + (chunksize & 1));
+		// Erethea: In 64 bits: a size near 0xFFFFFFFF wrapped around in 32 bits and
+		// went back to the same chunk, which read the file again and again.
+		const uint64_t next_chunk = uint64_t(file_pos) + chunksize + (chunksize & 1);
+		if (next_chunk >= file_size) {
+			break;
+		}
+		file->seek(next_chunk);
 	}
 
 	// STEP 2, APPLY CONVERSIONS
