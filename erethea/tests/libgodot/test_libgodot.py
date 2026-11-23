@@ -45,18 +45,26 @@ def build_host(out):
         target = out / "libgodot_preview.exe"
         compiler = shutil.which("cl")
         if compiler:
-            command = [compiler, "/nologo", f"/I{ROOT}", str(source), f"/Fe:{target}", f"/Fo:{out}\\"]
+            command = [
+                compiler,
+                "/nologo",
+                f"/I{ROOT}",
+                str(source),
+                f"/Fe{target}",
+            ]
         else:
             compiler = shutil.which("gcc") or shutil.which("clang")
             command = [compiler, f"-I{ROOT}", "-o", str(target), str(source)] if compiler else None
     else:
         target = out / "libgodot_preview"
         compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
-        command = [compiler, "-Wall", "-Werror", f"-I{ROOT}", "-o", str(target), str(source), "-ldl"] if compiler else None
+        command = (
+            [compiler, "-Wall", "-Werror", f"-I{ROOT}", "-o", str(target), str(source), "-ldl"] if compiler else None
+        )
     if not command:
         raise Failure("No C compiler found (cc, gcc, clang or cl).")
     print("- build the host program:", " ".join(command))
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True, cwd=out)  # The object file lands in out.
     if result.returncode != 0:
         print(result.stdout + result.stderr)
         raise Failure("The host program doesn't compile.")

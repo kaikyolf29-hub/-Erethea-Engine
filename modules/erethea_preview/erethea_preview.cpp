@@ -35,9 +35,8 @@
 #include "core/io/file_access.h"
 #include "core/io/image.h"
 #include "core/object/callable_mp.h"
+#include "core/object/class_db.h"
 #include "core/os/os.h"
-#include "modules/gltf/gltf_document.h"
-#include "modules/gltf/gltf_state.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
 #include "scene/3d/mesh_instance_3d.h"
@@ -46,9 +45,13 @@
 #include "scene/main/viewport.h"
 #include "scene/main/window.h"
 #include "scene/resources/3d/primitive_meshes.h"
+#include "scene/resources/3d/sky_material.h"
 #include "scene/resources/environment.h"
 #include "scene/resources/material.h"
 #include "scene/resources/sky.h"
+
+#include "modules/gltf/gltf_document.h"
+#include "modules/gltf/gltf_state.h"
 
 #ifdef MODULE_ERETHEA_QUALITY_ENABLED
 #include "modules/erethea_quality/erethea_quality.h"

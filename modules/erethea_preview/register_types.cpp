@@ -38,7 +38,7 @@ void initialize_erethea_preview_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		GDREGISTER_CLASS(EretheaPreview);
 		// The main loop that --erethea-preview=<file> starts, see main/main.cpp.
-		GDREGISTER_INTERNAL_CLASS(EretheaPreviewLoop);
+		GDREGISTER_CLASS(EretheaPreviewLoop);
 	}
 }
 

@@ -62,9 +62,15 @@ class Engine:
         log = self.out / f"{name}.log"
         print(f"- {name}")
         try:
-            result = subprocess.run(self.command(arguments), capture_output=True, text=True, timeout=self.timeout, cwd=self.out)
+            result = subprocess.run(
+                self.command(arguments), capture_output=True, text=True, timeout=self.timeout, cwd=self.out
+            )
         except subprocess.TimeoutExpired as error:
-            log.write_text((error.stdout or b"").decode(errors="replace") if isinstance(error.stdout, bytes) else (error.stdout or ""))
+            log.write_text(
+                (error.stdout or b"").decode(errors="replace")
+                if isinstance(error.stdout, bytes)
+                else (error.stdout or "")
+            )
             raise Failure(f"{name}: the preview didn't finish in {self.timeout} seconds (see {log})")
         log.write_text(result.stdout + "\n--- stderr ---\n" + result.stderr)
         return result
@@ -83,18 +89,17 @@ def mean_color(image, box):
 
 
 def covered_fraction(image):
-    """How much of the image differs a lot from the sky color at the top corner."""
+    """How much of the image is the red of the box (the floor and the sky are not red)."""
     width, height, _, _ = image
-    sky = pixel(image, 4, 4)
-    different = 0
+    red = 0
     total = 0
     for y in range(0, height, 4):
         for x in range(0, width, 4):
-            color = pixel(image, x, y)
-            if sum(abs(color[i] - sky[i]) for i in range(3)) > 60:
-                different += 1
+            r, g, b = pixel(image, x, y)
+            if r > g + 40 and r > b + 40:
+                red += 1
             total += 1
-    return different / total
+    return red / total
 
 
 def center_box(image, fraction=0.06):
@@ -132,8 +137,9 @@ def test_framing(engine, work, small_fraction):
     result = engine.run("framing", [f"--erethea-preview={big}", f"--erethea-preview-capture={image_path}"])
     check(result.returncode == 0, "the big box is captured")
     fraction = covered_fraction(read_png(image_path))
-    print(f"    the box covers {small_fraction:.2f} of the view, the big box {fraction:.2f}")
+    print(f"    the box covers {small_fraction:.2f} of the view as red, the big box {fraction:.2f}")
     check(fraction > 0.1, "the big box is in the view")
+    check(small_fraction > 0.1, "the small box is in the view")
     check(abs(fraction - small_fraction) < 0.15, "a box ten times bigger covers about the same part of the view")
 
 
@@ -146,10 +152,21 @@ def test_control_file(engine, work):
     control.write_text(str(second))
     image_path = work / "swapped.png"
     # At 30 frames per second the control file is read after 15 frames.
-    result = engine.run("control", [f"--erethea-preview={first}", f"--erethea-preview-control={control}", f"--erethea-preview-capture={image_path}", "--erethea-preview-frames=45"])
+    result = engine.run(
+        "control",
+        [
+            f"--erethea-preview={first}",
+            f"--erethea-preview-control={control}",
+            f"--erethea-preview-capture={image_path}",
+            "--erethea-preview-frames=45",
+        ],
+    )
     check(result.returncode == 0, "the preview exits with 0")
     shown = [line for line in result.stdout.splitlines() if "Erethea preview: showing" in line]
-    check(len(shown) == 2 and shown[0].endswith("first.glb") and shown[1].endswith("second.glb"), "it showed the first asset, then the second, in one run")
+    check(
+        len(shown) == 2 and shown[0].endswith("first.glb") and shown[1].endswith("second.glb"),
+        "it showed the first asset, then the second, in one run",
+    )
     image = read_png(image_path)
     center = mean_color(image, center_box(image))
     check(center[1] > center[0] + 30 and center[1] > center[2] + 30, "the capture shows the second asset (green)")
@@ -159,9 +176,15 @@ def test_reload_on_change(engine, work):
     asset = work / "changing.glb"
     write_box_glb(asset, 1.0, 1.0, RED)
     image_path = work / "reloaded.png"
-    arguments = [f"--erethea-preview={asset}", f"--erethea-preview-capture={image_path}", "--erethea-preview-frames=120"]
+    arguments = [
+        f"--erethea-preview={asset}",
+        f"--erethea-preview-capture={image_path}",
+        "--erethea-preview-frames=120",
+    ]
     print("- reload")
-    process = subprocess.Popen(engine.command(arguments), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=work)
+    process = subprocess.Popen(
+        engine.command(arguments), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=work
+    )
     lines = []
     first_shown = threading.Event()
 
@@ -186,7 +209,10 @@ def test_reload_on_change(engine, work):
     reader.join(5)
     (work / "reload.log").write_text("".join(lines))
     check(process.returncode == 0, "the preview exits with 0")
-    check(sum(1 for line in lines if "Erethea preview: showing" in line) == 2, "the preview reloaded the file when it changed")
+    check(
+        sum(1 for line in lines if "Erethea preview: showing" in line) == 2,
+        "the preview reloaded the file when it changed",
+    )
     image = read_png(image_path)
     center = mean_color(image, center_box(image))
     check(center[1] > center[0] + 30 and center[1] > center[2] + 30, "the capture shows the new version (green)")
@@ -202,7 +228,9 @@ def test_bad_files(engine, work):
 
     wrong_type = work / "model.obj"
     wrong_type.write_text("v 0 0 0\n")
-    result = engine.run("wrong_type", [f"--erethea-preview={wrong_type}", f"--erethea-preview-capture={work / 'wrong.png'}"])
+    result = engine.run(
+        "wrong_type", [f"--erethea-preview={wrong_type}", f"--erethea-preview-capture={work / 'wrong.png'}"]
+    )
     check(result.returncode == 1, "a file that is not .glb or .gltf is refused")
 
     # A bad asset after a good one: the good one stays on screen.
@@ -211,7 +239,15 @@ def test_bad_files(engine, work):
     control = work / "bad_control.txt"
     control.write_text(str(not_gltf))
     image_path = work / "kept.png"
-    result = engine.run("kept", [f"--erethea-preview={good}", f"--erethea-preview-control={control}", f"--erethea-preview-capture={image_path}", "--erethea-preview-frames=45"])
+    result = engine.run(
+        "kept",
+        [
+            f"--erethea-preview={good}",
+            f"--erethea-preview-control={control}",
+            f"--erethea-preview-capture={image_path}",
+            "--erethea-preview-frames=45",
+        ],
+    )
     check(result.returncode == 0, "the preview survives a broken file")
     image = read_png(image_path)
     center = mean_color(image, center_box(image))
@@ -223,7 +259,14 @@ def test_quality(engine, work):
     write_box_glb(box, 1.0, 1.0, RED)
     for preset in ("low", "cinematic"):
         image_path = work / f"quality_{preset}.png"
-        result = engine.run(f"quality_{preset}", [f"--erethea-preview={box}", f"--erethea-preview-quality={preset}", f"--erethea-preview-capture={image_path}"])
+        result = engine.run(
+            f"quality_{preset}",
+            [
+                f"--erethea-preview={box}",
+                f"--erethea-preview-quality={preset}",
+                f"--erethea-preview-capture={image_path}",
+            ],
+        )
         check(result.returncode == 0 and image_path.is_file(), f"the preview draws with the {preset} preset")
 
 
@@ -231,7 +274,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("executable")
     parser.add_argument("--out", default=None)
-    parser.add_argument("--engine-args", default="", help="extra arguments for the engine, such as --rendering-driver opengl3")
+    parser.add_argument(
+        "--engine-args", default="", help="extra arguments for the engine, such as --rendering-driver opengl3"
+    )
     parser.add_argument("--timeout", type=int, default=240)
     options = parser.parse_args()
 
