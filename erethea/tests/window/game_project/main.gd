@@ -18,8 +18,7 @@ func _ready() -> void:
 	_bar = ColorRect.new()
 	_bar.color = Color(0.12, 0.15, 0.2)
 	_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_bar.custom_minimum_size.y = BAR_HEIGHT
-	_bar.size.y = BAR_HEIGHT
+	_bar.offset_bottom = BAR_HEIGHT
 	_bar.gui_input.connect(_on_bar_gui_input)
 	add_child(_bar)
 
