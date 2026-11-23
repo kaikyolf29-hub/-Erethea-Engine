@@ -813,6 +813,9 @@
 		<member name="editors/visual_editors/visual_shader/port_preview_size" type="int" setter="" getter="">
 			The size to use for port previews in the visual shader uniforms (toggled by clicking the "eye" icon next to an output). The value is defined in pixels at 100% zoom, and will scale with zoom automatically.
 		</member>
+		<member name="erethea/update/prereleases" type="bool" setter="" getter="">
+			If [code]true[/code], the project manager also offers Erethea prereleases (versions with a dash, such as [code]0.4.0-beta.1[/code]) when [member network/connection/check_for_updates] only checks for stable versions.
+		</member>
 		<member name="export/ssh/scp" type="String" setter="" getter="">
 			Path to the SCP (secure copy) executable (used for remote deploy to desktop platforms). If left empty, the editor will attempt to run [code]scp[/code] from [code]PATH[/code].
 			[b]Note:[/b] SCP is not the same as SFTP. Specifying the SFTP executable here will not work.
