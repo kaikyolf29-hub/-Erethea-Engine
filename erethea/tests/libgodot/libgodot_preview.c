@@ -136,6 +136,25 @@ static int call_bool(GDExtensionMethodBindPtr p_method, GDExtensionObjectPtr p_i
 }
 
 #ifdef _WIN32
+/* Prints where an exception that nobody handled comes from: the code, and the
+ * module and offset of each frame. Without this, Windows only gives the code
+ * as the exit code of the process. */
+static LONG WINAPI report_exception(EXCEPTION_POINTERS *p_info) {
+	fprintf(stderr, "libgodot_preview: unhandled exception 0x%08lX at %p\n", (unsigned long)p_info->ExceptionRecord->ExceptionCode, p_info->ExceptionRecord->ExceptionAddress);
+	void *frames[32];
+	USHORT count = CaptureStackBackTrace(0, 32, frames, NULL);
+	for (USHORT i = 0; i < count; i++) {
+		HMODULE module = NULL;
+		char name[MAX_PATH] = "?";
+		if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)frames[i], &module)) {
+			GetModuleFileNameA(module, name, MAX_PATH);
+		}
+		fprintf(stderr, "  #%u %s + 0x%llx\n", (unsigned)i, name, (unsigned long long)((char *)frames[i] - (char *)module));
+	}
+	fflush(stderr);
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
 typedef HMODULE Library;
 static Library open_library(const char *p_path) {
 	return LoadLibraryA(p_path);
@@ -159,6 +178,9 @@ int main(int p_argc, char *p_argv[]) {
 		return 1;
 	}
 
+#ifdef _WIN32
+	SetUnhandledExceptionFilter(report_exception);
+#endif
 	Library library = open_library(p_argv[1]);
 	if (!library) {
 		fprintf(stderr, "Can't load the library \"%s\".\n", p_argv[1]);
@@ -221,6 +243,10 @@ int main(int p_argc, char *p_argv[]) {
 	printf("libgodot_preview: the instance closed after %ld frames.\n", frames);
 	fflush(stdout);
 
+	printf("libgodot_preview: destroying the instance.\n");
+	fflush(stdout);
 	destroy_instance(instance);
+	printf("libgodot_preview: the instance was destroyed.\n");
+	fflush(stdout);
 	return quit ? 0 : 3;
 }

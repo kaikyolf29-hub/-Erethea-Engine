@@ -109,6 +109,7 @@ def main():
             raise Failure(f"The host didn't finish in {options.timeout} seconds.")
         (out / "libgodot.log").write_text(result.stdout + "\n--- stderr ---\n" + result.stderr)
         print(result.stdout)
+        print(result.stderr, file=sys.stderr)
         check(result.returncode == 0, f"the host runs the instance until it closes (exit code {result.returncode})")
         check("the instance started" in result.stdout, "GodotInstance.start() worked")
         check("capture saved" in result.stdout, "the preview saved its capture")
