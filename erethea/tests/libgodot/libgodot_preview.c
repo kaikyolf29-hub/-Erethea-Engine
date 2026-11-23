@@ -140,7 +140,7 @@ static int call_bool(GDExtensionMethodBindPtr p_method, GDExtensionObjectPtr p_i
  * module and offset of each frame. Without this, Windows only gives the code
  * as the exit code of the process. */
 static LONG WINAPI report_exception(EXCEPTION_POINTERS *p_info) {
-	fprintf(stderr, "libgodot_preview: unhandled exception 0x%08lX at %p\n", (unsigned long)p_info->ExceptionRecord->ExceptionCode, p_info->ExceptionRecord->ExceptionAddress);
+	fprintf(stderr, "libgodot_preview: exception 0x%08lX at %p\n", (unsigned long)p_info->ExceptionRecord->ExceptionCode, p_info->ExceptionRecord->ExceptionAddress);
 	void *frames[32];
 	USHORT count = CaptureStackBackTrace(0, 32, frames, NULL);
 	for (USHORT i = 0; i < count; i++) {
@@ -153,6 +153,16 @@ static LONG WINAPI report_exception(EXCEPTION_POINTERS *p_info) {
 	}
 	fflush(stderr);
 	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+/* Also report the exceptions that are handled later (first chance), except
+ * the ones that programs raise all the time: C++ throws and thread names. */
+static LONG WINAPI report_first_chance(EXCEPTION_POINTERS *p_info) {
+	DWORD code = p_info->ExceptionRecord->ExceptionCode;
+	if (code == 0xE06D7363 || code == 0x406D1388 || code == 0x4001000A || code == 0x40010006) {
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+	return report_exception(p_info);
 }
 
 typedef HMODULE Library;
@@ -180,6 +190,7 @@ int main(int p_argc, char *p_argv[]) {
 
 #ifdef _WIN32
 	SetUnhandledExceptionFilter(report_exception);
+	AddVectoredExceptionHandler(1, report_first_chance);
 #endif
 	Library library = open_library(p_argv[1]);
 	if (!library) {
@@ -248,5 +259,13 @@ int main(int p_argc, char *p_argv[]) {
 	destroy_instance(instance);
 	printf("libgodot_preview: the instance was destroyed.\n");
 	fflush(stdout);
+#ifdef _WIN32
+	/* Unload the library now, to tell this apart from the end of the process. */
+	printf("libgodot_preview: unloading the library.\n");
+	fflush(stdout);
+	FreeLibrary(library);
+	printf("libgodot_preview: the library was unloaded.\n");
+	fflush(stdout);
+#endif
 	return quit ? 0 : 3;
 }
