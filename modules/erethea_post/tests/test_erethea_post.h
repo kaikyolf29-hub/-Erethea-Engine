@@ -31,6 +31,7 @@
 #pragma once
 
 #include "../cube_lut.h"
+#include "../erethea_light_shafts.h"
 #include "../erethea_motion_blur.h"
 #include "../erethea_post_effect.h"
 
@@ -198,6 +199,84 @@ TEST_CASE("[Modules][EretheaMotionBlur] Asks for motion vectors") {
 	CHECK(blur->get_samples() == 32);
 	blur->set_max_length(0.0);
 	CHECK(blur->get_max_length() == doctest::Approx(0.01));
+}
+
+TEST_CASE("[Modules][EretheaLightShafts] Has sane defaults and keeps values in range") {
+	Ref<EretheaLightShafts> shafts;
+	shafts.instantiate();
+	CHECK(shafts->get_effect_callback_type() == CompositorEffect::EFFECT_CALLBACK_TYPE_POST_TRANSPARENT);
+	CHECK(shafts->get_access_resolved_depth());
+	CHECK(shafts->get_intensity() == doctest::Approx(0.8));
+	CHECK(shafts->get_samples() == 24);
+	CHECK(shafts->get_custom_direction().is_zero_approx());
+
+	shafts->set_intensity(-1.0);
+	CHECK(shafts->get_intensity() == doctest::Approx(0.0));
+	shafts->set_samples(1000);
+	CHECK(shafts->get_samples() == 64);
+	shafts->set_samples(0);
+	CHECK(shafts->get_samples() == 8);
+	shafts->set_density(5.0);
+	CHECK(shafts->get_density() == doctest::Approx(1.0));
+	shafts->set_density(0.0);
+	CHECK(shafts->get_density() == doctest::Approx(0.1));
+	shafts->set_decay(2.0);
+	CHECK(shafts->get_decay() == doctest::Approx(1.0));
+	shafts->set_threshold(-3.0);
+	CHECK(shafts->get_threshold() == doctest::Approx(0.0));
+	// The tint has no alpha.
+	shafts->set_tint(Color(1.0, 0.5, 0.25, 0.1));
+	CHECK(shafts->get_tint() == Color(1.0, 0.5, 0.25, 1.0));
+	shafts->set_custom_direction(Vector3(0, 1, 0));
+	CHECK(shafts->get_custom_direction() == Vector3(0, 1, 0));
+}
+
+TEST_CASE("[Modules][EretheaLightShafts] Projects the sun onto the screen") {
+	const Projection projection = Projection::create_perspective(60.0, 16.0 / 9.0, 0.1, 100.0);
+	// A camera at the origin looking along -Z.
+	const Transform3D camera;
+	Vector2 uv;
+
+	// Straight ahead: the center of the screen, fully visible.
+	CHECK(EretheaLightShafts::project_sun(projection, camera, Vector3(0, 0, -1), false, uv) == doctest::Approx(1.0));
+	CHECK(uv.x == doctest::Approx(0.5));
+	CHECK(uv.y == doctest::Approx(0.5));
+
+	// Up and to the right, inside the screen (30° vertical half field of view).
+	const Vector3 up_right = Vector3(Math::tan(Math::deg_to_rad(10.0)), Math::tan(Math::deg_to_rad(10.0)), -1.0);
+	CHECK(EretheaLightShafts::project_sun(projection, camera, up_right, false, uv) == doctest::Approx(1.0));
+	CHECK(uv.x > 0.5);
+	CHECK(uv.y > 0.5);
+	Vector2 flipped_uv;
+	EretheaLightShafts::project_sun(projection, camera, up_right, true, flipped_uv);
+	CHECK(flipped_uv.x == doctest::Approx(uv.x));
+	CHECK(flipped_uv.y == doctest::Approx(1.0 - uv.y));
+
+	// Behind the camera, or to its side: nothing.
+	CHECK(EretheaLightShafts::project_sun(projection, camera, Vector3(0, 0, 1), false, uv) == doctest::Approx(0.0));
+	CHECK(EretheaLightShafts::project_sun(projection, camera, Vector3(1, 0, 0), false, uv) == doctest::Approx(0.0));
+
+	// Fades smoothly past the edge of the screen, and is gone far outside it.
+	const Vector3 just_outside = Vector3(0, Math::tan(Math::deg_to_rad(35.0)), -1.0);
+	const float fade = EretheaLightShafts::project_sun(projection, camera, just_outside, false, uv);
+	CHECK(fade > 0.0f);
+	CHECK(fade < 1.0f);
+	CHECK(uv.y > 1.0f);
+	CHECK(EretheaLightShafts::project_sun(projection, camera, Vector3(0, Math::tan(Math::deg_to_rad(60.0)), -1.0), false, uv) == doctest::Approx(0.0));
+
+	// The camera's rotation moves the sun on screen: turning right puts it to the left.
+	const Transform3D turned_right = Transform3D(Basis(Vector3(0, 1, 0), Math::deg_to_rad(-15.0)), Vector3());
+	CHECK(EretheaLightShafts::project_sun(projection, turned_right, Vector3(0, 0, -1), false, uv) > 0.0f);
+	CHECK(uv.x < 0.5);
+
+	// Moving the camera doesn't move a sun at infinity.
+	const Transform3D moved = Transform3D(Basis(), Vector3(50, 20, -10));
+	CHECK(EretheaLightShafts::project_sun(projection, moved, Vector3(0, 0, -1), false, uv) == doctest::Approx(1.0));
+	CHECK(uv.x == doctest::Approx(0.5));
+
+	// Orthographic cameras aren't supported.
+	const Projection orthogonal = Projection::create_orthogonal(-5, 5, -5, 5, 0.1, 100.0);
+	CHECK(EretheaLightShafts::project_sun(orthogonal, camera, Vector3(0, 0, -1), false, uv) == doctest::Approx(0.0));
 }
 
 } // namespace TestEretheaPostEffect
