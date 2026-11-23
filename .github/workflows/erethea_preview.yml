@@ -1,0 +1,217 @@
+name: 🔥 Erethea preview
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# The preview of the Fornalha (modules/erethea_preview):
+#
+# - With the editor built by linux_builds.yml and windows_builds.yml, runs
+#   erethea/tests/preview/test_preview.py: the engine loads a small glTF box
+#   with --erethea-preview=<file> (no project), saves a capture, swaps the
+#   asset without restarting and reloads it when the file changes. The
+#   capture must show the box in its center.
+# - Builds the engine as a shared library (library_type=shared_library, the
+#   LibGodot of the Godot base) and runs erethea/tests/libgodot/libgodot_preview.c,
+#   a host program that loads it with the C API, runs the preview and checks
+#   its capture.
+#
+# The runners have no GPU. Linux draws with Mesa's lavapipe (Vulkan on the
+# CPU) under Xvfb. Windows draws with the Compatibility renderer on ANGLE
+# (WARP). What the captures prove is that the preview draws something right,
+# not how it looks or how fast it is on a graphics card.
+
+jobs:
+  preview-linux:
+    runs-on: ubuntu-24.04
+    name: Preview on Linux
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the lavapipe Vulkan driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Preview
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          chmod +x bin/erethea.*
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            python3 erethea/tests/preview/test_preview.py bin/erethea.linuxbsd.editor.x86_64.mono --out "$PWD/preview/linux"
+
+      - name: Upload captures and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-preview-linux
+          path: preview
+          retention-days: 14
+
+  preview-windows:
+    runs-on: windows-latest
+    name: Preview on Windows
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Preview
+        run: python erethea/tests/preview/test_preview.py bin/erethea.windows.editor.x86_64.exe --engine-args "--rendering-driver opengl3_angle" --out "${{ github.workspace }}/preview/windows"
+
+      - name: Upload captures and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-preview-windows
+          path: preview
+          retention-days: 14
+
+  libgodot-linux:
+    runs-on: ubuntu-24.04
+    name: LibGodot on Linux
+    timeout-minutes: 90
+    env:
+      CACHE_NAME: linux-libgodot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install the lavapipe Vulkan driver and Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers xvfb
+
+      - name: Restore Godot build cache
+        uses: ./.github/actions/godot-cache-restore
+        with:
+          cache-name: ${{ env.CACHE_NAME }}
+        continue-on-error: true
+
+      - name: Setup Python and SCons
+        uses: ./.github/actions/godot-deps
+
+      - name: Compilation (library_type=shared_library)
+        uses: ./.github/actions/godot-build
+        with:
+          scons-flags: library_type=shared_library module_text_server_fb_enabled=yes scu_build=yes debug_symbols=no accesskit=no wayland=no
+          platform: linuxbsd
+          target: editor
+
+      - name: Save Godot build cache
+        uses: ./.github/actions/godot-cache-save
+        with:
+          cache-name: ${{ env.CACHE_NAME }}
+        continue-on-error: true
+
+      - name: Host program with the library
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          library="$(ls bin/liberethea.linuxbsd.editor.x86_64.so)"
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            python3 erethea/tests/libgodot/test_libgodot.py "$library" --out "$PWD/libgodot/linux"
+
+      - name: Upload the library
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-libgodot-linux
+          path: bin/liberethea.linuxbsd.editor.x86_64.so
+          retention-days: 14
+
+      - name: Upload captures and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-libgodot-linux-test
+          path: libgodot
+          retention-days: 14
+
+  libgodot-windows:
+    runs-on: windows-latest
+    name: LibGodot on Windows
+    timeout-minutes: 120
+    env:
+      CACHE_NAME: windows-libgodot
+      SCONS_CACHE_MSVC_CONFIG: true
+      PYTHONIOENCODING: utf8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Restore Godot build cache
+        uses: ./.github/actions/godot-cache-restore
+        with:
+          cache-name: ${{ env.CACHE_NAME }}
+        continue-on-error: true
+
+      - name: Setup Python and SCons
+        uses: ./.github/actions/godot-deps
+
+      - name: Download pre-built ANGLE
+        shell: sh
+        id: angle-sdk
+        run: |
+          if python ./misc/scripts/install_angle.py; then
+            echo "ANGLE_ENABLED=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::ANGLE SDK installation failed, building without ANGLE support."
+            echo "ANGLE_ENABLED=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compilation (library_type=shared_library)
+        uses: ./.github/actions/godot-build
+        with:
+          scons-flags: library_type=shared_library module_text_server_fb_enabled=yes debug_symbols=no accesskit=no d3d12=no angle=${{ steps.angle-sdk.outputs.ANGLE_ENABLED }}
+          platform: windows
+          target: editor
+
+      - name: Save Godot build cache
+        uses: ./.github/actions/godot-cache-save
+        with:
+          cache-name: ${{ env.CACHE_NAME }}
+        continue-on-error: true
+
+      - name: Host program with the library
+        shell: pwsh
+        run: |
+          Get-ChildItem bin
+          $library = (Get-ChildItem bin -Filter "erethea.windows.editor.x86_64*.dll" | Select-Object -First 1).FullName
+          # The host program needs the Visual C++ tools in the path.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" && python erethea/tests/libgodot/test_libgodot.py `"$library`" --engine-args `"--rendering-driver opengl3_angle`" --out `"${{ github.workspace }}/libgodot/windows`""
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload the library
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-libgodot-windows
+          path: |
+            bin/*.dll
+          retention-days: 14
+
+      - name: Upload captures and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-libgodot-windows-test
+          path: libgodot
+          retention-days: 14

@@ -60,9 +60,10 @@ novas da Godot sem reescrever nada.
 | Validações antes de exportar (polígonos, texturas, escala, recibos) | `modules/erethea_export_checks/` |
 | Ponte com a Fornalha (cenas montadas pelo `game.project.json`, elo ao vivo) | `modules/erethea_fornalha/` |
 | Painel de IA do editor (Ignis, Claude pela API, servidor OpenAI, Claude Code) | `modules/erethea_assistant/` |
+| Prévia do asset para a Fornalha (`--erethea-preview=`, LibGodot) | `modules/erethea_preview/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
-| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`) |
+| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`) |
 
 ## Compilar e testar
 

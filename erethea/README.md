@@ -16,6 +16,8 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/export_checks/` | Projeto da Fornalha e teste das validações antes de exportar |
 | `tests/fornalha_import/` | Projeto da Fornalha e teste das cenas montadas pelo `game.project.json` |
 | `tests/fornalha_link/` | Teste do elo ao vivo com a Fornalha, com uma Fornalha de mentira |
+| `tests/preview/` | Teste de ponta a ponta da prévia para a Fornalha (arquivos glTF gerados pelo teste) |
+| `tests/libgodot/` | Programa em C que embute a engine pela LibGodot e teste da prévia embutida |
 
 ## Atualizar a Godot
 
@@ -734,6 +736,161 @@ para o teste final no PC do criador.
 ```sh
 python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64
 ```
+
+## Prévia para a Fornalha
+
+A Fornalha pode mostrar o asset que gerou **já com o renderizador da Erethea**,
+do jeito que vai ficar no jogo: o modelo em pé num chão, com luz de sol e
+sombra, céu procedural e uma câmera que enquadra o modelo e gira devagar em
+volta. O código fica em `modules/erethea_preview/` (a classe `EretheaPreview`)
+e funciona de duas formas: como **executável**, com `--erethea-preview=`, e
+**embutida** na Fornalha pela LibGodot. As duas mostram a mesma cena. Sem o
+argumento, nada muda na engine.
+
+### Como rodar o executável
+
+```sh
+erethea --erethea-preview=dragao.glb
+erethea --erethea-preview=dragao.glb --erethea-preview-capture=captura.png
+```
+
+Não precisa de projeto (nem de `--path`): o `main.cpp` reconhece o argumento,
+não abre o gerenciador de projetos e usa o laço principal `EretheaPreviewLoop`,
+que monta a cena sozinho. O arquivo é lido em tempo de execução com
+`GLTFDocument`, então **não precisa de importação do editor**. Aceita `.glb` e
+`.gltf` (com o `.bin` e as texturas ao lado). Caminho relativo vale a partir da
+pasta atual. Nos templates de exportação (sem o editor) a engine não acha um
+projeto sozinha: aponte uma pasta com `project.godot` por `--path`.
+
+| Opção | O que faz |
+| --- | --- |
+| `--erethea-preview=<arquivo>` | Liga a prévia e mostra o `.glb`/`.gltf` |
+| `--erethea-preview-capture=<arquivo.png>` | Depois de alguns quadros, salva a imagem da janela, escreve `capture saved` e fecha. Sai com 0 se salvou e com 1 se não deu (arquivo ruim, `--headless`, sem imagem). A câmera fica parada, no mesmo ângulo sempre |
+| `--erethea-preview-frames=<n>` | Quantos quadros esperar antes da captura (padrão 10, mínimo 3). Conta de novo a cada troca de asset |
+| `--erethea-preview-control=<arquivo.txt>` | Arquivo de texto que a Fornalha reescreve com o caminho de **outro asset**: a prévia o troca sem reiniciar (veja abaixo) |
+| `--erethea-preview-quality=<low\|balanced\|cinematic\|automatic>` | Aplica um preset de qualidade (veja "Presets de qualidade") |
+
+Os argumentos da Godot valem também: `--resolution 1280x720`, `--position`,
+`--rendering-driver vulkan`, `--fixed-fps 30`, `--audio-driver Dummy`.
+
+**Trocar o asset sem reiniciar.** Há três jeitos, todos sem fechar a janela:
+
+1. **Escrever o caminho novo** no arquivo de `--erethea-preview-control=`. A
+   prévia lê o arquivo duas vezes por segundo; quando o texto muda, ela carrega
+   o novo caminho. É o jeito para quem embute pela LibGodot, que não tem como
+   chamar funções da cena por fora.
+2. **Regravar o mesmo arquivo.** A prévia vê que a data do `.glb` mudou, espera
+   ele parar de mudar (para não ler um arquivo pela metade) e recarrega. Serve
+   para a Fornalha refazer o mesmo asset.
+3. **Pelo código** (GDScript, C# ou GDExtension): `EretheaPreview.load_asset(caminho)`.
+   Se o arquivo for ruim, devolve um erro e o asset anterior continua na tela.
+
+Cada vez que um asset aparece, a prévia imprime
+`Erethea preview: showing <caminho>`.
+
+**Qualidade.** Por padrão a prévia não aplica nenhum preset: usa o preset do
+projeto, que é "Disabled" (`EretheaQuality`), e portanto desenha como um jogo
+novo com as configurações padrão (era o que a Fornalha pediu: ver o asset "como
+vai ficar no jogo"). Para ver o resultado com mais qualidade, use
+`--erethea-preview-quality=cinematic` (ou outro).
+
+### Como embutir pela LibGodot
+
+A base 4.8 já traz a LibGodot (`core/extension/libgodot.h`). A Erethea só
+compila a biblioteca; nada foi mudado na API:
+
+```sh
+scons platform=windows target=editor library_type=shared_library   # bin/erethea.windows.editor.x86_64.dll
+scons platform=linuxbsd target=editor library_type=shared_library  # bin/liberethea.linuxbsd.editor.x86_64.so
+```
+
+Use `target=editor` (a prévia usa o importador de glTF e o resto do editor
+completo). O CI compila as duas e guarda como artefatos `erethea-libgodot-linux`
+e `erethea-libgodot-windows`. O programa `erethea/tests/libgodot/libgodot_preview.c`
+é um exemplo completo em C (a Fornalha faz o mesmo em Rust, com `libloading`):
+
+1. **Carregar a biblioteca** (`LoadLibrary`/`dlopen`) e achar
+   `libgodot_create_godot_instance` e `libgodot_destroy_godot_instance`.
+2. **Criar a instância**: `libgodot_create_godot_instance(argc, argv, init)`.
+   `argv[0]` é o nome do programa que embute (como no `main()`), os outros são os
+   argumentos da engine:
+
+   ```text
+   argv = ["fornalha", "--audio-driver", "Dummy",
+           "--erethea-preview=C:/assets/dragao.glb",
+           "--erethea-preview-control=C:/temp/prévia.txt"]
+   ```
+
+   `init` é a função de entrada GDExtension do programa (assinatura
+   `GDExtensionInitializationFunction`): a engine a chama durante a criação e
+   entrega o `get_proc_address`, que dá acesso a toda a API C. Guarde esse
+   ponteiro; a função deve preencher `r_initialization` com
+   `minimum_initialization_level = GDEXTENSION_INITIALIZATION_CORE` e dois
+   callbacks (`initialize` e `deinitialize`) que podem ficar vazios, e devolver 1.
+3. **Iniciar**: com o `get_proc_address`, pegue `string_name_new_with_latin1_chars`,
+   `classdb_get_method_bind` e `object_method_bind_ptrcall`; ache o método
+   `GodotInstance.start` (`classdb_get_method_bind("GodotInstance", "start", hash)`)
+   e chame com `object_method_bind_ptrcall(metodo, instancia, NULL, &resultado)`.
+   O retorno é `bool`. Se falhar, a instância não abriu.
+4. **Rodar quadro a quadro**: chame `GodotInstance.iteration` uma vez por
+   quadro (é o que faz a janela desenhar) até devolver `true`, que quer dizer
+   "a engine pediu para fechar" (na prévia, só acontece com
+   `--erethea-preview-capture`). Quem embute decide o ritmo: em um programa com
+   interface, chame de um temporizador (60 vezes por segundo) na mesma thread
+   que criou a instância.
+5. **Fechar**: `libgodot_destroy_godot_instance(instancia)`.
+
+Os *hashes* dos métodos de `GodotInstance` vêm do despejo da API
+(`erethea --dump-extension-api`, campo `hash` de cada método da classe
+`GodotInstance`); a engine recusa um método cujo hash mudou, em vez de chamar
+com argumentos errados. Os valores da base 4.8 estão no topo do
+`libgodot_preview.c` (`HASH_START` e `HASH_ITERATION`).
+
+**Janela.** A prévia abre a própria janela da engine (a LibGodot cria a janela
+como o executável cria). Não há, nesta versão, um jeito de desenhar *dentro* de
+uma janela ou widget da Fornalha: a Fornalha pode mostrar a janela da prévia
+ao lado da dela (a posição vai por `--position` e o tamanho por `--resolution`) ou
+usar o executável.
+
+### Limitações
+
+- **Uma instância por processo.** A LibGodot só permite criar uma
+  (`Only one Godot Instance may be created`); depois de destruída, não dá para
+  criar outra no mesmo processo (comentário no código da Godot:
+  `// Note: When Godot Engine supports reinitialization...`). Para trocar de
+  asset, use o arquivo de controle; para recomeçar, feche o processo.
+- **Sem ponteiro da cena por fora.** A API C da LibGodot só expõe
+  `start`, `iteration`, `focus_in/out` e `pause/resume`. A cena se controla
+  pelos argumentos e pelo arquivo de controle (ou por uma GDExtension do
+  programa, que pode chamar `EretheaPreview` pelo `ClassDB`).
+- **Não provado em placa de vídeo.** O CI não tem GPU: a captura roda no Linux
+  com o Vulkan por CPU (lavapipe) e no Windows com o renderizador de
+  compatibilidade em ANGLE (WARP). Ela prova que a prévia desenha o modelo no
+  centro, não como fica nem a velocidade numa RX 580 ou numa RTX 4060 Ti.
+- **Só `.glb` e `.gltf`**, como `GLTFDocument` lê. Modelos com extensões que a
+  Godot não conhece aparecem sem elas (a Godot avisa no log).
+- A sombra e a câmera se ajustam ao tamanho do modelo (do tamanho de um dedo ao
+  de uma casa); modelos sem malha mostram só o chão e o céu.
+- O pedido do Windows (`erethea.console.exe`, que a Fornalha já usa) não muda:
+  `erethea.console.exe --erethea-preview=...` funciona.
+- Fora do CI, o executável e a DLL da prévia ainda não entram no instalador nem
+  no release: por ora saem só como artefatos do CI.
+
+### Testar
+
+```sh
+# Executável (precisa de um renderizador que desenhe: janela, ou xvfb-run no Linux)
+python erethea/tests/preview/test_preview.py bin/erethea.linuxbsd.editor.x86_64 --out preview
+# LibGodot (compile antes com library_type=shared_library)
+python erethea/tests/libgodot/test_libgodot.py bin/liberethea.linuxbsd.editor.x86_64.so --out libgodot
+```
+
+O primeiro cria arquivos glTF pequenos (caixas), mostra, troca, regrava e
+quebra o arquivo de propósito; o segundo compila o `libgodot_preview.c` e
+confere a captura. Os dois conferem que o centro da imagem é a cor da caixa e
+o canto é o céu. No CI: `.github/workflows/erethea_preview.yml`. Os testes de
+unidade (`bin/erethea... --headless --test --test-case="*Erethea*Preview*"`)
+cobrem os argumentos e o enquadramento da câmera.
 
 ## Janela moderna e barra de título (Windows)
 
