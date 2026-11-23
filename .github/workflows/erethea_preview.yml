@@ -15,12 +15,60 @@ on:
 #   a host program that loads it with the C API, runs the preview and checks
 #   its capture.
 #
+# The two LibGodot jobs build the whole engine again as a library, which is
+# slow. On pull requests they run only when the change can affect them: the
+# preview module, the LibGodot code and tests, the engine's main(), or this
+# workflow. They always run on pushes to main and on manual runs. The preview
+# jobs are quick and always run.
+#
 # The runners have no GPU. Linux draws with Mesa's lavapipe (Vulkan on the
 # CPU) under Xvfb. Windows draws with the Compatibility renderer on ANGLE
 # (WARP). What the captures prove is that the preview draws something right,
 # not how it looks or how fast it is on a graphics card.
 
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    name: Does the change affect LibGodot?
+    timeout-minutes: 5
+    outputs:
+      libgodot: ${{ steps.decide.outputs.libgodot }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: Get changed files
+        if: github.event_name == 'pull_request'
+        id: changed-files
+        uses: tj-actions/changed-files@v47
+        with:
+          skip_initial_fetch: true
+          files: |
+            modules/erethea_preview/**
+            erethea/tests/libgodot/**
+            erethea/tests/preview/**
+            core/extension/**
+            platform/*/libgodot*
+            main/**
+            .github/workflows/erethea_preview.yml
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_AFFECTED: ${{ steps.changed-files.outputs.any_changed }}
+        run: |
+          if [ "$EVENT" != "pull_request" ] || [ "$PR_AFFECTED" = "true" ]; then
+            echo "libgodot=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "libgodot=false" >> "$GITHUB_OUTPUT"
+            echo "The change doesn't touch the preview or LibGodot: the library jobs are skipped."
+          fi
+
   preview-linux:
     runs-on: ubuntu-24.04
     name: Preview on Linux
@@ -82,6 +130,8 @@ jobs:
           retention-days: 14
 
   libgodot-linux:
+    needs: changes
+    if: needs.changes.outputs.libgodot == 'true'
     runs-on: ubuntu-24.04
     name: LibGodot on Linux
     timeout-minutes: 90
@@ -144,6 +194,8 @@ jobs:
           retention-days: 14
 
   libgodot-windows:
+    needs: changes
+    if: needs.changes.outputs.libgodot == 'true'
     runs-on: windows-latest
     name: LibGodot on Windows
     timeout-minutes: 120
