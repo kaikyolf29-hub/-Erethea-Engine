@@ -886,6 +886,13 @@ public:
 	PagedArray<Instance *> instance_cull_result;
 	PagedArray<Instance *> instance_shadow_cull_result;
 
+	// Erethea: The geometry around the camera, for ray tracing effects (see
+	// RendererSceneRender::erethea_request_ray_tracing()). Only gathered while
+	// an effect keeps asking for it, so that rendering without ray tracing
+	// costs nothing more.
+	PagedArray<Instance *> erethea_rt_cull_result;
+	PagedArray<RenderGeometryInstance *> erethea_rt_instances;
+
 	struct InstanceCullResult {
 		PagedArray<RenderGeometryInstance *> geometry_instances;
 		PagedArray<Instance *> lights;

@@ -354,5 +354,23 @@ public:
 	virtual void material_set_use_debanding(bool p_enable) = 0;
 
 	virtual void update() = 0;
+
+	// Erethea: Ray tracing effects (see modules/erethea_raytracing) ask each
+	// frame, on the rendering thread, for the geometry within p_radius of the
+	// camera. The scene cull then gathers it before each 3D view is rendered,
+	// visible or not, so that what is off screen still casts shadows, and
+	// leaves it in get_ray_tracing_instances() until the next view. When no
+	// effect asked in this frame or the previous one, nothing is gathered.
+	void erethea_request_ray_tracing(float p_radius);
+	bool erethea_is_ray_tracing_requested() const;
+	float erethea_get_ray_tracing_radius() const { return erethea_rt_radius; }
+	void erethea_set_ray_tracing_instances(const PagedArray<RenderGeometryInstance *> *p_instances) { erethea_rt_instances = p_instances; }
+	const PagedArray<RenderGeometryInstance *> *erethea_get_ray_tracing_instances() const { return erethea_rt_instances; }
+
 	virtual ~RendererSceneRender() {}
+
+private:
+	float erethea_rt_radius = 0.0;
+	uint64_t erethea_rt_requested_frame = 0;
+	const PagedArray<RenderGeometryInstance *> *erethea_rt_instances = nullptr;
 };
