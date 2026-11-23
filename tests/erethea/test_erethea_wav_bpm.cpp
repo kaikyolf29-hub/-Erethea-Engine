@@ -35,9 +35,12 @@ TEST_FORCE_LINK(test_erethea_wav_bpm)
 #include "scene/resources/audio/audio_stream_wav.h"
 #include "tests/test_tools.h"
 
+#include "modules/modules_enabled.gen.h" // For MODULE_INTERACTIVE_MUSIC_ENABLED.
+
 #ifdef MODULE_INTERACTIVE_MUSIC_ENABLED
-#include "modules/interactive_music/audio_stream_interactive.h"
 #include "servers/audio/audio_server.h"
+
+#include "modules/interactive_music/audio_stream_interactive.h"
 #endif
 
 namespace TestEretheaWavBpm {
