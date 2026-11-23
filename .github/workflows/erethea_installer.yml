@@ -101,6 +101,14 @@ jobs:
           # So the installer is started without handles from this step
           # (ShellExecute), and everything the update started is stopped at the
           # end, whatever happened.
+          #
+          # It still hung after that (23/11), so the runner itself stops
+          # answering during this step. The next suspect is the editor that the
+          # installer starts again: it starts with the default renderer on a
+          # runner with no GPU (the window test forces ANGLE for that reason).
+          # So it is stopped as soon as it appears, before it sets up its
+          # graphics. If the step still hangs, look at the installer itself
+          # (the Restart Manager of /CLOSEAPPLICATIONS).
           $exe = [IO.Path]::GetFullPath((Join-Path $env:ERETHEA_DIR "erethea.exe"))
           $log = Join-Path $env:RUNNER_TEMP "erethea-update.log"
           # The installer, its temporary copy (in an is-*.tmp folder) and the
@@ -117,28 +125,43 @@ jobs:
             $info.UseShellExecute = $true
             $p = [System.Diagnostics.Process]::Start($info)
             Write-Output "$(Get-Date -Format o) Started the installer, process $($p.Id)."
-            # Wait for the installer only: the editor it starts keeps running.
-            if (-not $p.WaitForExit(240000)) {
-              Write-Output "The installer didn't finish in 4 minutes. The end of its log:"
-              if (Test-Path $log) { Get-Content $log -Tail 80 } else { Write-Output "(no log)" }
-              throw "The installer hung."
+            # While the installer runs, and up to a minute after it ends, stop
+            # the editor it starts again as soon as it shows up.
+            $editor = $null
+            $exited = $null
+            $deadline = (Get-Date).AddSeconds(240)
+            while ($true) {
+              foreach ($e in @(Get-Process -Name erethea -ErrorAction SilentlyContinue)) {
+                if ($e.Path -and [IO.Path]::GetFullPath($e.Path) -eq $exe) {
+                  if (-not $editor) {
+                    $editor = $e.Id
+                    Write-Output "$(Get-Date -Format o) The installer started $exe again, process $editor. Stopping it before it sets up its graphics."
+                  }
+                  Stop-Process -Id $e.Id -Force -ErrorAction SilentlyContinue
+                }
+              }
+              if ($p.HasExited -and -not $exited) {
+                $exited = Get-Date
+                Write-Output "$(Get-Date -Format o) The installer finished with exit code $($p.ExitCode)."
+              }
+              if ($exited -and ($editor -or (Get-Date) -gt $exited.AddSeconds(60))) {
+                break
+              }
+              if ((Get-Date) -gt $deadline) {
+                Write-Output "The installer didn't finish in 4 minutes. The end of its log:"
+                if (Test-Path $log) { Get-Content $log -Tail 80 } else { Write-Output "(no log)" }
+                throw "The installer hung."
+              }
+              Start-Sleep -Milliseconds 100
             }
-            Write-Output "$(Get-Date -Format o) The installer finished with exit code $($p.ExitCode)."
             if ($p.ExitCode -ne 0) {
               if (Test-Path $log) { Get-Content $log -Tail 80 }
               throw "Installer failed with exit code $($p.ExitCode)"
             }
-            $deadline = (Get-Date).AddSeconds(60)
-            $editor = $null
-            while (-not $editor) {
-              $editor = Get-CimInstance Win32_Process -Filter "Name = 'erethea.exe'" |
-                Where-Object { $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -eq $exe }
-              if (-not $editor) {
-                if ((Get-Date) -gt $deadline) { throw "The installer didn't start $exe again" }
-                Start-Sleep -Seconds 1
-              }
+            if (-not $editor) {
+              throw "The installer didn't start $exe again"
             }
-            Write-Output "$(Get-Date -Format o) The installer updated Erethea and started $exe again, process $(@($editor)[0].ProcessId)."
+            Write-Output "The installer updated Erethea and started $exe again."
           } finally {
             $left = @(Get-UpdateProcesses)
             if ($left.Count -gt 0) {

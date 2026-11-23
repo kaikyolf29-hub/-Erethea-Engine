@@ -142,21 +142,25 @@ por item, só em projetos da Fornalha ou desligado por padrão:
    pelo campo opcional `acustica`; os barramentos que faltam entram no
    `default_bus_layout.tres`. Desliga em `editor/erethea_fornalha/area_acoustics`.
    Veja `erethea/README.md`, "Som".
-3. **Música que muda com o jogo** (PR aberto no branch
-   `claude/erethea-som3-musica`): o `AudioStreamWAV` ganhou `bpm`, `beat_count`
-   e `bar_beats` (como o Ogg; correção genérica a propor à Godot, teste em
-   `tests/erethea/test_erethea_wav_bpm.cpp`), e o `build_fornalha_scenes` acerta
+3. **Música que muda com o jogo** (PR #29, feito): o `AudioStreamWAV` ganhou
+   `bpm`, `beat_count` e `bar_beats` (como o Ogg; correção genérica a propor à
+   Godot, teste em `tests/erethea/test_erethea_wav_bpm.cpp`), e o
+   `build_fornalha_scenes` acerta
    o `.import` de cada `Audio/musica/<situacao>.wav` (laço, bpm, compassos × 4)
    e põe na `principal.tscn` o nó `Musica` do grupo `erethea_musica`
    (`AudioStreamInteractive`, troca no fim do compasso) que o `Sons` da
    Fornalha chama. Desliga em `editor/erethea_fornalha/interactive_music`.
    Falta ouvir de verdade (o CI não toca som). Veja `erethea/README.md`, "Som".
-4. **Boca mexendo com a fala**: a curva do `.boca.json` move o osso da
-   mandíbula ou a forma de boca aberta que o `<id>.forja.json` disser.
+4. **Boca mexendo com a fala**: já feito pela Fornalha, sem nada a fazer na
+   Erethea (decidido em 23/11). O `Sons.falar()` dela toca a fala presa ao
+   personagem e passa a curva do `.boca.json` ao `Rosto` do `movimento.gd`, que
+   gira o osso `jaw` (e ainda pisca e mexe os olhos). A Erethea soma o eco da
+   área à fala (item 2). Se um dia a Fornalha mandar modelos com forma de boca
+   (blend shape) em vez de osso, aí sim cabe um complemento aqui.
 
-Os itens 2 a 4 dependem dos pedidos 1 a 5 para a Fornalha (abaixo), enviados
-ao Kaiky em 22/11. Enquanto a Fornalha não mudar, siga com o que já existe e
-confira no repositório público dela (`kaikyolf29-hub/fornalha`, só leitura).
+Com isso o bloco de som está fechado. A Fornalha atendeu os pedidos 1 a 4
+(`.musica.json`, grupo `erethea_musica`, `Sons.falar` com `personagem` e
+`texto` no `.boca.json`, osso da boca no `forja.json`).
 
 ### 4. Prévia com LibGodot (último item da Fase 3)
 
@@ -375,11 +379,16 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
 
 ## Falhas conhecidas do CI
 
-- Barra de título no Windows: o editor fechou uma vez com `0xC0000409` cerca de
-  10 s depois de abrir o projeto, duas vezes no mesmo artefato; um build novo
-  do mesmo código passou. O `title_bar_test.ps1` agora imprime o fim dos logs e
-  os eventos 1000/1001/1026 do Windows quando falha, então o log do job mostra o
-  módulo que caiu se acontecer de novo.
+- Barra de título no Windows: o editor fechou com `0xC0000409` cerca de 10 s
+  depois de abrir o `smoke_project`, duas vezes no mesmo artefato antes e de
+  novo em 23/11 (PR #29, que não mexe na janela); a nova tentativa passou. É um
+  "fast fail" (abort, parâmetro inválido do CRT ou estouro de pilha), que o
+  tratador de crash da Godot não vê, e o build do CI não tem PDB. Em 23/11 o
+  teste não achou os eventos do Windows porque olhava logo depois da queda;
+  agora espera até 30 s por eles, e o `erethea_window.yml` pede ao Windows um
+  minidump (LocalDumps) em `dumps/` no artefato `erethea-window-test`. Se
+  acontecer de novo, o evento 1000 diz o módulo e o deslocamento, e o 1001 o
+  código do fast fail; comece por aí (tarefa aberta).
 - Instalador, passo "Update silently": travou quatro vezes (duas antes do
   PR #23, duas em 23/11 mesmo com o limite de 4 minutos dele), sempre além do
   limite do passo e do job e sem log nenhum, nem dos passos anteriores; passou
@@ -390,9 +399,17 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
   passo não o achava. Correção (PR #28): o instalador abre por ShellExecute,
   sem herdar nada do passo, o editor é procurado pelo caminho via
   `Win32_Process`, e tudo que a atualização abriu é fechado no fim (`finally`),
-  com a lista impressa no log. O job agora tem 20 minutos. Se travar de novo
-  mesmo assim, a hipótese caiu: aí a suspeita passa a ser a própria máquina
-  (o editor reaberto sem `--rendering-driver`, num executor sem placa de vídeo).
+  com a lista impressa no log. O job agora tem 20 minutos. **Não resolveu**:
+  em 23/11 travou de novo no PR #30, já com o #28 (no total, umas 4 em cada 10
+  execuções, antes e depois). Então é o próprio executor que para de
+  responder durante o passo (nem o limite do passo funciona), e não o script.
+  Experimento 2 (PR #30): o editor que o instalador reabre é fechado assim que
+  aparece, antes de montar a parte gráfica (ele abre com o renderizador padrão
+  num executor sem placa de vídeo; o teste da janela força o ANGLE por isso).
+  Conte as próximas execuções: se não travar mais em umas 8, a causa é essa
+  inicialização gráfica; se travar, a suspeita passa ao instalador (o Restart
+  Manager do `/CLOSEAPPLICATIONS`, que pode querer fechar o Explorer, que
+  segura o ícone do `erethea.exe`).
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
   um build novo, suba um commit.
 
