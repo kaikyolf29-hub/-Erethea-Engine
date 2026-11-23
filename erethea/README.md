@@ -615,6 +615,7 @@ Godot não mudam.
 | --- | --- | --- |
 | Configurações do Projeto | `editor/erethea_fornalha/build_automatically`: montar as cenas sozinha | ligado |
 | Configurações do Projeto | `editor/erethea_fornalha/live_link`: perguntar à Fornalha o que ela gravou | ligado |
+| Configurações do Projeto | `editor/erethea_fornalha/area_acoustics`: eco de cada área (veja "Som") | ligado |
 | Configurações do Editor | `erethea/fornalha/port`: porta da API da Fornalha | `11480` |
 
 A variável de ambiente `ERETHEA_FORNALHA_PORT` troca a porta, como nos testes.
@@ -747,6 +748,31 @@ A Erethea entende que o som vai até o fim do arquivo. A mudança está em
 `scene/resources/audio/audio_stream_wav.cpp`, marcada com `// Erethea:`, e o
 teste em `tests/erethea/test_erethea_wav_stream.cpp`
 (`--test --test-case="*Erethea*AudioStreamWAV*"`).
+
+**Eco de cada área.** Ao montar as cenas pelo `game.project.json`, cada área
+ganha um `Area3D` chamado `Eco`, que manda os sons feitos dentro dela para um
+barramento de áudio com reverberação. O alcance é metade do caminho até a área
+mais perto (de 12 a 80 m). Os 15 tipos de área da Fornalha viram seis
+acústicas:
+
+| Acústica (barramento) | Tipos de área | Como soa |
+| --- | --- | --- |
+| `caverna` (`Eco_caverna`) | caverna, masmorra | pedra fechada: eco longo e claro |
+| `salao` (`Eco_salao`) | castelo | salão grande |
+| `ruinas` (`Eco_ruinas`) | ruínas, arena, coliseu | paredes de pedra a céu aberto |
+| `vila` (`Eco_vila`) | vila, cidade, aldeia | casas perto: curto e suave |
+| `floresta` (`Eco_floresta`) | floresta, bosque, pântano | as folhas abafam os agudos |
+| `montanha` (`Eco_montanha`) | montanha, colina, vulcão | campo aberto: eco distante e atrasado |
+
+Uma área pode escolher a sua com o campo opcional `"acustica"` no
+`game.project.json` (por exemplo `"acustica": "caverna"` num castelo com
+masmorra). Os barramentos que faltam entram no layout de barramentos do projeto
+(`default_bus_layout.tres`, o da configuração `audio/buses/default_bus_layout`),
+sem mexer nos que já existem, e o relatório do `build_fornalha_scenes` diz quais
+entraram (`audio_buses`). Desligue em `editor/erethea_fornalha/area_acoustics`.
+Os testes `--test --test-case="*EretheaFornalha*"` e
+`erethea/tests/fornalha_import/test_fornalha_import.py` conferem a escolha, o
+alcance, as cenas e o layout.
 
 ## Lançar uma versão
 
