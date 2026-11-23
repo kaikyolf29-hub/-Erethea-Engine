@@ -45,7 +45,9 @@ def write_box_glb(path, width, height, color):
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0, "name": "box"}],
         "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "NORMAL": 1}, "indices": 2, "material": 0}]}],
-        "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [*color, 1.0], "metallicFactor": 0.0, "roughnessFactor": 0.8}}],
+        "materials": [
+            {"pbrMetallicRoughness": {"baseColorFactor": [*color, 1.0], "metallicFactor": 0.0, "roughnessFactor": 0.8}}
+        ],
         "accessors": [
             {"bufferView": 0, "componentType": 5126, "count": len(positions), "type": "VEC3", "min": low, "max": high},
             {"bufferView": 1, "componentType": 5126, "count": len(normals), "type": "VEC3"},
@@ -54,7 +56,12 @@ def write_box_glb(path, width, height, color):
         "bufferViews": [
             {"buffer": 0, "byteOffset": 0, "byteLength": len(position_bytes), "target": 34962},
             {"buffer": 0, "byteOffset": len(position_bytes), "byteLength": len(normal_bytes), "target": 34962},
-            {"buffer": 0, "byteOffset": len(position_bytes) + len(normal_bytes), "byteLength": len(index_bytes), "target": 34963},
+            {
+                "buffer": 0,
+                "byteOffset": len(position_bytes) + len(normal_bytes),
+                "byteLength": len(index_bytes),
+                "target": 34963,
+            },
         ],
         "buffers": [{"byteLength": len(blob)}],
     }
