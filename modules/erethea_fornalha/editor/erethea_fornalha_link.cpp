@@ -258,6 +258,9 @@ void EretheaFornalhaLink::_build_if_needed() {
 	for (const EretheaFornalhaCharacter &character : project.characters) {
 		imported = imported && ResourceLoader::exists(character.model);
 	}
+	for (const EretheaFornalhaMusic &music : project.music_tracks) {
+		imported = imported && music.imported;
+	}
 	if (!imported && import_waits < MAX_IMPORT_WAITS) {
 		import_waits++;
 		build_timer->start();

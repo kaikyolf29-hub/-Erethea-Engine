@@ -1172,6 +1172,9 @@
 		<member name="editor/erethea_fornalha/build_automatically" type="bool" setter="" getter="" default="true">
 			In projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), build the scenes again by themselves when what they are built from changes, such as a new character from the Fornalha. Scenes changed by hand are kept. Before the first build, this only happens in a project with no [code]res://principal.tscn[/code] yet. Erethea only.
 		</member>
+		<member name="editor/erethea_fornalha/interactive_music" type="bool" setter="" getter="" default="true">
+			In projects made with the Fornalha (with a [code]game.project.json[/code] next to [code]project.godot[/code]), make the music in [code]res://Audio/musica[/code] change at the end of the bar. For each [code].wav[/code] with a valid [code].musica.json[/code], the build sets the import options of the file (loop forward over all of it, [code]bpm[/code], [code]beat_count[/code] and [code]bar_beats[/code]) and imports it again, and the main scene gets a [code]Musica[/code] node in the group [code]erethea_musica[/code], with an [AudioStreamInteractive] that has one clip per music. The Fornalha's [code]Sons[/code] autoload asks that node to play each situation. When this is disabled, the import options and the main scene are left alone, and [code]Sons[/code] plays the files in a loop. Erethea only.
+		</member>
 		<member name="editor/erethea_fornalha/live_link" type="bool" setter="" getter="" default="true">
 			In projects made with the Fornalha, ask the Fornalha running on this computer (on [code]127.0.0.1[/code], at the port of the editor setting [code]erethea/fornalha/port[/code]) when it writes new files in the project, and import them. When the Fornalha has a WebSocket, it tells the editor through it instead. Erethea only.
 		</member>

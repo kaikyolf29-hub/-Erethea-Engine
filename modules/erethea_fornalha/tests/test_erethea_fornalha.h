@@ -34,6 +34,7 @@
 #include "../editor/erethea_fornalha_plugin.h"
 #include "../erethea_fornalha_import.h"
 
+#include "core/io/config_file.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/physics/character_body_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
@@ -403,6 +404,58 @@ TEST_CASE("[Modules][EretheaFornalha] How each area sounds") {
 	project.areas.push_back(camp);
 	CHECK(EretheaFornalhaImport::get_area_radius(project, 0) == doctest::Approx(12.0));
 	CHECK(EretheaFornalhaImport::get_area_radius(project, 1) == doctest::Approx(20.0));
+}
+
+TEST_CASE("[Modules][EretheaFornalha] How the music changes") {
+	EretheaFornalhaMusic music;
+	music.situation = "combate";
+	music.file = "res://Audio/musica/combate.wav";
+	music.bpm = 120.0;
+	music.bars = 16;
+	CHECK(music.get_beat_count() == 64);
+
+	const String imported = "[remap]\n\nimporter=\"wav\"\ntype=\"AudioStreamWAV\"\n\n[deps]\n\nsource_file=\"res://Audio/musica/combate.wav\"\n\n[params]\n\nforce/8_bit=false\nedit/loop_mode=0\nedit/loop_begin=0\nedit/loop_end=-1\ncompress/mode=2\n";
+	const String prepared = EretheaFornalhaImport::set_music_import_options(imported, music);
+	CHECK(prepared != imported);
+
+	Ref<ConfigFile> config;
+	config.instantiate();
+	REQUIRE(config->parse(prepared) == OK);
+	// Looping forward over the whole file, with the tempo of the music.
+	CHECK(int(config->get_value("params", "edit/loop_mode")) == 2);
+	CHECK(int(config->get_value("params", "edit/loop_begin")) == 0);
+	CHECK(int(config->get_value("params", "edit/loop_end")) == -1);
+	CHECK(double(config->get_value("params", "bpm")) == doctest::Approx(120.0));
+	CHECK(int(config->get_value("params", "beat_count")) == 64);
+	CHECK(int(config->get_value("params", "bar_beats")) == 4);
+	// What the file already had is kept.
+	CHECK(bool(config->get_value("params", "force/8_bit")) == false);
+	CHECK(int(config->get_value("params", "compress/mode")) == 2);
+	CHECK(String(config->get_value("deps", "source_file")) == "res://Audio/musica/combate.wav");
+
+	// Nothing to change the second time, so the file isn't written again.
+	CHECK(EretheaFornalhaImport::set_music_import_options(prepared, music) == prepared);
+	// A new tempo does change it.
+	music.bpm = 90.0;
+	CHECK(EretheaFornalhaImport::set_music_import_options(prepared, music) != prepared);
+	// A file that isn't an import file is left alone.
+	CHECK(EretheaFornalhaImport::set_music_import_options("not an import file", music) == "not an import file");
+
+	// A new music, or one that was imported since, builds the scenes again.
+	EretheaFornalhaProject project;
+	const String signature = project.get_signature();
+	project.music_tracks.push_back(music);
+	const String with_music = project.get_signature();
+	CHECK(with_music != signature);
+	project.music_tracks.write[0].imported = true;
+	CHECK(project.get_signature() != with_music);
+
+	EretheaFornalhaImport::Report report;
+	CHECK_FALSE(report.to_dictionary().has("music_clips"));
+	report.music_clips.push_back("combate");
+	report.music_clips.push_back("vila");
+	const Dictionary dictionary = report.to_dictionary();
+	CHECK(PackedStringArray(dictionary["music_clips"]) == PackedStringArray({ "combate", "vila" }));
 }
 
 } // namespace TestEretheaFornalha

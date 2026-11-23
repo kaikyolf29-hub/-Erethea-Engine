@@ -142,10 +142,15 @@ por item, só em projetos da Fornalha ou desligado por padrão:
    pelo campo opcional `acustica`; os barramentos que faltam entram no
    `default_bus_layout.tres`. Desliga em `editor/erethea_fornalha/area_acoustics`.
    Veja `erethea/README.md`, "Som".
-3. **Música que muda com o jogo**: `AudioStreamInteractive` com as músicas da
-   Fornalha, trocando no fim do compasso (bpm e compassos do
-   `<situacao>.musica.json`), num nó do grupo `erethea_musica` que o `Sons` da
-   Fornalha chama.
+3. **Música que muda com o jogo** (PR aberto no branch
+   `claude/erethea-som3-musica`): o `AudioStreamWAV` ganhou `bpm`, `beat_count`
+   e `bar_beats` (como o Ogg; correção genérica a propor à Godot, teste em
+   `tests/erethea/test_erethea_wav_bpm.cpp`), e o `build_fornalha_scenes` acerta
+   o `.import` de cada `Audio/musica/<situacao>.wav` (laço, bpm, compassos × 4)
+   e põe na `principal.tscn` o nó `Musica` do grupo `erethea_musica`
+   (`AudioStreamInteractive`, troca no fim do compasso) que o `Sons` da
+   Fornalha chama. Desliga em `editor/erethea_fornalha/interactive_music`.
+   Falta ouvir de verdade (o CI não toca som). Veja `erethea/README.md`, "Som".
 4. **Boca mexendo com a fala**: a curva do `.boca.json` move o osso da
    mandíbula ou a forma de boca aberta que o `<id>.forja.json` disser.
 
