@@ -42,17 +42,21 @@
 #include "editor/file_system/editor_file_system.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
+#include "scene/3d/physics/area_3d.h"
 #include "scene/3d/physics/character_body_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
 #include "scene/3d/physics/spring_arm_3d.h"
 #include "scene/3d/world_environment.h"
 #include "scene/main/canvas_layer.h"
 #include "scene/resources/3d/capsule_shape_3d.h"
+#include "scene/resources/3d/cylinder_shape_3d.h"
 #include "scene/resources/3d/sky_material.h"
 #include "scene/resources/3d/sphere_shape_3d.h"
 #include "scene/resources/environment.h"
 #include "scene/resources/packed_scene.h"
 #include "scene/resources/sky.h"
+#include "servers/audio/audio_server.h"
+#include "servers/audio/effects/audio_effect_reverb.h"
 
 static const char *MODEL_EXTENSIONS[] = { "glb", "gltf" };
 static const char *SKY_FILES[] = { "res://World/ceu.exr", "res://World/ceu.hdr" };
@@ -197,6 +201,7 @@ EretheaFornalhaProject EretheaFornalhaProject::read() {
 			area.name = area.id;
 		}
 		area.scene = "res://World/areas/" + area.id + ".tscn";
+		area.acoustics = planned_areas.has(area.id) ? _string(planned_areas[area.id].get("acustica", Variant())) : String();
 		project.areas.push_back(area);
 	}
 	if (project.world_model.is_empty()) {
@@ -266,7 +271,7 @@ String EretheaFornalhaProject::get_signature() const {
 		inputs.push_back(vformat("character %s %s %s %s %d", character.id, character.player, character.model, character.height, int64_t(FileAccess::get_modified_time(character.model))));
 	}
 	for (const EretheaFornalhaArea &area : areas) {
-		inputs.push_back(vformat("area %s %s %s %v", area.id, area.name, area.type, area.center));
+		inputs.push_back(vformat("area %s %s %s %v", area.id, area.name, area.type, area.center) + (area.acoustics.is_empty() ? String() : " acustica " + area.acoustics));
 	}
 	inputs.push_back(vformat("world %s %d", world_model, world_model.is_empty() ? int64_t(0) : int64_t(FileAccess::get_modified_time(world_model))));
 	inputs.push_back(vformat("player %s %v", player, player_spawn));
@@ -395,6 +400,14 @@ Dictionary EretheaFornalhaImport::Report::to_dictionary() const {
 	if (!backup_folder.is_empty()) {
 		result["backup_folder"] = backup_folder;
 	}
+	if (!audio_buses.is_empty()) {
+		Array buses;
+		for (const String &bus : audio_buses) {
+			buses.push_back(bus);
+		}
+		result["audio_buses"] = buses;
+		result["bus_layout"] = bus_layout;
+	}
 	return result;
 }
 
@@ -409,6 +422,7 @@ void EretheaFornalhaImport::register_project_settings() {
 	// Both only act in projects with a game.project.json.
 	GLOBAL_DEF(SETTING_BUILD_AUTOMATICALLY, true);
 	GLOBAL_DEF(SETTING_LIVE_LINK, true);
+	GLOBAL_DEF(SETTING_AREA_ACOUSTICS, true);
 }
 
 bool EretheaFornalhaImport::is_fornalha_project() {
@@ -625,6 +639,107 @@ Node *EretheaFornalhaImport::make_character(const EretheaFornalhaCharacter &p_ch
 	return root;
 }
 
+struct EretheaFornalhaAcousticsPreset {
+	const char *name;
+	const char *types;
+	float room_size;
+	float damping;
+	float wet;
+	float predelay_msec;
+	float predelay_feedback;
+	float hipass;
+};
+
+// The 15 types of area of the Fornalha's blockout, by how they sound.
+static const EretheaFornalhaAcousticsPreset ACOUSTICS_PRESETS[] = {
+	// Closed stone: long, bright echo.
+	{ "caverna", "caverna,masmorra", 0.85, 0.25, 0.42, 60.0, 0.4, 0.0 },
+	// A great hall.
+	{ "salao", "castelo", 0.7, 0.4, 0.3, 35.0, 0.3, 0.0 },
+	// Stone walls under the open sky.
+	{ "ruinas", "ruinas,arena,coliseu", 0.55, 0.5, 0.2, 45.0, 0.25, 0.0 },
+	// Houses close by: short and soft.
+	{ "vila", "vila,cidade,aldeia", 0.35, 0.65, 0.12, 25.0, 0.2, 0.05 },
+	// Leaves soak up the highs.
+	{ "floresta", "floresta,bosque,pantano", 0.45, 0.85, 0.12, 20.0, 0.15, 0.15 },
+	// Open land: a far, late echo.
+	{ "montanha", "montanha,colina,vulcao", 0.9, 0.55, 0.14, 150.0, 0.35, 0.1 },
+};
+
+EretheaFornalhaAcoustics EretheaFornalhaImport::get_acoustics(const EretheaFornalhaArea &p_area) {
+	const String wanted = p_area.acoustics.strip_edges().to_lower();
+	const String type = p_area.type.strip_edges().to_lower();
+	for (const EretheaFornalhaAcousticsPreset &preset : ACOUSTICS_PRESETS) {
+		const bool chosen = wanted.is_empty() ? String(preset.types).split(",").has(type) : wanted == preset.name;
+		if (chosen) {
+			EretheaFornalhaAcoustics acoustics;
+			acoustics.name = preset.name;
+			acoustics.room_size = preset.room_size;
+			acoustics.damping = preset.damping;
+			acoustics.wet = preset.wet;
+			acoustics.predelay_msec = preset.predelay_msec;
+			acoustics.predelay_feedback = preset.predelay_feedback;
+			acoustics.hipass = preset.hipass;
+			return acoustics;
+		}
+	}
+	return EretheaFornalhaAcoustics();
+}
+
+real_t EretheaFornalhaImport::get_area_radius(const EretheaFornalhaProject &p_project, int p_area) {
+	ERR_FAIL_INDEX_V(p_area, p_project.areas.size(), 0.0);
+	const Vector2 center(p_project.areas[p_area].center.x, p_project.areas[p_area].center.z);
+	real_t nearest = Math::INF;
+	for (int i = 0; i < p_project.areas.size(); i++) {
+		if (i != p_area) {
+			nearest = MIN(nearest, center.distance_to(Vector2(p_project.areas[i].center.x, p_project.areas[i].center.z)));
+		}
+	}
+	return Math::is_inf(nearest) ? real_t(80.0) : CLAMP(nearest * real_t(0.5), real_t(12.0), real_t(80.0));
+}
+
+String EretheaFornalhaImport::add_reverb_buses(const EretheaFornalhaProject &p_project, Vector<String> &r_added, String &r_error) {
+	r_added.clear();
+	AudioServer *audio = AudioServer::get_singleton();
+	if (!audio) {
+		return String();
+	}
+	for (const EretheaFornalhaArea &area : p_project.areas) {
+		const EretheaFornalhaAcoustics acoustics = get_acoustics(area);
+		if (!acoustics.is_valid() || audio->get_bus_index(acoustics.get_bus_name()) >= 0) {
+			continue;
+		}
+		audio->add_bus();
+		const int bus = audio->get_bus_count() - 1;
+		audio->set_bus_name(bus, acoustics.get_bus_name());
+		audio->set_bus_send(bus, "Master");
+		Ref<AudioEffectReverb> reverb;
+		reverb.instantiate();
+		reverb->set_room_size(acoustics.room_size);
+		reverb->set_damping(acoustics.damping);
+		reverb->set_wet(acoustics.wet);
+		// Only the echo: the sound itself goes straight to its own bus.
+		reverb->set_dry(0.0);
+		reverb->set_predelay_msec(acoustics.predelay_msec);
+		reverb->set_predelay_feedback(acoustics.predelay_feedback);
+		reverb->set_hpf(acoustics.hipass);
+		audio->add_bus_effect(bus, reverb);
+		r_added.push_back(acoustics.get_bus_name());
+	}
+	if (r_added.is_empty()) {
+		return String();
+	}
+	String path = GLOBAL_GET("audio/buses/default_bus_layout");
+	if (path.is_empty()) {
+		path = "res://default_bus_layout.tres";
+	}
+	const Error error = ResourceSaver::save(audio->generate_bus_layout(), path);
+	if (error != OK) {
+		r_error = vformat("%s couldn't be saved (error %d), so the areas' echo lasts only until the editor closes.", path, error);
+	}
+	return path;
+}
+
 Node *EretheaFornalhaImport::make_area(const EretheaFornalhaProject &p_project, int p_area, Vector<String> &r_warnings) {
 	ERR_FAIL_INDEX_V(p_area, p_project.areas.size(), nullptr);
 	const EretheaFornalhaArea &area = p_project.areas[p_area];
@@ -644,6 +759,25 @@ Node *EretheaFornalhaImport::make_area(const EretheaFornalhaProject &p_project, 
 		if (node) {
 			node->set_position(enemy.position + Vector3(0, 0.1, 0));
 		}
+	}
+
+	// The sounds made inside the area echo as the area does.
+	const EretheaFornalhaAcoustics acoustics = get_acoustics(area);
+	if (acoustics.is_valid() && bool(GLOBAL_GET(SETTING_AREA_ACOUSTICS))) {
+		Area3D *echo = _add<Area3D>(root, root, "Eco");
+		echo->set_editor_description(vformat("How sounds made in this area echo (\"%s\"). The bus %s is in the project's audio buses.", acoustics.name, acoustics.get_bus_name()));
+		echo->set_monitoring(false);
+		echo->set_use_reverb_bus(true);
+		echo->set_reverb_bus_name(acoustics.get_bus_name());
+		echo->set_reverb_amount(1.0);
+		echo->set_reverb_uniformity(0.5);
+		CollisionShape3D *shape_node = _add<CollisionShape3D>(echo, root, "Alcance");
+		Ref<CylinderShape3D> shape;
+		shape.instantiate();
+		shape->set_radius(get_area_radius(p_project, p_area));
+		shape->set_height(80.0);
+		shape_node->set_shape(shape);
+		shape_node->set_position(Vector3(0, 30.0, 0));
 	}
 	return root;
 }
@@ -878,6 +1012,13 @@ EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	// In this order, so that each scene finds the ones it uses on disk.
 	for (const EretheaFornalhaCharacter &character : project.characters) {
 		_save_scene(make_character(character, report.warnings), character.scene, state);
+	}
+	if (bool(GLOBAL_GET(SETTING_AREA_ACOUSTICS))) {
+		String error;
+		report.bus_layout = add_reverb_buses(project, report.audio_buses, error);
+		if (!error.is_empty()) {
+			report.warnings.push_back(error);
+		}
 	}
 	for (int i = 0; i < project.areas.size(); i++) {
 		_save_scene(make_area(project, i, report.warnings), project.areas[i].scene, state);

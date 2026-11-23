@@ -6,6 +6,8 @@ on:
 # Opens the project manager and the editor built by windows_builds.yml on the
 # runner's desktop, and checks the integrated title bar: no system title bar,
 # resize borders, snapping to the screen edge, maximize and the caption buttons.
+# It also runs a small game with the project setting
+# `display/window/erethea/modern_title_bar` on and off.
 # This is the "done" test of the title bar task of phase 1. The runner has no
 # GPU, so the editor runs with the Compatibility renderer on ANGLE (WARP).
 
@@ -31,6 +33,7 @@ jobs:
           ./erethea/tests/window/title_bar_test.ps1 `
             -Editor (Resolve-Path bin/erethea.windows.editor.x86_64.exe) `
             -Project (Resolve-Path erethea/tests/smoke_project) `
+            -GameProject (Resolve-Path erethea/tests/window/game_project) `
             -OutDir $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

@@ -1780,6 +1780,7 @@ ProjectSettings::ProjectSettings() {
 	GLOBAL_DEF("display/window/size/always_on_top", false);
 	GLOBAL_DEF("display/window/size/transparent", false);
 	GLOBAL_DEF("display/window/size/extend_to_title", false);
+	GLOBAL_DEF("display/window/erethea/modern_title_bar", false); // Erethea: Windows only, see display_server_windows_title_bar.cpp.
 	GLOBAL_DEF("display/window/size/no_focus", false);
 	GLOBAL_DEF("display/window/size/sharp_corners", false);
 	GLOBAL_DEF("display/window/size/minimize_disabled", false);

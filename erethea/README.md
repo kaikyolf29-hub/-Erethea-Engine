@@ -615,6 +615,7 @@ Godot não mudam.
 | --- | --- | --- |
 | Configurações do Projeto | `editor/erethea_fornalha/build_automatically`: montar as cenas sozinha | ligado |
 | Configurações do Projeto | `editor/erethea_fornalha/live_link`: perguntar à Fornalha o que ela gravou | ligado |
+| Configurações do Projeto | `editor/erethea_fornalha/area_acoustics`: eco de cada área (veja "Som") | ligado |
 | Configurações do Editor | `erethea/fornalha/port`: porta da API da Fornalha | `11480` |
 
 A variável de ambiente `ERETHEA_FORNALHA_PORT` troca a porta, como nos testes.
@@ -733,6 +734,91 @@ para o teste final no PC do criador.
 ```sh
 python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64
 ```
+
+## Janela moderna e barra de título (Windows)
+
+No Windows, o editor e o Gerenciador de Projetos não usam a barra de título do
+sistema: a janela continua com as bordas de redimensionar, a sombra, os cantos
+arredondados do Windows 11 e o encaixe nas bordas da tela (Aero Snap), mas o
+conteúdo sobe até o topo e os botões de minimizar, maximizar e fechar são
+desenhados pelo próprio editor. O código está em
+`platform/windows/display_server_windows_title_bar.cpp`, e o teste
+(`erethea/tests/window/title_bar_test.ps1`, no CI `erethea_window.yml`) abre a
+janela numa área de trabalho do Windows e confere cada comportamento.
+
+### Janela moderna nos jogos
+
+Os jogos rodando ou exportados no Windows podem usar a mesma janela com a
+configuração de projeto `display/window/erethea/modern_title_bar` (em
+**Configurações do Projeto > Display > Window > Erethea**, com as configurações
+avançadas ligadas). Ela vem **desligada**: desligada, o jogo se comporta
+exatamente como na Godot, com a barra do sistema. Em outros sistemas a opção
+não faz nada. No editor ela também não muda nada: o editor sempre usa a barra
+própria.
+
+```ini
+[display]
+
+window/erethea/modern_title_bar=true
+```
+
+Ligada, o jogo **perde a barra do sistema, inclusive os botões**. Quem liga
+tem que desenhar a própria barra de título no jogo:
+
+- `DisplayServer.window_start_drag()` move a janela a partir dela (chame ao
+  apertar o botão esquerdo do mouse na barra; o encaixe nas bordas vale);
+- `DisplayServer.window_set_mode()` minimiza e maximiza, e `get_tree().quit()`
+  fecha;
+- `DisplayServer.window_set_color()` pinta a moldura da janela com a cor da
+  barra (no Windows 11, a borda fica um tom mais clara);
+- a borda de cima continua redimensionando a janela; deixe uns pixels de
+  folga no topo da barra, e desligue `display/window/size/resizable` se o jogo
+  não pode mudar de tamanho.
+
+O jogo de exemplo está em `erethea/tests/window/game_project`. Esta opção é
+independente de `display/window/size/extend_to_title`, que continua só do macOS.
+O mesmo teste de CI roda esse jogo com a opção ligada (sem barra do sistema,
+bordas de redimensionar, maximizar cobrindo a área de trabalho e o botão de
+fechar do próprio jogo) e desligada (com a barra do sistema).
+
+## Som
+
+Os sons que a Fornalha gera (efeitos, música por situação e dublagem com a
+curva da boca) entram no jogo pela Erethea. Por enquanto:
+
+**WAV gravado como stream.** Um WAV escrito aos poucos, como a fala que o Ignis
+devolve, não sabe o tamanho quando começa e deixa 0 ou 0xFFFFFFFF nos tamanhos
+do cabeçalho. A Godot lia esses arquivos vazios, ou relia o som como se fosse
+cabeçalho, com milhares de erros (e a importação travava em arquivos grandes).
+A Erethea entende que o som vai até o fim do arquivo. A mudança está em
+`scene/resources/audio/audio_stream_wav.cpp`, marcada com `// Erethea:`, e o
+teste em `tests/erethea/test_erethea_wav_stream.cpp`
+(`--test --test-case="*Erethea*AudioStreamWAV*"`).
+
+**Eco de cada área.** Ao montar as cenas pelo `game.project.json`, cada área
+ganha um `Area3D` chamado `Eco`, que manda os sons feitos dentro dela para um
+barramento de áudio com reverberação. O alcance é metade do caminho até a área
+mais perto (de 12 a 80 m). Os 15 tipos de área da Fornalha viram seis
+acústicas:
+
+| Acústica (barramento) | Tipos de área | Como soa |
+| --- | --- | --- |
+| `caverna` (`Eco_caverna`) | caverna, masmorra | pedra fechada: eco longo e claro |
+| `salao` (`Eco_salao`) | castelo | salão grande |
+| `ruinas` (`Eco_ruinas`) | ruínas, arena, coliseu | paredes de pedra a céu aberto |
+| `vila` (`Eco_vila`) | vila, cidade, aldeia | casas perto: curto e suave |
+| `floresta` (`Eco_floresta`) | floresta, bosque, pântano | as folhas abafam os agudos |
+| `montanha` (`Eco_montanha`) | montanha, colina, vulcão | campo aberto: eco distante e atrasado |
+
+Uma área pode escolher a sua com o campo opcional `"acustica"` no
+`game.project.json` (por exemplo `"acustica": "caverna"` num castelo com
+masmorra). Os barramentos que faltam entram no layout de barramentos do projeto
+(`default_bus_layout.tres`, o da configuração `audio/buses/default_bus_layout`),
+sem mexer nos que já existem, e o relatório do `build_fornalha_scenes` diz quais
+entraram (`audio_buses`). Desligue em `editor/erethea_fornalha/area_acoustics`.
+Os testes `--test --test-case="*EretheaFornalha*"` e
+`erethea/tests/fornalha_import/test_fornalha_import.py` conferem a escolha, o
+alcance, as cenas e o layout.
 
 ## Lançar uma versão
 

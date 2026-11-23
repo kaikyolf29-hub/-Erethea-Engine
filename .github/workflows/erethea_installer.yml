@@ -13,7 +13,7 @@ jobs:
   installer:
     runs-on: windows-latest
     name: Windows installer and smoke test
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -90,37 +90,63 @@ jobs:
         run: |
           # Same arguments as EretheaUpdate::launch_installer(): the installer
           # must install over the previous one, then start the editor again.
-          # Start-Process -Wait would also wait for that editor, so wait for
-          # the installer only.
-          $exe = Join-Path $env:ERETHEA_DIR "erethea.exe"
+          #
+          # This step used to hang about every other run: past its own time
+          # limit and the job's, with no log at all, not even of the steps
+          # before. That's how the runner behaves when a process started by a
+          # step outlives it while holding the step's output: it waits for that
+          # output to end, forever. Start-Process passed this step's output to
+          # the installer, and so to what it starts; and when the restarted
+          # editor wasn't found, the step ended with that editor running.
+          # So the installer is started without handles from this step
+          # (ShellExecute), and everything the update started is stopped at the
+          # end, whatever happened.
+          $exe = [IO.Path]::GetFullPath((Join-Path $env:ERETHEA_DIR "erethea.exe"))
           $log = Join-Path $env:RUNNER_TEMP "erethea-update.log"
-          $p = Start-Process -PassThru erethea/installer/erethea-setup-x86_64.exe `
-            -ArgumentList "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/update=1", "/LOG=`"$log`""
-          # This step hung twice until the job's time limit, which the step's
-          # own limit didn't stop, and left no log. Give up after 4 minutes
-          # and show where the installer was, and what else was running.
-          if (-not $p.WaitForExit(240000)) {
-            Write-Output "The installer didn't finish in 4 minutes. The end of its log:"
-            if (Test-Path $log) { Get-Content $log -Tail 80 } else { Write-Output "(no log)" }
-            Write-Output "Processes with a window, and the installer's and the editor's:"
-            Get-Process | Where-Object { $_.MainWindowTitle -or $_.Name -match "erethea|setup" } |
-              Format-Table Id, Name, MainWindowTitle, Path -AutoSize | Out-String -Width 300
-            Get-Process | Where-Object { $_.Name -match "erethea" } | Stop-Process -Force -ErrorAction SilentlyContinue
-            throw "The installer hung."
+          # The installer, its temporary copy (in an is-*.tmp folder) and the
+          # editors it starts.
+          function Get-UpdateProcesses {
+            Get-CimInstance Win32_Process | Where-Object {
+              $_.Name -like "erethea*" -or ($_.ExecutablePath -and $_.ExecutablePath -like "*\is-*.tmp\*")
+            }
           }
-          if ($p.ExitCode -ne 0) {
-            if (Test-Path $log) { Get-Content $log -Tail 80 }
-            throw "Installer failed with exit code $($p.ExitCode)"
+          try {
+            $info = New-Object System.Diagnostics.ProcessStartInfo
+            $info.FileName = (Resolve-Path erethea/installer/erethea-setup-x86_64.exe).Path
+            $info.Arguments = "/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /update=1 /LOG=`"$log`""
+            $info.UseShellExecute = $true
+            $p = [System.Diagnostics.Process]::Start($info)
+            Write-Output "$(Get-Date -Format o) Started the installer, process $($p.Id)."
+            # Wait for the installer only: the editor it starts keeps running.
+            if (-not $p.WaitForExit(240000)) {
+              Write-Output "The installer didn't finish in 4 minutes. The end of its log:"
+              if (Test-Path $log) { Get-Content $log -Tail 80 } else { Write-Output "(no log)" }
+              throw "The installer hung."
+            }
+            Write-Output "$(Get-Date -Format o) The installer finished with exit code $($p.ExitCode)."
+            if ($p.ExitCode -ne 0) {
+              if (Test-Path $log) { Get-Content $log -Tail 80 }
+              throw "Installer failed with exit code $($p.ExitCode)"
+            }
+            $deadline = (Get-Date).AddSeconds(60)
+            $editor = $null
+            while (-not $editor) {
+              $editor = Get-CimInstance Win32_Process -Filter "Name = 'erethea.exe'" |
+                Where-Object { $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -eq $exe }
+              if (-not $editor) {
+                if ((Get-Date) -gt $deadline) { throw "The installer didn't start $exe again" }
+                Start-Sleep -Seconds 1
+              }
+            }
+            Write-Output "$(Get-Date -Format o) The installer updated Erethea and started $exe again, process $(@($editor)[0].ProcessId)."
+          } finally {
+            $left = @(Get-UpdateProcesses)
+            if ($left.Count -gt 0) {
+              Write-Output "Stopping what the update started:"
+              $left | Format-Table ProcessId, ParentProcessId, Name, ExecutablePath -AutoSize | Out-String -Width 300
+              $left | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            }
           }
-          $deadline = (Get-Date).AddSeconds(60)
-          $editor = $null
-          while (-not $editor) {
-            $editor = Get-Process erethea -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }
-            if (-not $editor -and (Get-Date) -gt $deadline) { throw "The installer didn't start $exe again" }
-            Start-Sleep -Seconds 1
-          }
-          Write-Output "The installer updated Erethea and started $exe again."
-          $editor | Stop-Process -Force
 
       - name: Upload the installer's logs
         if: always()
