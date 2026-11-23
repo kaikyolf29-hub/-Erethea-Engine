@@ -190,6 +190,39 @@ erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --post=all --capt
 O CI captura a cena com todos os efeitos e mostra a diferença para o padrão.
 Ainda não medido nas placas de referência: o custo de cada efeito em FPS.
 
+## Ray tracing
+
+O código fica em `modules/erethea_raytracing/`. Tudo começa desligado e só
+funciona no Forward+, numa placa com ray tracing (ray query): RTX da NVIDIA,
+RX 6000 ou mais nova da AMD, Arc da Intel. Na RX 580, que não tem, nada muda.
+
+**Sombras do sol por ray tracing (`EretheaRayTracedShadows`).** É um
+`CompositorEffect`, como os de pós-processamento: crie um `Compositor` no
+`WorldEnvironment` ou na `Camera3D` e adicione um `EretheaRayTracedShadows`.
+Depois da passada de profundidade, sai de cada pixel um raio até o primeiro sol
+(a primeira `DirectionalLight3D` com energia), contra a geometria até
+`max_distance` metros da câmera, visível ou não (o que está fora da tela também
+faz sombra). A sombra que sai disso vai para essa luz no lugar do mapa de
+sombra; desligue *Shadow* na luz para não calcular os dois. Com `light_size`
+(o tamanho do sol no céu, 0,5° por padrão) e `samples` raios por pixel, a
+sombra fica firme onde encosta no chão e suave longe dele, como a do sol de
+verdade. Com TAA ou FSR, o ruído das bordas some em poucos quadros.
+
+Fazem sombra as malhas comuns (`MeshInstance3D` sem esqueleto) e as
+`MultiMeshInstance3D` (árvores, grama, pedras); personagens com esqueleto e
+partículas ainda não. Materiais com transparência por recorte (folhas) fazem a
+sombra da superfície inteira.
+
+Para ver na cena de referência, acrescente `--rt=shadows` depois do `--` (troca
+o mapa de sombra do sol pelas sombras por ray tracing). O lavapipe do Linux
+(Mesa 25.2) tem ray query, então o CI prova a imagem: de dia, ela tem que mudar
+em relação à Erethea sem o efeito, e sem o efeito continua igual à Godot. A
+velocidade numa placa de verdade (RTX) fica para o teste final.
+
+```sh
+erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
+```
+
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por

@@ -26,6 +26,10 @@ extends Node3D
 ## Godot ignores both with a warning. --sun=front moves the sun the same way
 ## without any effect, to compare the shafts with and without them.
 ##
+## --rt=shadows replaces the sun's shadow map with ray traced shadows
+## (EretheaRayTracedShadows, Forward+ on a device with ray queries, such as
+## lavapipe). Stock Godot ignores it with a warning.
+##
 ## --upscaler=<fsr2|amd_fsr|xess|dlss> renders at 67% of the resolution and
 ## upscales with Godot's FSR 2.2 or, in Erethea, with AMD FSR 3.1/4 or XeSS
 ## (Windows, Vulkan or Direct3D 12) or DLSS (Windows, Direct3D 12, NVIDIA RTX);
@@ -105,6 +109,8 @@ func _ready() -> void:
 		_aim_sun_in_front()
 	if arguments.has("post"):
 		_apply_post(arguments["post"])
+	if arguments.has("rt"):
+		_apply_ray_tracing(arguments["rt"])
 	if arguments.has("upscaler"):
 		_apply_upscaler(arguments["upscaler"], float(arguments.get("upscale-scale", "0.67")))
 	if arguments.has("capture"):
@@ -260,6 +266,27 @@ func _apply_post(effects_argument: String) -> void:
 		compositor.compositor_effects = compositor_effects
 		camera.compositor = compositor
 	print("Post effects: %s" % ", ".join(effects))
+
+
+func _apply_ray_tracing(features: String) -> void:
+	if features != "shadows":
+		push_error("Unknown ray tracing feature '%s'. Use shadows." % features)
+		return
+	if not ClassDB.class_exists("EretheaRayTracedShadows"):
+		push_warning("This engine has no EretheaRayTracedShadows, ignoring --rt=%s." % features)
+		return
+	if not ClassDB.class_call_static("EretheaRayTracedShadows", "is_supported"):
+		push_warning("This graphics device has no ray tracing, ignoring --rt=%s." % features)
+		return
+	var compositor := camera.compositor if camera.compositor != null else Compositor.new()
+	var compositor_effects := compositor.compositor_effects
+	# Before the other effects: it runs before the opaque pass anyway.
+	compositor_effects.push_front(ClassDB.instantiate("EretheaRayTracedShadows"))
+	compositor.compositor_effects = compositor_effects
+	camera.compositor = compositor
+	# The ray traced shadows replace the shadow map of the sun.
+	sun.shadow_enabled = false
+	print("Ray tracing: %s" % features)
 
 
 func _apply_upscaler(upscaler: String, scale: float) -> void:

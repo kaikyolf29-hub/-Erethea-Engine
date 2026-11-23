@@ -51,11 +51,11 @@ abaixo).
   envolva esse bloco com `#ifdef D3D12_ENABLED` / `#endif` (commit "Erethea:
   Fix linking AMD FSR without Direct3D 12"), suba, espere o CI inteiro passar
   (o job LibGodot on Windows leva uns 40 min) e faça o merge.
-- **Em andamento, meu (não está no `main`)**: sombras do sol por ray tracing
-  (Fase 4, item 2). O código compila, mas ainda não foi testado; está guardado
-  no branch `claude/happy-dijkstra-gueto9`, no commit "WIP: Ray traced sun
-  shadows" (veja a Fase 4 abaixo para o desenho, o que já foi provado e o que
-  falta). Não faça merge dele sem os testes.
+- **PR aberto, meu: sombras do sol por ray tracing** (Fase 4, item 2;
+  branch `claude/happy-dijkstra-gueto9`). Testado no contêiner com lavapipe
+  (cena simples e cena de referência) e com passo próprio no CI. Se o CI
+  estiver verde e o PR sem conflito, faça o merge; se não, veja a Fase 4,
+  item 2, abaixo.
 - **Falhas conhecidas do CI** ainda abertas: o travamento do passo "Update
   silently" do instalador (experimento 2 no `main`; conte as próximas
   execuções) e o crash 0xC0000409 do editor no teste da janela (diagnóstico
@@ -282,9 +282,13 @@ comparado na cena de referência:
    tracing; se tiverem, o CI prova a imagem; se não, prova só o caminho sem
    ray tracing.
 
-   **Estado (23/11): sombras do sol em andamento**, código no branch
-   `claude/happy-dijkstra-gueto9`, commit "WIP: Ray traced sun shadows"
-   (compila; ainda não foi testado). O que já está provado e decidido:
+   **Estado (23/11): sombras do sol num PR aberto** (branch
+   `claude/happy-dijkstra-gueto9`). Testado no lavapipe do contêiner: numa
+   cena simples (`erethea/tests/raytracing/shadows_scene`) as sombras caem no
+   lugar certo, presas ao que encosta no chão e suaves longe dele; na cena de
+   referência, com `--rt=shadows`, ficam no mesmo lugar das do mapa de sombra
+   (RMSE 2,5 a 3,5 de dia, só as bordas mudam). O que já está provado e
+   decidido:
    - A base 4.8 tem a tubulação (experimental, Vulkan): `blas_create`/
      `blas_build`, `tlas_create`/`tlas_build`, pipelines de ray tracing,
      `hit_sbt_*`, `raytracing_list_*` e os recursos `SUPPORTS_RAY_QUERY` e
@@ -323,18 +327,16 @@ comparado na cena de referência:
      opacidade da sombra (funciona com o mapa de sombra da luz desligado).
    - No módulo: BLAS por malha (posições lidas uma vez pelo
      `mesh_create_arrays_from_surface_data`, em float 32), TLAS por quadro com
-     as malhas estáticas do raio (sem esqueleto; skin, MultiMesh e partículas
-     ficam para depois), normal tirada da profundidade, viés pela distância.
-   - **Falta**: (1) teste visual no contêiner com lavapipe: uma cena com um
-     cubo sobre um plano, sol inclinado, conferir que a sombra cai no lugar
-     certo (o sentido do eixo Y da reconstrução por `inv_view_projection` com
-     a correção de profundidade precisa ser conferido) e que sem o efeito a
-     imagem não muda; (2) opção `--rt=shadows` na cena de referência e um
-     passo no CI (lavapipe) que exige mudança com o efeito e nenhuma sem ele;
-     (3) teste de unidade das propriedades; (4) README ("Ray tracing") e o
-     CLAUDE.md (tabela "Onde mexer"); (5) depois: reflexos e GI pelo mesmo
-     caminho, e a escolha por placa (item 1) passa a ligar o efeito em placas
-     com ray query.
+     as malhas sem esqueleto e as instâncias das MultiMesh (transformações
+     lidas do buffer uma vez por segundo, filtradas pelo raio), normal tirada
+     da profundidade, viés pela distância. Superfície de costas para o sol
+     (pela normal tirada da profundidade) fica com a máscara em 1 e a
+     iluminação cuida: escurecer ali fazia degraus nas faces de objetos low
+     poly (o problema do terminador).
+   - **Depois deste PR**: personagens com esqueleto (BLAS atualizada pela
+     pose) e partículas; reflexos e GI pelo mesmo caminho; a escolha por placa
+     (item 1) passa a ligar o efeito em placas com ray query; a prova de
+     velocidade na RTX fica para o teste final.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
