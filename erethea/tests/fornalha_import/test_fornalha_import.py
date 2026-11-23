@@ -6,7 +6,8 @@ Fornalha (game.project.json and stand-ins for its game scripts), and adds what
 the Fornalha's Forja leaves: a player and an enemy as .glb models with their
 animations, and the blockout of the world with its areas and spawn points.
 A principal.tscn that the editor didn't make is there too, as the Fornalha's
-own assembly leaves it.
+own assembly leaves it. Audio/musica has two short songs (WAV files with their
+.musica.json), which the build makes change at the end of the bar.
 
 Then it imports the project, starts the editor with its MCP server and builds
 the scenes with the build_fornalha_scenes tool, as an agent would: the first
@@ -18,13 +19,16 @@ hand is kept. Last, it runs the game without a window and walks the player.
 """
 
 import argparse
+import contextlib
 import json
+import math
 import os
 import shutil
 import struct
 import subprocess
 import sys
 import tempfile
+import wave
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -147,7 +151,23 @@ def make_assets(project):
     }
     (project / "World/blockout.info.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
     (project / ".fornalha").mkdir()
-    scene = {"jogador": "heroi", "inimigo_perto": False, "musica": "", "ceu": ""}
+    # The music of each situation: a short mono 16-bit WAV, as long as the
+    # .musica.json says (compassos * 4 * 60 / bpm seconds).
+    for situation, bpm, bars, hertz in MUSIC:
+        seconds = bars * 4 * 60 / bpm
+        rate = 22050
+        samples = b"".join(
+            struct.pack("<h", int(6000 * math.sin(2 * math.pi * hertz * i / rate))) for i in range(int(seconds * rate))
+        )
+        (project / "Audio/musica").mkdir(parents=True, exist_ok=True)
+        with wave.open(str(project / f"Audio/musica/{situation}.wav"), "wb") as file:
+            file.setnchannels(1)
+            file.setsampwidth(2)
+            file.setframerate(rate)
+            file.writeframes(samples)
+        info = {"situacao": situation, "bpm": bpm, "compassos": bars, "tonica": "La", "loop": True}
+        (project / f"Audio/musica/{situation}.musica.json").write_text(json.dumps(info), encoding="utf-8")
+    scene = {"jogador": "heroi", "inimigo_perto": False, "musica": "res://Audio/musica/vila.wav", "ceu": ""}
     (project / ".fornalha/cena.json").write_text(json.dumps(scene), encoding="utf-8")
     (project / "principal.tscn").write_text(FOREIGN_MAIN_SCENE, encoding="utf-8")
 
@@ -161,6 +181,10 @@ def run(command, log, timeout):
     log.write_text(output, encoding="utf-8")
     return result.returncode, output
 
+
+# situation, bpm, bars (of 4 beats), pitch
+MUSIC = [("combate", 120, 1, 220.0), ("vila", 240, 2, 330.0)]
+MUSIC_FILES = [f"res://Audio/musica/{situation}.wav" for situation, *_ in MUSIC]
 
 SCENES = [
     "res://Characters/heroi/heroi.tscn",
@@ -181,6 +205,68 @@ def results(report):
     return {scene["file"]: scene["result"] for scene in report["scenes"]}
 
 
+def read_import_params(project, situation):
+    """The [params] of Audio/musica/<situation>.wav.import as {key: text}."""
+    params = {}
+    in_params = False
+    for line in (project / f"Audio/musica/{situation}.wav.import").read_text(encoding="utf-8").splitlines():
+        if line.startswith("["):
+            in_params = line == "[params]"
+        elif in_params and "=" in line:
+            key, value = line.split("=", 1)
+            params[key] = value
+    return params
+
+
+def music_import_checks(project):
+    for situation, bpm, bars, _hertz in MUSIC:
+        params = read_import_params(project, situation)
+        check(
+            params.get("edit/loop_mode") == "2"
+            and params.get("edit/loop_begin") == "0"
+            and params.get("edit/loop_end") == "-1",
+            f"{situation}.wav loops forward over all of it",
+        )
+        check(
+            float(params.get("bpm", "0")) == bpm
+            and params.get("beat_count") == str(bars * 4)
+            and params.get("bar_beats") == "4",
+            f"{situation}.wav has its bpm, beat count and beats per bar",
+        )
+
+
+def results_of(report):
+    results(report)
+    return report
+
+
+@contextlib.contextmanager
+def editor_session(editor, project, log_file, port, timeout):
+    """Runs the editor with its MCP server and yields the connection."""
+    environment = dict(os.environ, ERETHEA_MCP_PORT=str(port))
+    command = [editor, "--editor", "--headless", "--path", str(project), "--audio-driver", "Dummy"]
+    print("Running: " + " ".join(command))
+    with open(log_file, "w", encoding="utf-8", errors="replace") as log:
+        process = subprocess.Popen(
+            command, env=environment, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
+        )
+        try:
+            mcp = Mcp(port)
+            wait_until_ready(mcp, process, timeout)
+            mcp.rpc(
+                "initialize",
+                {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}},
+            )
+            yield mcp
+        finally:
+            process.terminate()
+            try:
+                process.wait(15)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+
+
 def build_checks(mcp, project):
     print("First build")
     report = mcp.data("build_fornalha_scenes")
@@ -190,6 +276,9 @@ def build_checks(mcp, project):
     check(found["res://principal.tscn"] == "kept", "the main scene that the editor didn't make is kept")
     check(any("arena" in warning for warning in report["warnings"]), "an area not in the blockout yet is reported")
     check(report["ok"], "nothing failed")
+    check(report.get("music_clips") == ["combate", "vila"], "the report lists the music clips")
+    check(sorted(report.get("music_imports", [])) == sorted(MUSIC_FILES), "the WAV files are set to import again")
+    music_import_checks(project)
     character = (project / "Characters/heroi/heroi.tscn").read_text(encoding="utf-8")
     check('path="res://Characters/heroi/heroi.glb"' in character, "the character scene uses the model's file")
     check('path="res://Scripts/fornalha/jogador.gd"' in character, "the player has the Fornalha's player script")
@@ -222,6 +311,9 @@ def build_checks(mcp, project):
     found = results(report)
     check(all(found[scene] == "unchanged" for scene in SCENES[:-1]), "nothing changes")
     check("audio_buses" not in report, "the buses aren't added again")
+    check(report.get("music_clips") == ["combate", "vila"], "the clips are still listed")
+    check(report.get("music_imports") == [], "the import options are not changed again")
+    music_import_checks(project)
     check(found["res://principal.tscn"] == "kept", "the main scene is still kept")
 
     print("Forced build")
@@ -238,6 +330,31 @@ def build_checks(mcp, project):
     check(
         'path="res://World/mundo.tscn"' in main and 'path="res://Characters/heroi/heroi.tscn"' in main,
         "the main scene has the world and the player",
+    )
+    check(
+        '[node name="Musica" type="AudioStreamPlayer" parent="."' in main and 'groups=["erethea_musica"]' in main,
+        "the main scene has the Musica node in its group",
+    )
+    check("volume_db = -8.0" in main, "at the volume of the Sons")
+    check(
+        main.count('type="AudioStreamWAV"') == 0 and all(f'path="{wav}"' in main for wav in MUSIC_FILES),
+        "using the WAV files as external resources",
+    )
+    check('[sub_resource type="AudioStreamInteractive"' in main, "with an interactive stream")
+    check('clip_0/name = &"combate"' in main and 'clip_1/name = &"vila"' in main, "one clip per music, by situation")
+    check("initial_clip = 1" in main, "starting by the music of the main scene")
+    check("clip_count = 2" in main, "no more clips than music")
+    check(
+        "Vector2i(-1, -1)" in main
+        and '"fade_beats": 2.0' in main
+        and '"fade_mode": 3' in main
+        and '"from_time": 2' in main
+        and '"to_time": 1' in main,
+        "with one transition from any clip to any: next bar, to the start, cross fade of two beats",
+    )
+    check(
+        "func tocar(situacao: String)" in main and "switch_to_clip_by_name" in main,
+        "and the script that changes the music",
     )
 
     print("A scene changed by hand")
@@ -277,32 +394,12 @@ def main():
         check(code == 0, f"the project imports (exit code {code})")
 
         print("Editor with the MCP server")
-        environment = dict(os.environ, ERETHEA_MCP_PORT=str(args.port))
-        command = [editor, "--editor", "--headless", "--path", str(project), "--audio-driver", "Dummy"]
-        print("Running: " + " ".join(command))
-        with open(out / "editor.log", "w", encoding="utf-8", errors="replace") as log:
-            process = subprocess.Popen(
-                command, env=environment, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
-            )
-            try:
-                mcp = Mcp(args.port)
-                wait_until_ready(mcp, process, args.timeout)
-                mcp.rpc(
-                    "initialize",
-                    {
-                        "protocolVersion": "2025-06-18",
-                        "capabilities": {},
-                        "clientInfo": {"name": "test", "version": "1"},
-                    },
-                )
-                build_checks(mcp, project)
-            finally:
-                process.terminate()
-                try:
-                    process.wait(15)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+        imports = {
+            situation: (project / f"Audio/musica/{situation}.wav.import").read_text(encoding="utf-8")
+            for situation, *_ in MUSIC
+        }
+        with editor_session(editor, project, out / "editor.log", args.port, args.timeout) as mcp:
+            build_checks(mcp, project)
 
         print("The game")
         code, output = run(
@@ -327,6 +424,36 @@ def main():
         check(walk["enemies"] == 3, "the three enemies are in the game")
         areas = {area["name"]: area["enemies"] for area in walk["areas"]}
         check(areas == {"vila": 1, "floresta": 2}, "each in the scene of its area")
+        music = walk.get("music", {})
+        check(
+            music.get("playing") and music.get("clips") == 2 and music.get("current") in ("vila", "combate"),
+            "the music plays when the group is asked for a situation",
+        )
+
+        print("Without interactive music")
+        # The import options as the editor first wrote them, and the setting off.
+        for situation, text in imports.items():
+            (project / f"Audio/musica/{situation}.wav.import").write_text(text, encoding="utf-8")
+        settings = project / "project.godot"
+        settings.write_text(
+            settings.read_text(encoding="utf-8").replace(
+                "[layer_names]", "[editor]\n\nerethea_fornalha/interactive_music=false\n\n[layer_names]"
+            ),
+            encoding="utf-8",
+        )
+        with editor_session(editor, project, out / "editor_no_music.log", args.port, args.timeout) as mcp:
+            report = results_of(mcp.data("build_fornalha_scenes", {"force": True}))
+            check("music_clips" not in report, "no music clips are reported")
+            main = (project / "principal.tscn").read_text(encoding="utf-8")
+            check('name="Musica"' not in main and "erethea_musica" not in main, "the main scene has no Musica node")
+            check(
+                all(
+                    (project / f"Audio/musica/{situation}.wav.import").read_text(encoding="utf-8") == text
+                    for situation, text in imports.items()
+                ),
+                "and the import files are left as they were",
+            )
+
     except Failure as failure:
         print(f"\nFAILED: {failure}\nLogs in {out}")
         return 1

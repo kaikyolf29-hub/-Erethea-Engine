@@ -112,6 +112,21 @@ TEST_CASE("[EretheaUpdate] Newest release, prereleases included") {
 	CHECK_FALSE(EretheaUpdate::find_newer_release(get_releases(), "0.4.0", false, false, release));
 }
 
+TEST_CASE("[EretheaUpdate] Prereleases setting") {
+	// Off: stable modes skip prereleases, as before.
+	CHECK(EretheaUpdate::is_stable_only(true, false));
+	CHECK_FALSE(EretheaUpdate::is_stable_only(false, false));
+	// On: prereleases are offered even in the stable modes.
+	CHECK_FALSE(EretheaUpdate::is_stable_only(true, true));
+	CHECK_FALSE(EretheaUpdate::is_stable_only(false, true));
+
+	// A stable editor on 0.3.1 sees nothing with the setting off, and the beta with it on.
+	EretheaUpdate::Release release;
+	CHECK_FALSE(EretheaUpdate::find_newer_release(get_releases(), "0.3.1", EretheaUpdate::is_stable_only(true, false), false, release));
+	REQUIRE(EretheaUpdate::find_newer_release(get_releases(), "0.3.1", EretheaUpdate::is_stable_only(true, true), false, release));
+	CHECK(release.version == "0.4.0-beta.1");
+}
+
 TEST_CASE("[EretheaUpdate] Patch releases only") {
 	EretheaUpdate::Release release;
 	REQUIRE(EretheaUpdate::find_newer_release(get_releases(), "0.3.0", true, true, release));

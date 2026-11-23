@@ -72,6 +72,21 @@ struct EretheaFornalhaAcoustics {
 	String get_bus_name() const { return "Eco_" + name; }
 };
 
+// A music of the Fornalha: Audio/musica/<situation>.wav, with the tempo that
+// <situation>.musica.json says.
+struct EretheaFornalhaMusic {
+	String situation; // The file's name: exploracao, combate...
+	String file; // res://Audio/musica/<situation>.wav
+	String info; // res://Audio/musica/<situation>.musica.json
+	double bpm = 0.0;
+	int bars = 0;
+	int beats_per_bar = 4;
+	// Whether the editor has imported the WAV file (it has a .import file).
+	bool imported = false;
+
+	int get_beat_count() const { return bars * beats_per_bar; }
+};
+
 struct EretheaFornalhaEnemy {
 	String id;
 	int area = -1; // Index in EretheaFornalhaProject::areas, or -1 for none.
@@ -90,6 +105,8 @@ struct EretheaFornalhaProject {
 	bool enemy_near = false; // An extra enemy in front of the player, for tests.
 	String music;
 	String sky;
+	// The music of each situation, by file name.
+	Vector<EretheaFornalhaMusic> music_tracks;
 	Vector<String> warnings;
 
 	static EretheaFornalhaProject read();
@@ -134,6 +151,10 @@ public:
 		// The reverb buses added for the areas' echo, and the file they went to.
 		Vector<String> audio_buses;
 		String bus_layout;
+		// The situations that change the music in the main scene, and the WAV
+		// files whose import options were set for them.
+		Vector<String> music_clips;
+		Vector<String> music_imports;
 
 		int count(Action p_action) const;
 		int count_kept() const;
@@ -151,6 +172,9 @@ public:
 	static constexpr const char *SETTING_BUILD_AUTOMATICALLY = "editor/erethea_fornalha/build_automatically";
 	static constexpr const char *SETTING_LIVE_LINK = "editor/erethea_fornalha/live_link";
 	static constexpr const char *SETTING_AREA_ACOUSTICS = "editor/erethea_fornalha/area_acoustics";
+	static constexpr const char *SETTING_INTERACTIVE_MUSIC = "editor/erethea_fornalha/interactive_music";
+	static constexpr const char *MUSIC_FOLDER = "res://Audio/musica";
+	static constexpr const char *MUSIC_GROUP = "erethea_musica";
 
 	static constexpr uint32_t LAYER_WORLD = 1;
 	static constexpr uint32_t LAYER_PLAYER = 2;
@@ -182,10 +206,19 @@ public:
 	// file when it changed.
 	static String add_reverb_buses(const EretheaFornalhaProject &p_project, Vector<String> &r_added, String &r_error);
 
+	// The import options that make a WAV file music that changes at the end of
+	// a bar. Returns the text of its .import file with them set, or the same
+	// text when they already were.
+	static String set_music_import_options(const String &p_import_text, const EretheaFornalhaMusic &p_music);
+	// Does so for the .import file of each music, and asks the editor to import
+	// them again. Returns the WAV files that changed.
+	static Vector<String> prepare_music_imports(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings);
+
 	static Node *make_character(const EretheaFornalhaCharacter &p_character, Vector<String> &r_warnings);
 	static Node *make_area(const EretheaFornalhaProject &p_project, int p_area, Vector<String> &r_warnings);
 	static Node *make_world(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings);
-	static Node *make_main(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings);
+	// With interactive music, r_music_clips gets the situations the Musica node can play.
+	static Node *make_main(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings, Vector<String> *r_music_clips = nullptr);
 
 	static Report build(bool p_force = false);
 };

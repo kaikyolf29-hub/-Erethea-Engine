@@ -376,7 +376,7 @@ void EngineUpdateLabel::_erethea_releases_received(int p_result, int p_response_
 	if (update_mode == UpdateMode::AUTO) {
 		update_mode = EretheaUpdate::is_prerelease(current_version) ? UpdateMode::NEWEST_UNSTABLE : UpdateMode::NEWEST_STABLE;
 	}
-	const bool stable_only = update_mode == UpdateMode::NEWEST_STABLE || update_mode == UpdateMode::NEWEST_PATCH;
+	const bool stable_only = EretheaUpdate::is_stable_only(update_mode == UpdateMode::NEWEST_STABLE || update_mode == UpdateMode::NEWEST_PATCH, EDITOR_GET("erethea/update/prereleases"));
 	const bool patch_only = update_mode == UpdateMode::NEWEST_PATCH;
 
 	erethea_release = EretheaUpdate::Release();

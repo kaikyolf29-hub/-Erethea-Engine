@@ -22,6 +22,11 @@ func _physics_process(_delta: float) -> bool:
 			_start = _player.global_position
 	if _player and _frames > 20:
 		_player.entrada_teste = Vector2(0, -1)
+	if _frames == 25:
+		# What the Sons autoload does: ask the group for a situation.
+		call_group("erethea_musica", "tocar", "vila")
+		call_group("erethea_musica", "tocar", "combate")
+		call_group("erethea_musica", "tocar", "nao_existe")
 	if _frames < FRAMES:
 		return false
 	var report := {"player": _player != null, "enemies": get_nodes_in_group("inimigos").size(), "areas": []}
@@ -37,5 +42,14 @@ func _physics_process(_delta: float) -> bool:
 			report["loops"] = {}
 			for animation in ["parado", "andar", "atacar"]:
 				report["loops"][animation] = anim.get_animation(animation).loop_mode != Animation.LOOP_NONE
+	var music := get_first_node_in_group("erethea_musica") as AudioStreamPlayer
+	if music:
+		var playback := music.get_stream_playback() as AudioStreamPlaybackInteractive
+		var clips := music.stream as AudioStreamInteractive
+		report["music"] = {
+			"playing": music.playing,
+			"clips": clips.clip_count,
+			"current": String(clips.get_clip_name(playback.get_current_clip_index())) if playback else "",
+		}
 	print("ERETHEA_WALK ", JSON.stringify(report))
 	return true

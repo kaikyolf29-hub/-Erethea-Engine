@@ -618,6 +618,7 @@ Godot não mudam.
 | Configurações do Projeto | `editor/erethea_fornalha/build_automatically`: montar as cenas sozinha | ligado |
 | Configurações do Projeto | `editor/erethea_fornalha/live_link`: perguntar à Fornalha o que ela gravou | ligado |
 | Configurações do Projeto | `editor/erethea_fornalha/area_acoustics`: eco de cada área (veja "Som") | ligado |
+| Configurações do Projeto | `editor/erethea_fornalha/interactive_music`: música que muda no fim do compasso (veja "Som") | ligado |
 | Configurações do Editor | `erethea/fornalha/port`: porta da API da Fornalha | `11480` |
 
 A variável de ambiente `ERETHEA_FORNALHA_PORT` troca a porta, como nos testes.
@@ -977,6 +978,47 @@ Os testes `--test --test-case="*EretheaFornalha*"` e
 `erethea/tests/fornalha_import/test_fornalha_import.py` conferem a escolha, o
 alcance, as cenas e o layout.
 
+**Música que muda com o jogo.** A Fornalha grava a música de cada situação em
+`Audio/musica/<situacao>.wav` (mono, 16 bits, emenda o fim no começo) e, ao
+lado, `<situacao>.musica.json` com `bpm` e `compassos` (compasso de 4 tempos).
+Ao montar as cenas, a Erethea:
+
+1. acerta as opções de importação de cada WAV descrito no `.musica.json`, no
+   `<situacao>.wav.import`: laço para a frente sobre o arquivo todo
+   (`edit/loop_mode=2`, `edit/loop_begin=0`, `edit/loop_end=-1`), `bpm`,
+   `beat_count` (compassos × 4) e `bar_beats=4`, e pede a reimportação ao
+   editor. Só mexe no `.import` se algo mudou. Se o arquivo ainda não foi
+   importado (não tem `.import`), não cria nada: o relatório avisa para esperar
+   a importação e montar de novo;
+2. põe na `principal.tscn` um nó `Musica` (`AudioStreamPlayer`, -8 dB, como o
+   `Sons`) no grupo `erethea_musica`, com um `AudioStreamInteractive` que tem um
+   clipe por música (o nome do clipe é a situação) e a transição de qualquer
+   clipe para qualquer outro no fim do compasso, com dois tempos de fade. O
+   clipe inicial é a música da cena principal (`musica`), se houver. Sem música
+   em `Audio/musica`, o nó não é criado;
+3. o `Sons.tocar_musica` da Fornalha chama `tocar(situacao)` nesse grupo em vez
+   de tocar o arquivo: o nó começa pela situação, ou troca de clipe esperando o
+   fim do compasso (situação desconhecida ou a que já toca não faz nada).
+
+O relatório do `build_fornalha_scenes` lista os clipes (`music_clips`) e os
+WAV que mudaram de opções (`music_imports`). Para o `AudioStreamInteractive`
+trocar no compasso, o WAV precisa dizer o andamento. A Godot só sabia isso do
+Ogg Vorbis e do MP3, então o `AudioStreamWAV` ganhou as propriedades `bpm`,
+`beat_count` e `bar_beats` (iguais às do Ogg) e o importador de WAV, as opções
+de mesmo nome (`scene/resources/audio/audio_stream_wav.cpp`, marcadas com
+`// Erethea:`; teste em `tests/erethea/test_erethea_wav_bpm.cpp`). Isso é uma
+correção genérica, a propor à Godot.
+
+A cena continua abrindo na Godot comum: o script do nó é GDScript embutido e o
+`AudioStreamInteractive` é da Godot. Lá o WAV não diz o bpm (a opção é ignorada),
+então a música troca na hora, com o fade, sem esperar o compasso. Desligue em
+`editor/erethea_fornalha/interactive_music`: nada é mexido (nem o `.import`, nem
+a `principal.tscn`) e o `Sons` toca o arquivo em laço como antes. O som em si
+não dá para ouvir no CI: os testes conferem as opções, as cenas e a troca de
+clipe no compasso (`tests/erethea/test_erethea_wav_bpm.cpp`,
+`--test --test-case="*EretheaFornalha*"` e
+`erethea/tests/fornalha_import/test_fornalha_import.py`).
+
 ## Lançar uma versão
 
 As versões da Erethea têm numeração própria (`0.2.0`, `0.2.0-beta.1`),
@@ -1003,6 +1045,12 @@ GitHub informa, instala por cima sem perguntas e abre de novo. Builds de
 desenvolvimento (sem `BUILD_NAME=erethea-<versão>`) não procuram atualizações.
 O instalador deixa o que fez em `%TEMP%\erethea-update.log`, para descobrir por
 que uma atualização falhou.
+
+Quem quer testar as versões de teste (como `0.3.0-beta.1`) mesmo estando numa
+versão estável liga, nas Configurações do Editor, a opção
+`erethea/update/prereleases`. Ela vem desligada: sem ela, os modos "Check
+Newest Stable" e "Check Newest Patch" (e o "Auto" numa versão estável) ignoram
+as versões de teste, como sempre. Ligada, elas também são oferecidas.
 
 ## Assinatura do instalador
 
