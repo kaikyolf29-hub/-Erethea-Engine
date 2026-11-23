@@ -31,11 +31,13 @@
 #include "erethea_fornalha_import.h"
 
 #include "core/config/project_settings.h"
+#include "core/io/config_file.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
+#include "core/object/script_language.h"
 #include "core/os/time.h"
 #include "editor/editor_node.h"
 #include "editor/editor_undo_redo_manager.h"
@@ -47,16 +49,22 @@
 #include "scene/3d/physics/collision_shape_3d.h"
 #include "scene/3d/physics/spring_arm_3d.h"
 #include "scene/3d/world_environment.h"
+#include "scene/audio/audio_stream_player.h"
 #include "scene/main/canvas_layer.h"
 #include "scene/resources/3d/capsule_shape_3d.h"
 #include "scene/resources/3d/cylinder_shape_3d.h"
 #include "scene/resources/3d/sky_material.h"
 #include "scene/resources/3d/sphere_shape_3d.h"
+#include "scene/resources/audio/audio_stream_wav.h"
 #include "scene/resources/environment.h"
 #include "scene/resources/packed_scene.h"
 #include "scene/resources/sky.h"
 #include "servers/audio/audio_server.h"
 #include "servers/audio/effects/audio_effect_reverb.h"
+
+#ifdef MODULE_INTERACTIVE_MUSIC_ENABLED
+#include "modules/interactive_music/audio_stream_interactive.h"
+#endif
 
 static const char *MODEL_EXTENSIONS[] = { "glb", "gltf" };
 static const char *SKY_FILES[] = { "res://World/ceu.exr", "res://World/ceu.hdr" };
@@ -143,6 +151,38 @@ static void _scan_characters(const String &p_folder, bool p_player, Vector<Ereth
 			character.height = double(height);
 		}
 		r_characters.push_back(character);
+	}
+}
+
+static void _scan_music(Vector<EretheaFornalhaMusic> &r_tracks, Vector<String> &r_warnings) {
+	Ref<DirAccess> dir = DirAccess::open(EretheaFornalhaImport::MUSIC_FOLDER);
+	if (dir.is_null()) {
+		return;
+	}
+	PackedStringArray files = dir->get_files();
+	files.sort();
+	for (const String &file : files) {
+		if (file.get_extension().to_lower() != "wav") {
+			continue;
+		}
+		EretheaFornalhaMusic music;
+		music.situation = file.get_basename();
+		music.file = String(EretheaFornalhaImport::MUSIC_FOLDER).path_join(file);
+		music.info = String(EretheaFornalhaImport::MUSIC_FOLDER).path_join(music.situation + ".musica.json");
+		if (!FileAccess::exists(music.info)) {
+			continue; // Not described: it stays as a plain looping WAV.
+		}
+		const Dictionary info = _read_json(music.info, &r_warnings);
+		const Variant bpm = info.get("bpm", Variant());
+		const Variant bars = info.get("compassos", Variant());
+		if (!_is_valid_id(music.situation) || !bpm.is_num() || double(bpm) <= 0.0 || !bars.is_num() || int(bars) <= 0) {
+			_add_warning(r_warnings, vformat("%s has no valid bpm and compassos, so its music doesn't change at the end of a bar.", music.info));
+			continue;
+		}
+		music.bpm = double(bpm);
+		music.bars = int(bars);
+		music.imported = FileAccess::exists(music.file + ".import");
+		r_tracks.push_back(music);
 	}
 }
 
@@ -250,6 +290,7 @@ EretheaFornalhaProject EretheaFornalhaProject::read() {
 	if (music.begins_with("res://") && FileAccess::exists(music)) {
 		project.music = music;
 	}
+	_scan_music(project.music_tracks, project.warnings);
 	const String sky = _string(scene_manifest.get("ceu", Variant()));
 	if (sky.begins_with("res://") && FileAccess::exists(sky)) {
 		project.sky = sky;
@@ -280,6 +321,10 @@ String EretheaFornalhaProject::get_signature() const {
 	}
 	inputs.push_back(vformat("enemy near %s", enemy_near));
 	inputs.push_back(vformat("music %s", music));
+	// Each music by its tempo and date, so that a new one builds the scenes again.
+	for (const EretheaFornalhaMusic &track : music_tracks) {
+		inputs.push_back(vformat("music track %s %s %d %d %d", track.situation, track.bpm, track.bars, track.imported, int64_t(FileAccess::get_modified_time(track.info))));
+	}
 	inputs.push_back(vformat("sky %s", sky));
 	return JSON::stringify(inputs).md5_text();
 }
@@ -397,6 +442,10 @@ Dictionary EretheaFornalhaImport::Report::to_dictionary() const {
 		warning_list.push_back(warning);
 	}
 	result["warnings"] = warning_list;
+	if (!music_clips.is_empty()) {
+		result["music_clips"] = Variant(PackedStringArray(music_clips));
+		result["music_imports"] = Variant(PackedStringArray(music_imports));
+	}
 	if (!backup_folder.is_empty()) {
 		result["backup_folder"] = backup_folder;
 	}
@@ -423,6 +472,7 @@ void EretheaFornalhaImport::register_project_settings() {
 	GLOBAL_DEF(SETTING_BUILD_AUTOMATICALLY, true);
 	GLOBAL_DEF(SETTING_LIVE_LINK, true);
 	GLOBAL_DEF(SETTING_AREA_ACOUSTICS, true);
+	GLOBAL_DEF(SETTING_INTERACTIVE_MUSIC, true);
 }
 
 bool EretheaFornalhaImport::is_fornalha_project() {
@@ -595,6 +645,62 @@ static void _set_script(Node *p_node, const String &p_file, Vector<String> &r_wa
 		return;
 	}
 	p_node->set_script(script);
+}
+
+String EretheaFornalhaImport::set_music_import_options(const String &p_import_text, const EretheaFornalhaMusic &p_music) {
+	Ref<ConfigFile> config;
+	config.instantiate();
+	if (config->parse(p_import_text) != OK || !config->has_section("params")) {
+		return p_import_text;
+	}
+	const struct {
+		const char *key;
+		Variant value;
+	} options[] = {
+		{ "edit/loop_mode", 2 }, // Forward.
+		{ "edit/loop_begin", 0 },
+		{ "edit/loop_end", -1 },
+		{ "bpm", p_music.bpm },
+		{ "beat_count", p_music.get_beat_count() },
+		{ "bar_beats", p_music.beats_per_bar },
+	};
+	bool changed = false;
+	for (const auto &option : options) {
+		const Variant current = config->get_value("params", option.key, Variant());
+		if (current.get_type() != option.value.get_type() || current != option.value) {
+			config->set_value("params", option.key, option.value);
+			changed = true;
+		}
+	}
+	return changed ? config->encode_to_text() : p_import_text;
+}
+
+Vector<String> EretheaFornalhaImport::prepare_music_imports(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings) {
+	Vector<String> changed;
+	for (const EretheaFornalhaMusic &music : p_project.music_tracks) {
+		const String import_file = music.file + ".import";
+		if (!music.imported) {
+			_add_warning(r_warnings, vformat("%s hasn't been imported yet, so its music was left out. Wait for the editor to import it, then build again.", music.file));
+			continue;
+		}
+		const String text = FileAccess::get_file_as_string(import_file);
+		const String new_text = set_music_import_options(text, music);
+		if (new_text == text) {
+			continue;
+		}
+		Ref<FileAccess> file = FileAccess::open(import_file, FileAccess::WRITE);
+		if (file.is_null()) {
+			_add_warning(r_warnings, vformat("%s couldn't be written, so its music doesn't change at the end of a bar.", import_file));
+			continue;
+		}
+		file->store_string(new_text);
+		file.unref();
+		changed.push_back(music.file);
+	}
+	if (!changed.is_empty() && EditorFileSystem::get_singleton()) {
+		EditorFileSystem::get_singleton()->reimport_files(changed);
+	}
+	return changed;
 }
 
 Node *EretheaFornalhaImport::make_character(const EretheaFornalhaCharacter &p_character, Vector<String> &r_warnings) {
@@ -833,7 +939,96 @@ Node *EretheaFornalhaImport::make_world(const EretheaFornalhaProject &p_project,
 	return root;
 }
 
-Node *EretheaFornalhaImport::make_main(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings) {
+// The script of the Musica node: the Fornalha's Sons autoload calls tocar() on
+// the group, and the music starts or changes to the clip of that situation. In
+// the editor of Godot, which reads no bpm from the WAV files, it changes right
+// away.
+static const char *MUSIC_SCRIPT = R"(extends AudioStreamPlayer
+# Built by Erethea from the music in Audio/musica. Sons.tocar_musica() calls
+# tocar() on the group "erethea_musica" instead of playing the file by itself.
+
+
+func tocar(situacao: String) -> void:
+	var clips := stream as AudioStreamInteractive
+	if clips == null:
+		return
+	var clip := -1
+	for i in clips.clip_count:
+		if clips.get_clip_name(i) == situacao:
+			clip = i
+			break
+	if clip < 0:
+		return
+	if not playing:
+		clips.initial_clip = clip
+		play()
+		return
+	var playback := get_stream_playback() as AudioStreamPlaybackInteractive
+	if playback == null or playback.get_current_clip_index() == clip:
+		return
+	playback.switch_to_clip_by_name(situacao)
+)";
+
+// The music of each situation as one stream whose clips change at the end of
+// the bar. Returns the situations that went in.
+static Vector<String> _add_music_player(Node *p_root, const EretheaFornalhaProject &p_project, Vector<String> &r_warnings) {
+	Vector<String> situations;
+#ifdef MODULE_INTERACTIVE_MUSIC_ENABLED
+	Ref<AudioStreamInteractive> interactive;
+	interactive.instantiate();
+	Vector<Ref<AudioStreamWAV>> streams;
+	Vector<String> names;
+	int initial = 0;
+	for (const EretheaFornalhaMusic &music : p_project.music_tracks) {
+		if (!music.imported) {
+			continue; // The warning comes with the import options.
+		}
+		const Ref<AudioStreamWAV> stream = ResourceLoader::load(music.file, "AudioStreamWAV");
+		if (stream.is_null()) {
+			_add_warning(r_warnings, vformat("%s couldn't be loaded, so its music was left out. If it's new, wait for the editor to import it, then build again.", music.file));
+			continue;
+		}
+		if (music.file == p_project.music) {
+			initial = streams.size();
+		}
+		streams.push_back(stream);
+		names.push_back(music.situation);
+	}
+	if (streams.is_empty()) {
+		return situations;
+	}
+	ScriptLanguage *language = ScriptServer::get_language_for_extension("gd");
+	Ref<Script> script;
+	if (language) {
+		script = Ref<Script>(Object::cast_to<Script>(ClassDB::instantiate(language->get_type())));
+	}
+	if (script.is_null()) {
+		_add_warning(r_warnings, "GDScript isn't available, so the music doesn't change with the game.");
+		return situations;
+	}
+	script->set_source_code(MUSIC_SCRIPT);
+
+	interactive->set_clip_count(streams.size());
+	for (int i = 0; i < streams.size(); i++) {
+		interactive->set_clip_name(i, names[i]);
+		interactive->set_clip_stream(i, streams[i]);
+	}
+	interactive->set_initial_clip(initial);
+	// From any music to any other, when the bar ends, with two beats of fade.
+	interactive->add_transition(AudioStreamInteractive::CLIP_ANY, AudioStreamInteractive::CLIP_ANY, AudioStreamInteractive::TRANSITION_FROM_TIME_NEXT_BAR, AudioStreamInteractive::TRANSITION_TO_TIME_START, AudioStreamInteractive::FADE_CROSS, 2);
+
+	AudioStreamPlayer *player = _add<AudioStreamPlayer>(p_root, p_root, "Musica");
+	player->set_editor_description("The music of each situation in Audio/musica. Sons.tocar_musica() asks it to play one, and it changes at the end of the bar. Built from the Audio/musica folder.");
+	player->set_stream(interactive);
+	player->set_volume_db(-8.0);
+	player->add_to_group(EretheaFornalhaImport::MUSIC_GROUP, true);
+	player->set_script(script);
+	situations = names;
+#endif
+	return situations;
+}
+
+Node *EretheaFornalhaImport::make_main(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings, Vector<String> *r_music_clips) {
 	Node3D *root = memnew(Node3D);
 	root->set_name("Principal");
 	_set_script(root, "principal.gd", r_warnings);
@@ -841,6 +1036,12 @@ Node *EretheaFornalhaImport::make_main(const EretheaFornalhaProject &p_project, 
 		root->set("musica", p_project.music);
 	}
 	_add_instance(root, root, WORLD_SCENE, "Mundo", r_warnings);
+	if (bool(GLOBAL_GET(SETTING_INTERACTIVE_MUSIC))) {
+		const Vector<String> clips = _add_music_player(root, p_project, r_warnings);
+		if (r_music_clips) {
+			*r_music_clips = clips;
+		}
+	}
 
 	const int player = p_project.find_character(p_project.player);
 	if (player < 0) {
@@ -1013,6 +1214,9 @@ EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	for (const EretheaFornalhaCharacter &character : project.characters) {
 		_save_scene(make_character(character, report.warnings), character.scene, state);
 	}
+	if (bool(GLOBAL_GET(SETTING_INTERACTIVE_MUSIC))) {
+		report.music_imports = prepare_music_imports(project, report.warnings);
+	}
 	if (bool(GLOBAL_GET(SETTING_AREA_ACOUSTICS))) {
 		String error;
 		report.bus_layout = add_reverb_buses(project, report.audio_buses, error);
@@ -1024,7 +1228,7 @@ EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 		_save_scene(make_area(project, i, report.warnings), project.areas[i].scene, state);
 	}
 	_save_scene(make_world(project, report.warnings), WORLD_SCENE, state);
-	_save_scene(make_main(project, report.warnings), MAIN_SCENE, state);
+	_save_scene(make_main(project, report.warnings, &report.music_clips), MAIN_SCENE, state);
 
 	Dictionary new_record;
 	new_record["format"] = 1;
