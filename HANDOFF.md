@@ -1,7 +1,7 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 e atualizado em 23/11/2026 (fim do dia) para continuar
-o trabalho de outra conta. Uma sessão nova
+Escrito em 22/11/2026 e atualizado em 23/11/2026, 23:30 UTC, quando o trabalho
+parou nesta conta para continuar de outra a partir de quarta, 25/11. Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -16,8 +16,9 @@ Depois cole:
 
 ```text
 Você vai continuar a Erethea Engine, o fork da Godot do repositório
-kaikyolf29-hub/-Erethea-Engine. Leia primeiro o HANDOFF.md (na raiz do main),
-depois o CLAUDE.md e o erethea/README.md. Siga o passo a passo do HANDOFF.md a
+kaikyolf29-hub/-Erethea-Engine. Leia primeiro o HANDOFF.md (na raiz do main;
+se o PR #34 ainda estiver aberto, leia o do branch claude/happy-dijkstra-gueto9,
+que é mais novo), depois o CLAUDE.md e o erethea/README.md. Siga o passo a passo do HANDOFF.md a
 partir de "O que fazer agora", na ordem, até a última fase e o lançamento.
 Trabalhe sozinho: um PR pequeno por tarefa, testes passando antes do merge, e
 você mesmo faz o merge no main quando o CI inteiro passar (nunca com o CI
@@ -30,37 +31,62 @@ mudou.
 
 Na conta nova, as sessões do Claude Code desta conta (inclusive as sessões
 Sonnet que ajudavam em paralelo) não existem: os PRs abertos ficam no GitHub,
-e quem continua termina cada um (veja "Estado em 23/11, fim do dia", logo
+e quem continua termina cada um (veja "Estado em 23/11, 23:30 UTC", logo
 abaixo).
 
-## Estado em 23/11, fim do dia (leia antes de tudo)
+## Estado em 23/11, 23:30 UTC (leia antes de tudo)
+
+O trabalho parou aqui porque esta conta é a mesma em que a Fornalha 3D está
+sendo feita. Continua de outra conta a partir de quarta, 25/11. Nenhuma sessão
+do Claude desta conta segue trabalhando: a sessão Sonnet do PR #31 foi
+interrompida e não há nada agendado.
 
 - **No `main` hoje (23/11)**: #25 (WAV da dublagem e eco por área), #26
   (janela moderna nos jogos), #27 (canal de testes da atualização), #28 e #30
   (teste do instalador e diagnóstico do crash do editor no CI), #29 (música
-  que muda no fim do compasso) e #32 (raios de luz `EretheaLightShafts`).
-- **PR aberto #31** (prévia com LibGodot, branch
-  `claude/erethea-libgodot-preview`): revisado e aprovado por mim; o CI todo
-  passou menos o job novo "LibGodot on Windows", que falhou no link por um bug
-  antigo do `modules/erethea_upscale/amd_fsr_upscaler.cpp`: em
-  `choose_backend()`, o bloco `if (driver == "d3d12") { ...
-  AmdFsrBackends::has_enhanced_barriers_d3d12() ... }` não está dentro de
-  `#ifdef D3D12_ENABLED` (as outras chamadas `_d3d12` do arquivo estão), e o
-  job compila sem o SDK do D3D12. Pedi a correção à sessão que fez o PR. Se o
-  PR ainda estiver vermelho: faça `git merge origin/main` no branch dele,
-  envolva esse bloco com `#ifdef D3D12_ENABLED` / `#endif` (commit "Erethea:
-  Fix linking AMD FSR without Direct3D 12"), suba, espere o CI inteiro passar
-  (o job LibGodot on Windows leva uns 40 min) e faça o merge.
-- **PR aberto, meu: sombras do sol por ray tracing** (Fase 4, item 2;
-  branch `claude/happy-dijkstra-gueto9`). Testado no contêiner com lavapipe
-  (cena simples e cena de referência) e com passo próprio no CI. Se o CI
-  estiver verde e o PR sem conflito, faça o merge; se não, veja a Fase 4,
-  item 2, abaixo.
+  que muda no fim do compasso), #32 (raios de luz `EretheaLightShafts`) e #33
+  (este HANDOFF preparado para outra conta).
+- **Primeiro: PR #34, meu, sombras do sol por ray tracing** (Fase 4, item 2;
+  branch `claude/happy-dijkstra-gueto9`). Este HANDOFF está nesse PR e é mais
+  novo que o do `main` até o merge. O primeiro CI falhou em quase todos os
+  builds por um erro só: a chamada `mesh_storage->mesh_get_surface(p_mesh,
+  surface)` em `modules/erethea_raytracing/erethea_ray_traced_shadows.cpp` era
+  ambígua (a `MeshStorage` tem a versão virtual `const` com `int` e uma
+  `inline` sem `const` com `uint32_t`), aviso no GCC (erro com `werror`) e erro
+  no MSVC. Corrigido no commit `f32d9de3c3` (chamada por ponteiro `const`);
+  aqui compilou sem aviso com `dev_mode=yes` no editor, no template e na
+  precisão dupla. O CI novo estava rodando quando parei. Se estiver verde e o PR
+  sem conflito, faça o merge (método "merge"). Se ficar vermelho, leia o log do
+  job (`get_job_logs` com `return_content`), corrija no mesmo branch e repita.
+  Depois do merge, o próximo passo é a Fase 4, item 2, "Depois deste PR".
+- **Depois: PR #31** (prévia com LibGodot, branch
+  `claude/erethea-libgodot-preview`, feito por uma sessão Sonnet e revisado por
+  mim). O link do "LibGodot on Windows" foi corrigido (`a694b251e8`, `#ifdef
+  D3D12_ENABLED` em `choose_backend()` do `amd_fsr_upscaler.cpp`). Todo o resto
+  do CI passou. Falta um problema no job "LibGodot on Windows": a DLL carrega, a
+  prévia desenha, salva a captura e imprime "the instance closed after 11
+  frames", e depois o programa de exemplo (`erethea/tests/libgodot/
+  libgodot_preview.c`) termina com o código 3762701893 = **0xE0464645**, ou
+  seja, alguma coisa quebra depois que a instância fecha (no
+  `libgodot_destroy_godot_instance`, no `FreeLibrary` ou na saída do processo,
+  por exemplo com threads do ANGLE/WARP ou da Godot ainda vivas). No Linux o
+  mesmo teste passa. A sessão Sonnet subiu o commit de diagnóstico
+  `a837816a44` ("Report the unhandled exceptions of the LibGodot host") pouco
+  antes de ser interrompida. Na conta nova: leia o log do job "LibGodot on
+  Windows" desse commit, descubra o que é 0xE0464645 (pesquise, não chute) e
+  em que ponto acontece, corrija a causa e não o teste (o código de saída tem
+  que ser 0), faça `git merge origin/main` no branch, espere o CI inteiro
+  passar (o job leva uns 40 min) e faça o merge. Se a causa for da base Godot,
+  a correção vai com `// Erethea:` e vale propor à Godot.
 - **Falhas conhecidas do CI** ainda abertas: o travamento do passo "Update
-  silently" do instalador (experimento 2 no `main`; conte as próximas
-  execuções) e o crash 0xC0000409 do editor no teste da janela (diagnóstico
-  pronto; espere acontecer de novo e leia o evento/minidump). Detalhes em
-  "Falhas conhecidas do CI".
+  silently" do instalador (experimento 2 no `main` desde o #30: até agora passou
+  2 de 2 vezes, no CI do #30 e no push do `main` do #33; antes travava em ~40%;
+  conte mais umas 8 execuções antes de dar por resolvido) e o crash 0xC0000409
+  do editor no teste da janela (diagnóstico pronto; espere acontecer de novo e
+  leia o evento/minidump). Detalhes em "Falhas conhecidas do CI".
+- **Lição de hoje**: o build local sem `dev_mode=yes` não pega avisos que o CI
+  trata como erro. Antes de subir C++, compile os objetos mudados com
+  `dev_mode=yes` (veja "Como compilar e testar").
 
 ## O que é a Erethea
 
@@ -337,6 +363,35 @@ comparado na cena de referência:
      pose) e partículas; reflexos e GI pelo mesmo caminho; a escolha por placa
      (item 1) passa a ligar o efeito em placas com ray query; a prova de
      velocidade na RTX fica para o teste final.
+   - **Próximo PR: personagens com esqueleto** (os da Fornalha são todos
+     assim). Já estudado em 23/11:
+     - Os vértices deformados pelo esqueleto (e pelas blend shapes) ficam em
+       `MeshStorage::MeshInstance::Surface::vertex_buffer[current_buffer]`,
+       gravados pelo compute `shaders/skeleton.glsl` em
+       `update_mesh_instances()`, no começo do quadro (antes do `PRE_OPAQUE`).
+       No 3D, as posições vêm primeiro, em float 32 (`index * vertex_stride`
+       palavras, normalmente 3), depois as normais e tangentes.
+     - Esse buffer é criado em `_mesh_instance_add_surface_buffer`
+       (`mesh_storage.cpp`) só com `BUFFER_CREATION_AS_STORAGE_BIT`. Mudança
+       de uma linha no núcleo (`// Erethea:`): acrescentar
+       `BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT`
+       quando o `RenderingDevice` tem ray query. E uma função pública na
+       `MeshStorage` (`// Erethea:`) que devolve o RID desse buffer, a contagem
+       e o passo dos vértices para (mesh instance, superfície), ou `RID()` se a
+       superfície não tem buffer próprio (`uniform_set[0]` nulo).
+     - `RenderGeometryInstanceBase::mesh_instance` é público: o módulo sabe
+       qual instância da lista do cull tem esqueleto. Os índices saem do buffer
+       próprio do módulo (lidos uma vez por malha, como hoje).
+     - BLAS por mesh instance, refeita todo quadro com `blas_build` (a API do
+       RD não tem atualização parcial). O `current_buffer` alterna quando há
+       vetores de movimento (TAA, FSR): guarde até duas BLAS por mesh instance,
+       pela RID do buffer, e recrie se a RID mudar. O grafo do RD cuida das
+       barreiras entre o compute do esqueleto e a montagem da BLAS.
+     - As posições estão no espaço da malha: a transformação da instância vai
+       na TLAS, como nas malhas paradas.
+     - Teste: na `erethea/tests/raytracing/shadows_scene`, uma malha com
+       esqueleto montada em GDScript (ArrayMesh com ossos e pesos e um
+       `Skeleton3D` girando um osso) e a sombra seguindo a pose.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
@@ -461,6 +516,13 @@ python3 erethea/tests/assistant/test_assistant.py $E      # painel de IA (imprim
 python3 erethea/tools/rebrand.py --check
 prek run --all-files                                     # estilo (ou pre-commit)
 ```
+
+Os builds do CI usam `dev_mode=yes` (aviso vira erro), o que o build acima não
+faz. Antes de subir C++, compile os arquivos mudados assim; os objetos ficam em
+`bin/obj/` (por exemplo
+`scons platform=linuxbsd target=editor dev_mode=yes accesskit=no bin/obj/modules/erethea_raytracing/`;
+para o template, `target=template_release` e o objeto `.template_release.`;
+para a precisão dupla, `precision=double` e `.editor.double.`).
 
 O CI (`.github/workflows/runner.yml`) roda as checagens de estilo, os builds de
 Linux e Windows, os testes da Godot e um workflow por recurso da Erethea
