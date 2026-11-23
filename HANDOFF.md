@@ -153,29 +153,35 @@ Os itens 2 a 4 dependem dos pedidos 1 a 5 para a Fornalha (abaixo), enviados
 ao Kaiky em 22/11. Enquanto a Fornalha não mudar, siga com o que já existe e
 confira no repositório público dela (`kaikyolf29-hub/fornalha`, só leitura).
 
-### 4. Prévia com LibGodot (último item da Fase 3)
+### 4. Prévia com LibGodot (último item da Fase 3, no branch `claude/erethea-libgodot-preview`, PR a abrir)
 
 Plano 2: "A LibGodot, que chegou na 4.6, permite embutir a engine em outro
 programa. A Fornalha pode mostrar o asset já com o renderizador da engine, do
 jeito que vai ficar no jogo."
 
-1. Pesquise como a LibGodot funciona na base 4.8 (opção do SCons para gerar a
-   biblioteca compartilhada, a API C para criar e rodar uma instância, e o
-   exemplo official). Não invente a API: leia o código (`SConstruct`, `main/`,
-   `core/extension/`) e a documentação.
-2. Uma cena de prévia própria da Erethea num módulo (por exemplo
-   `modules/erethea_preview/`): carrega um `.glb`, enquadra a câmera, gira em
-   volta, chão, luz e céu com o preset de qualidade da Erethea, e aceita
-   trocar o asset sem reiniciar. Ela funciona também como executável
-   (`--erethea-preview=<arquivo.glb>`), o que já serve à Fornalha antes da
-   integração embutida.
-3. Build da biblioteca no CI (Windows primeiro, Linux compilando) como
-   artefato do release, e um programa C pequeno em `erethea/tests/libgodot/`
-   que carrega a biblioteca, abre a prévia de um modelo de teste, renderiza
-   alguns quadros e salva uma captura. O CI confere que a captura não está
-   vazia.
-4. Documente para a Fornalha como embutir (DLL, chamadas, arguments) e
-   coloque o pedido na lista "Pedidos para a Fornalha" abaixo.
+Feito neste PR (documentado em `erethea/README.md`, "Prévia para a Fornalha"):
+
+1. **LibGodot na base 4.8**: `scons ... library_type=shared_library` gera a
+   biblioteca (`bin/liberethea.linuxbsd.editor.x86_64.so`, `.dll` no Windows).
+   A API C é `core/extension/libgodot.h` (`libgodot_create_godot_instance` e
+   `libgodot_destroy_godot_instance`) e a instância é um `GodotInstance` com
+   `start()` e `iteration()`, chamados pela API GDExtension. Nada foi mudado.
+2. **`modules/erethea_preview/`**: `EretheaPreview` (cena: `.glb`/`.gltf` lido
+   em tempo de execução, câmera enquadrada pelo AABB que gira, chão, sol com
+   sombra, céu procedural) e `EretheaPreviewLoop` (laço principal sem
+   projeto). Entra por `--erethea-preview=<arquivo>`; a única mudança em
+   arquivo da Godot é `main/main.cpp` (marcada `// Erethea:`). Opções:
+   `--erethea-preview-capture=`, `-frames=`, `-control=` (troca de asset sem
+   reiniciar), `-quality=`. Sem os argumentos, nada muda.
+3. **Testes**: `erethea/tests/preview/test_preview.py` (Linux e Windows) e
+   `erethea/tests/libgodot/` (programa C + teste), no `erethea_preview.yml`.
+4. **Pedido para a Fornalha** nº 9 (abaixo).
+
+Limites: uma instância por processo; sem placa de vídeo no CI (lavapipe e
+ANGLE/WARP); a biblioteca e o executável da prévia ainda não entram no
+instalador nem no release (só artefatos do CI): falta decidir com o Kaiky
+se o instalador leva a DLL. Fora do escopo: desenhar dentro de um widget da
+Fornalha (a LibGodot abre a própria janela).
 
 ### 5. Fechar a Fase 3
 
@@ -313,6 +319,8 @@ JÁ PEDIDOS ANTES (continuam valendo):
 7. Teste: chamar a Erethea com --agent-test=<pasta> (e --agent-test-seconds=<s>, --agent-test-inputs=<arquivo.json>) e ler <pasta>/report.json; sai com 0 quando passa, 1 quando falha, 2 quando as opções estão erradas. O teste_automatico da Fornalha continua funcionando.
 
 8. Depois (quando a Erethea tiver a prévia com LibGodot): embutir a prévia da Erethea na Galeria, como vai estar descrito no erethea/README.md.
+
+9. Prévia (já existe, PR da LibGodot): para mostrar um asset com o renderizador da Erethea, chamar erethea.console.exe --erethea-preview=<arquivo.glb> (não precisa de projeto). Para trocar de asset sem reiniciar, passar também --erethea-preview-control=<arquivo.txt> e escrever o caminho do novo .glb nesse arquivo (ou regravar o mesmo .glb). Para embutir pela DLL (LibGodot), siga o erethea/README.md, "Prévia para a Fornalha" (calls em ordem, argumentos e o exemplo em C de erethea/tests/libgodot/).
 ```
 
 A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md
