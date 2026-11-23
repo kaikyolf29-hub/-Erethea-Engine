@@ -71,7 +71,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática). Falta só a assinatura (no lançamento) e dois extras opcionais, abaixo |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) no `main`; quarta opção do painel (Claude Code) no PR #24; bloco de som e prévia com LibGodot por fazer |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) e Claude Code no painel (#24) no `main`; som: WAV da dublagem no PR #25, o resto do bloco de som e a prévia com LibGodot por fazer |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Não começou |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
@@ -87,9 +87,9 @@ Depois do #22, o PR #23 fez o teste do instalador parar em 4 minutos no passo
 "Update silently" (que travou duas vezes até o limite do job) e guardar o log do
 instalador (veja "Falhas conhecidas do CI"), e trouxe este plano.
 
-### 3a. Quarta opção do painel: Claude Code com a assinatura (PR #24)
+### 3a. Quarta opção do painel: Claude Code com a assinatura (PR #24, feito)
 
-Decidido pelo Kaiky em 22/11 e feito no PR #24 (falta CI verde e merge). O
+Decidido pelo Kaiky em 22/11 e no `main` pelo PR #24. O
 provedor "Claude Code (your subscription)" chama o Claude Code instalado no PC,
 que usa a assinatura do Claude, sem chave de API e sem Node.
 
@@ -127,9 +127,15 @@ masmorra) e dublagem (`Audio/dublagem/<id>_<nn>.wav` com
 `<id>_<nn>.boca.json`: `{"quadros_por_segundo": 30, "abertura": [...]}`). Um PR
 por item, só em projetos da Fornalha ou desligado por padrão:
 
-1. **WAV da dublagem sem travar**: o importador de WAV aceita o cabeçalho de
-   stream do Ignis (tamanhos do RIFF e do `data` errados). Correção genérica:
-   proponha também à Godot.
+1. **WAV da dublagem sem travar** (PR #25): o leitor de WAV da Godot
+   (`scene/resources/audio/audio_stream_wav.cpp`, trechos `// Erethea:`)
+   aceita o cabeçalho de stream do Ignis (tamanhos do RIFF e do `data` em 0
+   ou 0xFFFFFFFF: o som vai até o fim do arquivo) e calcula o próximo bloco em
+   64 bits (em 32 bits, um tamanho perto de 0xFFFFFFFF voltava ao mesmo bloco e
+   lia o som como cabeçalho, com milhares de erros). Teste em
+   `tests/erethea/test_erethea_wav_stream.cpp`. Correção genérica: falta
+   propor à Godot (issue e PR no `godotengine/godot`, quando o Kaiky quiser
+   abrir com a conta dele).
 2. **Eco por área**: o `build_fornalha_scenes` dá a cada área um barramento de
    áudio com reverberação pelo tipo (caverna, floresta, castelo, vila...) ou
    pelo campo opcional `acustica`.
@@ -250,14 +256,7 @@ Pronto quando: um modelo de milhões de polígonos roda sem LOD feito à mão.
    É também o pedido da Fornalha de "geometria virtual" para cenário denso
    (castelos, vilas).
 
-### 9. Godot 4.8 estável
-
-Quando a Godot lançar a 4.8 estável, junte no `upstream` e no `main` como em
-`erethea/README.md` ("Atualizar a Godot"), rode `rebrand.py --check`, troque o
-`GODOT_BASE_VERSION` do workflow da cena de referência e deixe o CI inteiro
-passar.
-
-### 10. Lançamento
+### 9. Lançamento
 
 1. O Kaiky confere o nome no INPI e o domínio (só ele pode).
 2. Assinatura do instalador (o Kaiky paga e cria a conta; você liga a variável
@@ -272,6 +271,14 @@ passar.
    procura falhas e o que melhorar.
 4. Tag `v1.0.0` (ou a versão que o Kaiky quiser) e o release com o
    instalador. Só então avise o Kaiky para baixar e testar.
+
+### 10. Godot 4.8 estável (depois do lançamento)
+
+Decidido pelo Kaiky em 22/11: vem depois do lançamento. Quando a Godot
+lançar a 4.8 estável, junte no `upstream` e no `main` como em
+`erethea/README.md` ("Atualizar a Godot"), rode `rebrand.py --check`, troque o
+`GODOT_BASE_VERSION` do workflow da cena de referência e deixe o CI inteiro
+passar.
 
 ## Pedidos para a Fornalha (o Kaiky cola no chat da Fornalha)
 

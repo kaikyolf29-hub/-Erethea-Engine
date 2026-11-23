@@ -734,6 +734,20 @@ para o teste final no PC do criador.
 python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64
 ```
 
+## Som
+
+Os sons que a Fornalha gera (efeitos, música por situação e dublagem com a
+curva da boca) entram no jogo pela Erethea. Por enquanto:
+
+**WAV gravado como stream.** Um WAV escrito aos poucos, como a fala que o Ignis
+devolve, não sabe o tamanho quando começa e deixa 0 ou 0xFFFFFFFF nos tamanhos
+do cabeçalho. A Godot lia esses arquivos vazios, ou relia o som como se fosse
+cabeçalho, com milhares de erros (e a importação travava em arquivos grandes).
+A Erethea entende que o som vai até o fim do arquivo. A mudança está em
+`scene/resources/audio/audio_stream_wav.cpp`, marcada com `// Erethea:`, e o
+teste em `tests/erethea/test_erethea_wav_stream.cpp`
+(`--test --test-case="*Erethea*AudioStreamWAV*"`).
+
 ## Lançar uma versão
 
 As versões da Erethea têm numeração própria (`0.2.0`, `0.2.0-beta.1`),
