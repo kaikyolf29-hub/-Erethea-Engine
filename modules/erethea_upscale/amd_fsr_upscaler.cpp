@@ -162,6 +162,7 @@ Backend choose_backend() {
 		WARN_PRINT(vformat("AMD FSR needs the Vulkan or Direct3D 12 rendering driver (this one is \"%s\"). Using FSR 2.2.", driver));
 		return Backend::NONE;
 	}
+#ifdef D3D12_ENABLED
 	if (driver == "d3d12") {
 		// AMD's runtime moves the textures between legacy resource states,
 		// which only meet Godot's own barriers in the COMMON layout of enhanced
@@ -172,6 +173,7 @@ Backend choose_backend() {
 		}
 		return Backend::D3D12;
 	}
+#endif // D3D12_ENABLED
 #ifdef VULKAN_ENABLED
 	if (!AmdFsrBackends::has_device_only_memory_vulkan()) {
 		// AMD's Vulkan backend only puts its textures in device-local memory
