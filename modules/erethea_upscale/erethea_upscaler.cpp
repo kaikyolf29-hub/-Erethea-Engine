@@ -32,10 +32,22 @@
 
 #include "core/config/project_settings.h"
 #include "core/object/callable_mp.h"
+#include "servers/rendering/rendering_device.h"
 #include "servers/rendering/rendering_server.h"
 
 void EretheaUpscaler::register_project_settings() {
-	GLOBAL_DEF(PropertyInfo(Variant::INT, PROJECT_SETTING, PROPERTY_HINT_ENUM, "FSR 2.2,AMD FSR,XeSS,DLSS"), MODE_FSR2);
+	GLOBAL_DEF(PropertyInfo(Variant::INT, PROJECT_SETTING, PROPERTY_HINT_ENUM, "FSR 2.2,AMD FSR,XeSS,DLSS,Automatic"), MODE_FSR2);
+}
+
+Vector<int> EretheaUpscaler::get_automatic_order(const String &p_vendor) {
+	Vector<int> order;
+	if (p_vendor == "NVIDIA") {
+		order.push_back(MODE_DLSS);
+	} else if (p_vendor == "Intel") {
+		order.push_back(MODE_XESS);
+	}
+	order.push_back(MODE_AMD_FSR);
+	return order;
 }
 
 EretheaUpscaler::Mode EretheaUpscaler::get_project_mode() {
@@ -49,6 +61,12 @@ void EretheaUpscaler::prepare_rendering_driver() {
 			XessUpscaler::prepare_rendering_driver();
 			break;
 		case MODE_DLSS:
+			DlssUpscaler::prepare_rendering_driver();
+			break;
+		case MODE_AUTOMATIC:
+			// The graphics card isn't known yet. Each one only prepares what it
+			// finds next to the executable.
+			XessUpscaler::prepare_rendering_driver();
 			DlssUpscaler::prepare_rendering_driver();
 			break;
 		default:
@@ -104,20 +122,8 @@ EretheaUpscaler::Mode EretheaUpscaler::get_mode() const {
 	return Mode(mode.load());
 }
 
-bool EretheaUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step) {
-	// Each upscaler frees what it kept for these render buffers when another
-	// one takes over.
-	const Mode current = get_mode();
-	if (current != MODE_AMD_FSR) {
-		amd_fsr.release(p_render_buffers);
-	}
-	if (current != MODE_XESS) {
-		xess.release(p_render_buffers);
-	}
-	if (current != MODE_DLSS) {
-		dlss.release(p_render_buffers);
-	}
-	switch (current) {
+bool EretheaUpscaler::_upscale_with(Mode p_mode, const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step) {
+	switch (p_mode) {
 		case MODE_AMD_FSR:
 			return amd_fsr.upscale(p_render_buffers, p_render_data, p_time_step);
 		case MODE_XESS:
@@ -127,4 +133,42 @@ bool EretheaUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers,
 		default:
 			return false;
 	}
+}
+
+void EretheaUpscaler::_release_except(Mode p_mode, const Ref<RenderSceneBuffersRD> &p_render_buffers) {
+	if (p_mode != MODE_AMD_FSR) {
+		amd_fsr.release(p_render_buffers);
+	}
+	if (p_mode != MODE_XESS) {
+		xess.release(p_render_buffers);
+	}
+	if (p_mode != MODE_DLSS) {
+		dlss.release(p_render_buffers);
+	}
+}
+
+bool EretheaUpscaler::upscale(const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step) {
+	// Each upscaler frees what it kept for these render buffers when another
+	// one takes over.
+	const Mode current = get_mode();
+	if (current != MODE_AUTOMATIC) {
+		_release_except(current, p_render_buffers);
+		return _upscale_with(current, p_render_buffers, p_render_data, p_time_step);
+	}
+
+	if (automatic_order.is_empty()) {
+		RenderingDevice *rd = RenderingDevice::get_singleton();
+		automatic_order = get_automatic_order(rd != nullptr ? rd->get_device_vendor_name() : String());
+		print_verbose(vformat("Erethea: the automatic temporal upscaler tries %s on this %s graphics card.", automatic_order.size() > 1 ? "its vendor's upscaler, then AMD FSR," : "AMD FSR", rd != nullptr ? rd->get_device_vendor_name() : String("unknown")));
+	}
+	// The first one that can upscale this frame, then FSR 2.2.
+	Mode used = MODE_FSR2;
+	for (int candidate : automatic_order) {
+		if (_upscale_with(Mode(candidate), p_render_buffers, p_render_data, p_time_step)) {
+			used = Mode(candidate);
+			break;
+		}
+	}
+	_release_except(used, p_render_buffers);
+	return used != MODE_FSR2;
 }

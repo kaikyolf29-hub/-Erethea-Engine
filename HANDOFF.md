@@ -1,7 +1,6 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 e atualizado em 23/11/2026, 23:30 UTC, quando o trabalho
-parou nesta conta para continuar de outra a partir de quarta, 25/11. Uma sessão nova
+Escrito em 22/11/2026 e atualizado a cada PR (última vez em 25/11/2026). Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -17,8 +16,8 @@ Depois cole:
 ```text
 Você vai continuar a Erethea Engine, o fork da Godot do repositório
 kaikyolf29-hub/-Erethea-Engine. Leia primeiro o HANDOFF.md (na raiz do main;
-se o PR #34 ainda estiver aberto, leia o do branch claude/happy-dijkstra-gueto9,
-que é mais novo), depois o CLAUDE.md e o erethea/README.md. Siga o passo a passo do HANDOFF.md a
+se um PR aberto do Claude mexe no HANDOFF.md, o do branch dele é mais novo),
+depois o CLAUDE.md e o erethea/README.md. Siga o passo a passo do HANDOFF.md a
 partir de "O que fazer agora", na ordem, até a última fase e o lançamento.
 Trabalhe sozinho: um PR pequeno por tarefa, testes passando antes do merge, e
 você mesmo faz o merge no main quando o CI inteiro passar (nunca com o CI
@@ -31,62 +30,49 @@ mudou.
 
 Na conta nova, as sessões do Claude Code desta conta (inclusive as sessões
 Sonnet que ajudavam em paralelo) não existem: os PRs abertos ficam no GitHub,
-e quem continua termina cada um (veja "Estado em 23/11, 23:30 UTC", logo
-abaixo).
+e quem continua termina cada um (veja "Estado em 25/11", logo abaixo).
 
-## Estado em 23/11, 23:30 UTC (leia antes de tudo)
+## Estado em 25/11 (leia antes de tudo)
 
-O trabalho parou aqui porque esta conta é a mesma em que a Fornalha 3D está
-sendo feita. Continua de outra conta a partir de quarta, 25/11. Nenhuma sessão
-do Claude desta conta segue trabalhando: a sessão Sonnet do PR #31 foi
-interrompida e não há nada agendado.
+O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
+Nenhuma sessão Sonnet está rodando.
 
-- **No `main` hoje (23/11)**: #25 (WAV da dublagem e eco por área), #26
-  (janela moderna nos jogos), #27 (canal de testes da atualização), #28 e #30
-  (teste do instalador e diagnóstico do crash do editor no CI), #29 (música
-  que muda no fim do compasso), #32 (raios de luz `EretheaLightShafts`) e #33
-  (este HANDOFF preparado para outra conta).
-- **Primeiro: PR #34, meu, sombras do sol por ray tracing** (Fase 4, item 2;
-  branch `claude/happy-dijkstra-gueto9`). Este HANDOFF está nesse PR e é mais
-  novo que o do `main` até o merge. O primeiro CI falhou em quase todos os
-  builds por um erro só: a chamada `mesh_storage->mesh_get_surface(p_mesh,
-  surface)` em `modules/erethea_raytracing/erethea_ray_traced_shadows.cpp` era
-  ambígua (a `MeshStorage` tem a versão virtual `const` com `int` e uma
-  `inline` sem `const` com `uint32_t`), aviso no GCC (erro com `werror`) e erro
-  no MSVC. Corrigido no commit `f32d9de3c3` (chamada por ponteiro `const`);
-  aqui compilou sem aviso com `dev_mode=yes` no editor, no template e na
-  precisão dupla. O CI novo estava rodando quando parei. Se estiver verde e o PR
-  sem conflito, faça o merge (método "merge"). Se ficar vermelho, leia o log do
-  job (`get_job_logs` com `return_content`), corrija no mesmo branch e repita.
-  Depois do merge, o próximo passo é a Fase 4, item 2, "Depois deste PR".
-- **Depois: PR #31** (prévia com LibGodot, branch
-  `claude/erethea-libgodot-preview`, feito por uma sessão Sonnet e revisado por
-  mim). O link do "LibGodot on Windows" foi corrigido (`a694b251e8`, `#ifdef
-  D3D12_ENABLED` em `choose_backend()` do `amd_fsr_upscaler.cpp`). Todo o resto
-  do CI passou. Falta um problema no job "LibGodot on Windows": a DLL carrega, a
-  prévia desenha, salva a captura e imprime "the instance closed after 11
-  frames", e depois o programa de exemplo (`erethea/tests/libgodot/
-  libgodot_preview.c`) termina com o código 3762701893 = **0xE0464645**, ou
-  seja, alguma coisa quebra depois que a instância fecha (no
-  `libgodot_destroy_godot_instance`, no `FreeLibrary` ou na saída do processo,
-  por exemplo com threads do ANGLE/WARP ou da Godot ainda vivas). No Linux o
-  mesmo teste passa. A sessão Sonnet subiu o commit de diagnóstico
-  `a837816a44` ("Report the unhandled exceptions of the LibGodot host") pouco
-  antes de ser interrompida. Na conta nova: leia o log do job "LibGodot on
-  Windows" desse commit, descubra o que é 0xE0464645 (pesquise, não chute) e
-  em que ponto acontece, corrija a causa e não o teste (o código de saída tem
-  que ser 0), faça `git merge origin/main` no branch, espere o CI inteiro
-  passar (o job leva uns 40 min) e faça o merge. Se a causa for da base Godot,
-  a correção vai com `// Erethea:` e vale propor à Godot.
+- **No `main`**: #25 (WAV da dublagem e eco por área), #26 (janela moderna nos
+  jogos), #27 (canal de testes da atualização), #28 e #30 (teste do instalador
+  e diagnóstico do crash do editor no CI), #29 (música que muda no fim do
+  compasso), #32 (raios de luz `EretheaLightShafts`), #33 (HANDOFF para outra
+  conta) e, desde 25/11, **#34 (sombras do sol por ray tracing)**, com o CI
+  inteiro verde.
+- **PR #31 (prévia com LibGodot), causa achada e corrigida, esperando o CI**
+  (branch `claude/erethea-libgodot-preview`). O programa de exemplo saía com
+  **0xE0464645** no Windows depois de destruir a instância e descarregar a
+  DLL. Esse é o código do "fail fast" do **CoreMessaging** do Windows (não há
+  texto oficial da Microsoft; relatos: o PR #1532 do `momo5502/sogen`, que
+  mostra o CoreMessaging encerrando o processo com esse código, e o DWM, que
+  sai com ele). Um fail fast não passa pelos manipuladores de exceção, por isso
+  o diagnóstico do programa não imprimiu nada. A engine cria um
+  `DispatcherQueueController` do CoreMessaging na thread principal
+  (`WinRTUtils::create_queue`, para as notificações). Na LibGodot do Windows,
+  diferente do `main()` da engine: (1) o controlador ficava num `ComPtr`
+  global depois de desligado e só era solto no destrutor estático, dentro do
+  `FreeLibrary`, com a trava do loader presa; (2) o `OS_Windows` nunca era
+  destruído, então `CoUninitialize` e `WinRTUtils::cleanup` não rodavam.
+  Correção no commit `a0db15db` (os dois pontos, com `// Erethea:`; o mesmo
+  defeito está na Godot, vale propor), e o job agora imprime os eventos
+  1000/1001/1026 do Windows quando o programa falha (`58706aa3`). Se o CI
+  passar inteiro, faça o merge. Se o job "LibGodot on Windows" falhar de novo,
+  leia os eventos impressos no log (módulo e deslocamento) e continue daí.
+- **Depois do #31**: fechar a Fase 3 (passo 5) e seguir a Fase 4, item 2,
+  "Próximo PR: personagens com esqueleto".
 - **Falhas conhecidas do CI** ainda abertas: o travamento do passo "Update
-  silently" do instalador (experimento 2 no `main` desde o #30: até agora passou
-  2 de 2 vezes, no CI do #30 e no push do `main` do #33; antes travava em ~40%;
-  conte mais umas 8 execuções antes de dar por resolvido) e o crash 0xC0000409
-  do editor no teste da janela (diagnóstico pronto; espere acontecer de novo e
-  leia o evento/minidump). Detalhes em "Falhas conhecidas do CI".
-- **Lição de hoje**: o build local sem `dev_mode=yes` não pega avisos que o CI
-  trata como erro. Antes de subir C++, compile os objetos mudados com
-  `dev_mode=yes` (veja "Como compilar e testar").
+  silently" do instalador (experimento 2 no `main` desde o #30; conte as
+  execuções) e o crash 0xC0000409 do editor no teste da janela (diagnóstico
+  pronto; espere acontecer de novo e leia o evento/minidump). Detalhes em
+  "Falhas conhecidas do CI".
+- **Lições**: o build local sem `dev_mode=yes` não pega avisos que o CI trata
+  como erro; compile os objetos mudados com `dev_mode=yes`. Arquivos só do
+  Windows também dá para compilar aqui com o MinGW (veja "Como compilar e
+  testar").
 
 ## O que é a Erethea
 
@@ -136,7 +122,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). Falta só a assinatura (no lançamento) |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
 | 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Quase pronta: MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24) e o bloco de som (#25, #29; a boca é da Fornalha) no `main`. Falta a prévia com LibGodot (PR #31) e fechar a fase (passo 5) |
-| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32); sombras por ray tracing em andamento (item 2) |
+| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32) e sombras do sol por ray tracing (#34) no `main`; próximo: sombras dos personagens com esqueleto (item 2) |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
 ## O que fazer agora (na ordem)
@@ -226,10 +212,10 @@ Com isso o bloco de som está fechado. A Fornalha atendeu os pedidos 1 a 4
 (`.musica.json`, grupo `erethea_musica`, `Sons.falar` com `personagem` e
 `texto` no `.boca.json`, osso da boca no `forja.json`).
 
-### 4. Prévia com LibGodot (último item da Fase 3)
+### 4. Prévia com LibGodot (último item da Fase 3, PR #31)
 
-**Estado (23/11): PR #31 aberto**, revisado, falta o CI verde (veja "Estado em
-23/11"). O que ele traz: `modules/erethea_preview/` (`EretheaPreview` e
+**Estado (25/11): PR #31 aberto**, revisado; a saída 0xE0464645 no Windows foi
+corrigida, falta o CI verde (veja "Estado em 25/11"). O que ele traz: `modules/erethea_preview/` (`EretheaPreview` e
 `EretheaPreviewLoop`), `--erethea-preview=<glb>` com captura, troca de asset
 por arquivo de controle, `erethea/tests/preview/` e `erethea/tests/libgodot/`
 (programa C que carrega a biblioteca), workflow `erethea_preview.yml` (os jobs
@@ -240,23 +226,29 @@ Plano 2: "A LibGodot, que chegou na 4.6, permite embutir a engine em outro
 programa. A Fornalha pode mostrar o asset já com o renderizador da engine, do
 jeito que vai ficar no jogo."
 
-1. Pesquise como a LibGodot funciona na base 4.8 (opção do SCons para gerar a
-   biblioteca compartilhada, a API C para criar e rodar uma instância, e o
-   exemplo official). Não invente a API: leia o código (`SConstruct`, `main/`,
-   `core/extension/`) e a documentação.
-2. Uma cena de prévia própria da Erethea num módulo (por exemplo
-   `modules/erethea_preview/`): carrega um `.glb`, enquadra a câmera, gira em
-   volta, chão, luz e céu com o preset de qualidade da Erethea, e aceita
-   trocar o asset sem reiniciar. Ela funciona também como executável
-   (`--erethea-preview=<arquivo.glb>`), o que já serve à Fornalha antes da
-   integração embutida.
-3. Build da biblioteca no CI (Windows primeiro, Linux compilando) como
-   artefato do release, e um programa C pequeno em `erethea/tests/libgodot/`
-   que carrega a biblioteca, abre a prévia de um modelo de teste, renderiza
-   alguns quadros e salva uma captura. O CI confere que a captura não está
-   vazia.
-4. Documente para a Fornalha como embutir (DLL, chamadas, arguments) e
-   coloque o pedido na lista "Pedidos para a Fornalha" abaixo.
+Feito neste PR (documentado em `erethea/README.md`, "Prévia para a Fornalha"):
+
+1. **LibGodot na base 4.8**: `scons ... library_type=shared_library` gera a
+   biblioteca (`bin/liberethea.linuxbsd.editor.x86_64.so`, `.dll` no Windows).
+   A API C é `core/extension/libgodot.h` (`libgodot_create_godot_instance` e
+   `libgodot_destroy_godot_instance`) e a instância é um `GodotInstance` com
+   `start()` e `iteration()`, chamados pela API GDExtension. Nada foi mudado.
+2. **`modules/erethea_preview/`**: `EretheaPreview` (cena: `.glb`/`.gltf` lido
+   em tempo de execução, câmera enquadrada pelo AABB que gira, chão, sol com
+   sombra, céu procedural) e `EretheaPreviewLoop` (laço principal sem
+   projeto). Entra por `--erethea-preview=<arquivo>`; a única mudança em
+   arquivo da Godot é `main/main.cpp` (marcada `// Erethea:`). Opções:
+   `--erethea-preview-capture=`, `-frames=`, `-control=` (troca de asset sem
+   reiniciar), `-quality=`. Sem os argumentos, nada muda.
+3. **Testes**: `erethea/tests/preview/test_preview.py` (Linux e Windows) e
+   `erethea/tests/libgodot/` (programa C + teste), no `erethea_preview.yml`.
+4. **Pedido para a Fornalha** nº 9 (abaixo).
+
+Limites: uma instância por processo; sem placa de vídeo no CI (lavapipe e
+ANGLE/WARP); a biblioteca e o executável da prévia ainda não entram no
+instalador nem no release (só artefatos do CI): falta decidir com o Kaiky
+se o instalador leva a DLL. Fora do escopo: desenhar dentro de um widget da
+Fornalha (a LibGodot abre a própria janela).
 
 ### 5. Fechar a Fase 3
 
@@ -300,6 +292,28 @@ comparado na cena de referência:
    suporte, SDFGI e lightmaps sem ray tracing (RX 580). O dev pode travar a
    escolha no projeto; o jogo exportado faz a mesma escolha no PC de quem joga.
    Estenda o preset "Automatic" de `modules/erethea_quality/`.
+
+   **Feito (PR da escolha por placa, 25/11)**, sem mexer no núcleo:
+   - `rendering/erethea/temporal_upscaler` ganhou `Automatic` (valor 4):
+     DLSS na NVIDIA e XeSS na Intel quando podem rodar, AMD FSR nas outras e
+     quando aqueles não podem, FSR 2.2 onde nenhum roda. A cada quadro usa o
+     primeiro que consegue e solta os outros
+     (`EretheaUpscaler::get_automatic_order`, testado por fabricante).
+   - `rendering/erethea/ray_tracing/sun_shadows` (`Disabled`, `Automatic` =
+     padrão, `Enabled`): põe o `EretheaRayTracedShadows` no `Compositor` de
+     cada `WorldEnvironment` (criado se não houver) e das câmeras com
+     compositor próprio, só no jogo rodando. `Automatic` só liga quando o
+     preset de qualidade é `Automatic` e escolhe `Cinematic` (placa dedicada
+     com ray tracing); projetos da Godot (preset `Disabled`) não mudam.
+     Teste: `erethea/tests/raytracing/auto_project` no CI (lavapipe); provado
+     que falha com a configuração desligada.
+   - Projetos novos da Erethea começam com o upscaler `Automatic` (além do
+     preset `Automatic` que já tinham).
+   - Falta: o path tracing da NVIDIA (item 3) entra na linha das RTX quando
+     existir; a prova na RX 580 e na RTX é do teste final. VRAM não entrou
+     na escolha (o preset já separa integrada de dedicada); se o teste final
+     mostrar placa dedicada fraca sofrendo no Cinematic, use
+     `RenderingDevice::get_memory_usage`/limites do driver para descer um nível.
 2. **Ray tracing da Godot**: a 4.7 trouxe a base de ray tracing no
    `RenderingDevice` (só a "tubulação"). Montar as estruturas de aceleração da
    cena e fazer, nesta ordem, sombras suaves, reflexos e iluminação global por
@@ -503,6 +517,8 @@ JÁ PEDIDOS ANTES (continuam valendo):
 7. Teste: chamar a Erethea com --agent-test=<pasta> (e --agent-test-seconds=<s>, --agent-test-inputs=<arquivo.json>) e ler <pasta>/report.json; sai com 0 quando passa, 1 quando falha, 2 quando as opções estão erradas. O teste_automatico da Fornalha continua funcionando.
 
 8. Depois (quando a Erethea tiver a prévia com LibGodot): embutir a prévia da Erethea na Galeria, como vai estar descrito no erethea/README.md.
+
+9. Prévia (já existe, PR da LibGodot): para mostrar um asset com o renderizador da Erethea, chamar erethea.console.exe --erethea-preview=<arquivo.glb> (não precisa de projeto). Para trocar de asset sem reiniciar, passar também --erethea-preview-control=<arquivo.txt> e escrever o caminho do novo .glb nesse arquivo (ou regravar o mesmo .glb). Para embutir pela DLL (LibGodot), siga o erethea/README.md, "Prévia para a Fornalha" (calls em ordem, argumentos e o exemplo em C de erethea/tests/libgodot/).
 ```
 
 A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md
@@ -536,6 +552,16 @@ faz. Antes de subir C++, compile os arquivos mudados assim; os objetos ficam em
 `scons platform=linuxbsd target=editor dev_mode=yes accesskit=no bin/obj/modules/erethea_raytracing/`;
 para o template, `target=template_release` e o objeto `.template_release.`;
 para a precisão dupla, `precision=double` e `.editor.double.`).
+
+Arquivos só do Windows (`platform/windows/`) compilam aqui com o MinGW, com o
+aviso virando erro como no CI (`apt-get install -y g++-mingw-w64-x86-64-posix`
+e `pip install scons`; pegue o nome do objeto na linha de comando do CI):
+
+```sh
+scons platform=windows use_mingw=yes target=editor dev_mode=yes d3d12=no angle=no accesskit=no \
+    bin/obj/platform/windows/winrt_utils.windows.editor.x86_64.o
+# com library_type=shared_library para o libgodot_windows.cpp
+```
 
 O CI (`.github/workflows/runner.yml`) roda as checagens de estilo, os builds de
 Linux e Windows, os testes da Godot e um workflow por recurso da Erethea

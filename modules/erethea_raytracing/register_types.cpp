@@ -33,12 +33,23 @@
 #include "erethea_contact_shadows.h"
 #include "erethea_ray_traced_shadows.h"
 
+#include "core/config/engine.h"
+#include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
 
 void initialize_erethea_raytracing_module(ModuleInitializationLevel p_level) {
+	if (p_level == MODULE_INITIALIZATION_LEVEL_CORE) {
+		EretheaRayTracedShadows::register_project_settings();
+	}
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		GDREGISTER_CLASS(EretheaRayTracedShadows);
 		GDREGISTER_CLASS(EretheaContactShadows);
+		// Only in the running project: in the editor the effect would end up
+		// saved in the scenes.
+		if (!Engine::get_singleton()->is_editor_hint()) {
+			// Deferred, so the scene tree exists.
+			callable_mp_static(&EretheaRayTracedShadows::add_to_running_scenes).call_deferred();
+		}
 	}
 }
 

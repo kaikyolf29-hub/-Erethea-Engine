@@ -365,6 +365,13 @@ void WinRTUtils::destroy_queue() {
 			DispatchMessageW(&msg);
 		}
 	}
+	// Erethea: Release the controller here, on the thread that created it, and
+	// not in the destructor of this global: when the engine is a library
+	// (LibGodot), that destructor runs while the host unloads it, under the
+	// loader lock, where COM objects must not be released.
+	info.Reset();
+	action.Reset();
+	queue_ctrl.Reset();
 	ERR_FAIL_COND_MSG(status == ROAsyncStatus::Error, "DispatcherQueueController shutdown failed.");
 }
 

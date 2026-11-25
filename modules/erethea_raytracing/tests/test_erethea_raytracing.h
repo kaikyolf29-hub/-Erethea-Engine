@@ -33,6 +33,7 @@
 #include "../erethea_contact_shadows.h"
 #include "../erethea_ray_traced_shadows.h"
 
+#include "core/config/project_settings.h"
 #include "tests/test_macros.h"
 
 namespace TestEretheaRayTracing {
@@ -90,6 +91,30 @@ TEST_CASE("[Modules][EretheaRayTracing] Contact shadows defaults and ranges") {
 		CHECK(contact->get_steps() == EretheaContactShadows::MAX_STEPS);
 		contact->set_normal_bias(2.0);
 		CHECK(contact->get_normal_bias() == doctest::Approx(0.5));
+	}
+}
+
+TEST_CASE("[Modules][EretheaRayTracing] Ray traced sun shadows added to the scenes") {
+	EretheaRayTracedShadows::register_project_settings();
+	const String setting = EretheaRayTracedShadows::SUN_SHADOWS_SETTING;
+	CHECK(ProjectSettings::get_singleton()->has_setting(setting));
+	CHECK(int(ProjectSettings::get_singleton()->property_get_revert(setting)) == EretheaRayTracedShadows::SUN_SHADOWS_AUTOMATIC);
+
+	SUBCASE("Never without ray tracing") {
+		for (int mode = EretheaRayTracedShadows::SUN_SHADOWS_DISABLED; mode <= EretheaRayTracedShadows::SUN_SHADOWS_ENABLED; mode++) {
+			CHECK_FALSE(EretheaRayTracedShadows::is_added_to_scenes(mode, false, true));
+		}
+	}
+
+	SUBCASE("Automatic follows the Automatic quality preset") {
+		// Projects from Godot keep the quality preset off, so nothing changes.
+		CHECK_FALSE(EretheaRayTracedShadows::is_added_to_scenes(EretheaRayTracedShadows::SUN_SHADOWS_AUTOMATIC, true, false));
+		CHECK(EretheaRayTracedShadows::is_added_to_scenes(EretheaRayTracedShadows::SUN_SHADOWS_AUTOMATIC, true, true));
+	}
+
+	SUBCASE("The project can lock it") {
+		CHECK_FALSE(EretheaRayTracedShadows::is_added_to_scenes(EretheaRayTracedShadows::SUN_SHADOWS_DISABLED, true, true));
+		CHECK(EretheaRayTracedShadows::is_added_to_scenes(EretheaRayTracedShadows::SUN_SHADOWS_ENABLED, true, false));
 	}
 }
 

@@ -175,6 +175,17 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
+      # rendering/erethea/ray_tracing/sun_shadows adds the ray traced shadows to
+      # the running scenes (erethea/tests/raytracing/auto_project).
+      - name: Check the ray traced shadows added by the project setting
+        if: always() && hashFiles('captures/erethea/results.json') != ''
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          xvfb-run -a -s "-screen 0 1280x720x24" "$ERETHEA" --path erethea/tests/raytracing/auto_project \
+            --audio-driver Dummy --fixed-fps 30 2>&1 | tee rt_auto.log
+          grep -q "ERETHEA_RT_AUTO_OK" rt_auto.log
+
       # Ray traced shadows of the sun (EretheaRayTracedShadows) instead of its
       # shadow map. lavapipe has ray queries, so the image is proven here: in
       # daylight it must change. Without the effect, the step against stock
