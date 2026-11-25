@@ -436,7 +436,10 @@ def terrain_checks(editor, project, out, port, timeout):
     walk = run_game(editor, project, out / "game_terrain.log", timeout)
     terrain = walk.get("terrain")
     check(terrain is not None, "the world has the terrain")
-    check(terrain["class"] == "EretheaTerrain3D" and terrain["resolution"] == [161, 161], "of the blockout's ground, 1 m apart")
+    check(
+        terrain["class"] == "EretheaTerrain3D" and terrain["resolution"] == [161, 161],
+        "of the blockout's ground, 1 m apart",
+    )
     check(terrain["materials"], "with its materials")
     check(not terrain["ground_visible"] and terrain["ground_layers"] == [0], "and the ground of the blockout is gone")
     check(terrain["house_layers"] == [1], "but the houses still collide")

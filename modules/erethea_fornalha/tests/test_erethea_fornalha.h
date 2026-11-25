@@ -51,8 +51,9 @@
 #include "scene/resources/material.h"
 #include "scene/resources/mesh.h"
 #include "scene/resources/packed_scene.h"
-#include "modules/erethea_terrain/erethea_terrain_data.h"
 #include "tests/test_macros.h"
+
+#include "modules/erethea_terrain/erethea_terrain_data.h"
 
 namespace TestEretheaFornalha {
 

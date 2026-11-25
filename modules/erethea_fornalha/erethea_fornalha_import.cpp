@@ -72,11 +72,12 @@
 #ifdef MODULE_ERETHEA_TERRAIN_ENABLED
 #include "erethea_fornalha_terrain.h"
 
-#include "modules/erethea_terrain/erethea_terrain_3d.h"
-#include "modules/erethea_terrain/erethea_terrain_data.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/physics/collision_object_3d.h"
 #include "scene/resources/image_texture.h"
+
+#include "modules/erethea_terrain/erethea_terrain_3d.h"
+#include "modules/erethea_terrain/erethea_terrain_data.h"
 #endif
 
 static const char *MODEL_EXTENSIONS[] = { "glb", "gltf" };
