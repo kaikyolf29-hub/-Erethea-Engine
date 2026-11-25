@@ -436,6 +436,12 @@ comparado na cena de referência:
    final).
 10. Teste de pronto no CI com o que der (WARP/lavapipe); a prova na RTX e na
     RX 580 entra na lista do teste final do Kaiky.
+    **Feito (25/11, PR do teste sem ray tracing):** com ray tracing, o passo
+    "Capture the ray traced shadows" no lavapipe (desde o #34); sem ray tracing,
+    o workflow `erethea_raytracing_fallback.yml` no WARP do Direct3D 12 (que não
+    tem ray tracing nesta base): a cena de referência com `--rt=shadows` avisa
+    e sai igual à sem a opção (RMSE ≤ 0,5), e o `EretheaRayTracedShadows`
+    colocado à força numa cena só avisa.
 
 ### 8. Fase 5 · Geometria densa
 

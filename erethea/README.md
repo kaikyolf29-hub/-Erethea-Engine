@@ -239,7 +239,10 @@ partículas ainda não. Materiais com transparência por recorte (folhas) fazem 
 sombra da superfície inteira.
 
 Para ver na cena de referência, acrescente `--rt=shadows` depois do `--` (troca
-o mapa de sombra do sol pelas sombras por ray tracing). O lavapipe do Linux
+o mapa de sombra do sol pelas sombras por ray tracing). Numa placa sem ray
+tracing, a cena avisa e desenha igual a sem a opção; o CI prova isso no WARP do
+Direct3D 12, que não tem ray tracing nesta base
+(`erethea_raytracing_fallback.yml`). O lavapipe do Linux
 (Mesa 25.2) tem ray query, então o CI prova a imagem: de dia, ela tem que mudar
 em relação à Erethea sem o efeito, e sem o efeito continua igual à Godot. A
 velocidade numa placa de verdade (RTX) fica para o teste final.
