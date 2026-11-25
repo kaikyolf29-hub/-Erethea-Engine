@@ -51,5 +51,29 @@ func _physics_process(_delta: float) -> bool:
 			"clips": clips.clip_count,
 			"current": String(clips.get_clip_name(playback.get_current_clip_index())) if playback else "",
 		}
+	# With the terrain made from the blockout (terrain_from_blockout), the ground
+	# of the blockout is hidden and has no collision, and the terrain holds the player.
+	var terrain := root.get_node_or_null("Principal/Mundo/Terreno")
+	if terrain:
+		var ground := root.get_node("Principal/Mundo/Blockout/chao") as Node3D
+		var ground_layers := []
+		for child in ground.get_children():
+			if child is CollisionObject3D:
+				ground_layers.append(child.collision_layer)
+		var house_layers := []
+		for child in root.get_node("Principal/Mundo/Blockout/vila_casa").get_children():
+			if child is CollisionObject3D:
+				house_layers.append(child.collision_layer)
+		var data = terrain.data
+		var resolution: Vector2i = data.get_resolution()
+		report["terrain"] = {
+			"class": terrain.get_class(),
+			"resolution": [resolution.x, resolution.y],
+			"ground_visible": ground.visible,
+			"ground_layers": ground_layers,
+			"house_layers": house_layers,
+			"height_under_player": data.get_height(_player.global_position.x - terrain.global_position.x, _player.global_position.z - terrain.global_position.z) if _player else NAN,
+			"materials": terrain.albedo_height_textures != null,
+		}
 	print("ERETHEA_WALK ", JSON.stringify(report))
 	return true

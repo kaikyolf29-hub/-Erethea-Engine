@@ -59,7 +59,7 @@ novas da Godot sem reescrever nada.
 | Gráficos, renderizador | `servers/rendering/renderer_rd/` |
 | Presets de qualidade | `modules/erethea_quality/` |
 | Pós-processamento (LUT `.cube`, lens flare, motion blur, grão) | `modules/erethea_post/` |
-| Ray tracing (sombras do sol; depois reflexos e GI) | `modules/erethea_raytracing/` |
+| Ray tracing e sombra de contato do sol (depois reflexos e GI) | `modules/erethea_raytracing/` |
 | Upscalers (AMD FSR 3.1/4, XeSS e DLSS) | `modules/erethea_upscale/` |
 | Geometria densa (malhas de milhões de triângulos divididas na importação) | `modules/erethea_dense_geometry/` |
 | Streaming de texturas 3D | `modules/erethea_streaming/` |

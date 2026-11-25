@@ -724,9 +724,10 @@ uint32_t RenderForwardClustered::_setup_environment(const RenderDataRD *p_render
 
 	float luminance_multiplier = rd.is_valid() ? rd->get_luminance_multiplier() : 1.0;
 
-	// Erethea: The first directional light uses the ray traced shadow mask while a
-	// ray tracing effect fills it, before the opaque pass (modules/erethea_raytracing).
-	p_render_data->scene_data->erethea_rt_shadows = rd.is_valid() && p_render_data->reflection_probe.is_null() && p_render_data->scene_data->view_count == 1 && erethea_is_ray_tracing_requested() && rd->has_texture(ERETHEA_RT_SCOPE, ERETHEA_RT_SHADOW_MASK);
+	// Erethea: The first directional light uses the shadow mask while an effect
+	// fills it before the opaque pass, by ray tracing or in screen space
+	// (modules/erethea_raytracing).
+	p_render_data->scene_data->erethea_rt_shadows = rd.is_valid() && p_render_data->reflection_probe.is_null() && p_render_data->scene_data->view_count == 1 && (erethea_is_ray_tracing_requested() || erethea_is_shadow_mask_requested()) && rd->has_texture(ERETHEA_RT_SCOPE, ERETHEA_RT_SHADOW_MASK);
 
 	p_render_data->scene_data->update_ubo(scene_state.uniform_buffers[uniform_buffer_index], get_debug_draw_mode(), env, reflection_probe_instance, p_render_data->camera_attributes, p_pancake_shadows, p_screen_size, p_viewport_size, p_default_bg_color, luminance_multiplier, p_opaque_render_buffers, p_apply_alpha_multiplier);
 

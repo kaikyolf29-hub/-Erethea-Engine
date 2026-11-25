@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaContactShadows" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Contact shadows of the sun in screen space, for the Forward+ renderer on any graphics card. Erethea only.
+	</brief_description>
+	<description>
+		After the depth pre-pass, a short ray goes from the surface seen in each pixel towards the first [DirectionalLight3D] with energy, and the depth buffer tells if something covers it. These are the small, sharp shadows where things touch (feet on the ground, a cup on a table) that the light's shadow map misses. The renderer combines them with the light's shadow map, keeping the darker of the two.
+		Add it to a [Compositor] on the [WorldEnvironment] or the [Camera3D], or let [member ProjectSettings.rendering/erethea/contact_shadows/sun] add it to the running scenes. It needs the Forward+ renderer; with the others, it does nothing. Where [EretheaRayTracedShadows] runs, it does nothing either, since the ray traced shadows already have the contact shadows, more precisely.
+		[b]Note:[/b] It only knows what the camera sees: something hidden behind something else casts no contact shadow, and each surface is taken to be [member thickness] thick.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="length" type="float" setter="set_length" getter="get_length" default="0.5">
+			How far from each surface the rays go towards the light, in meters. Longer rays find shadows farther from where things touch, but miss more of what the camera doesn't see.
+		</member>
+		<member name="normal_bias" type="float" setter="set_normal_bias" getter="get_normal_bias" default="0.01">
+			How far from the surface the rays start, in meters at 1 m from the camera; it grows with the distance, like the precision of the depth buffer. Raise it if flat surfaces get speckles of shadow.
+		</member>
+		<member name="steps" type="int" setter="set_steps" getter="get_steps" default="16">
+			How many times each ray reads the depth buffer. More steps find thinner things, at a higher cost.
+		</member>
+		<member name="thickness" type="float" setter="set_thickness" getter="get_thickness" default="0.2">
+			How thick each surface seen in the depth buffer is taken to be, in meters. Thicker surfaces cast more contact shadow, but thin things (poles, leaves) can then cast too much.
+		</member>
+	</members>
+</class>

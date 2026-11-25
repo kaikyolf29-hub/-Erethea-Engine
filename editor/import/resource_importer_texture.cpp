@@ -69,6 +69,13 @@ void ResourceImporterTexture::_texture_reimport_3d(const Ref<CompressedTexture2D
 	singleton->make_flags[path].flags |= MAKE_3D_FLAG;
 }
 
+// Erethea: See the header.
+void ResourceImporterTexture::erethea_mark_used_in_3d(const String &p_path) {
+	ERR_FAIL_NULL(singleton);
+	MutexLock lock(singleton->mutex);
+	singleton->make_flags[p_path].flags |= MAKE_3D_FLAG;
+}
+
 void ResourceImporterTexture::_texture_reimport_normal(const Ref<CompressedTexture2D> &p_tex) {
 	ERR_FAIL_COND(p_tex.is_null());
 
