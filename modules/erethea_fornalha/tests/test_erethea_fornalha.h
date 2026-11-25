@@ -34,7 +34,9 @@
 #include "../editor/erethea_fornalha_plugin.h"
 #include "../erethea_fornalha_import.h"
 
+#include "core/config/project_settings.h"
 #include "core/io/config_file.h"
+#include "editor/editor_node.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/physics/character_body_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
@@ -314,6 +316,57 @@ TEST_CASE("[Modules][EretheaFornalha] Building scenes by themselves") {
 	EretheaFornalhaProject warned = project;
 	warned.warnings.push_back("No blockout in World/ yet.");
 	CHECK(warned.get_signature() == signature);
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Erethea's settings in projects from the Fornalha") {
+	using Import = EretheaFornalhaImport;
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	const Variant applied_before = GLOBAL_GET(Import::SETTING_ERETHEA_DEFAULTS_APPLIED);
+	const String chosen = "erethea_tests/fornalha_defaults/chosen";
+	const String untouched = "erethea_tests/fornalha_defaults/untouched";
+	const String later = "erethea_tests/fornalha_defaults/later";
+	GLOBAL_DEF(chosen, 1);
+	GLOBAL_DEF(untouched, 1);
+	GLOBAL_DEF(later, 1);
+	// The project chose this one on purpose.
+	project_settings->set_setting(chosen, 2);
+
+	HashMap<String, Variant> defaults;
+	defaults[chosen] = 3;
+	defaults[untouched] = 3;
+	Vector<String> changed = Import::apply_erethea_defaults(defaults);
+	CHECK(changed.size() == 1);
+	CHECK(changed.has(untouched));
+	CHECK(int(GLOBAL_GET(chosen)) == 2);
+	CHECK(int(GLOBAL_GET(untouched)) == 3);
+	const PackedStringArray applied = GLOBAL_GET(Import::SETTING_ERETHEA_DEFAULTS_APPLIED);
+	CHECK(applied.has(chosen));
+	CHECK(applied.has(untouched));
+
+	// Turned back off by hand, it stays off the next time the project opens.
+	project_settings->set_setting(untouched, 1);
+	CHECK(Import::apply_erethea_defaults(defaults).is_empty());
+	CHECK(int(GLOBAL_GET(untouched)) == 1);
+
+	// A setting that a later Erethea starts new projects with still arrives.
+	defaults[later] = 3;
+	changed = Import::apply_erethea_defaults(defaults);
+	CHECK(changed.size() == 1);
+	CHECK(changed.has(later));
+	CHECK(int(GLOBAL_GET(later)) == 3);
+
+	// Erethea's own list names settings that exist.
+	const HashMap<String, Variant> erethea_defaults = EditorNode::erethea_get_initial_settings();
+	CHECK(int(erethea_defaults["rendering/erethea/quality_preset"]) == 4);
+	for (const KeyValue<String, Variant> &E : erethea_defaults) {
+		CHECK_MESSAGE(project_settings->has_setting(E.key), E.key);
+		CHECK_MESSAGE(EditorNode::get_initial_settings().has(E.key), E.key);
+	}
+
+	project_settings->set_setting(Import::SETTING_ERETHEA_DEFAULTS_APPLIED, applied_before);
+	project_settings->clear(chosen);
+	project_settings->clear(untouched);
+	project_settings->clear(later);
 }
 
 TEST_CASE("[Modules][EretheaFornalha] Messages from the Fornalha") {

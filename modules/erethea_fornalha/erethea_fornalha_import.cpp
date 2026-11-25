@@ -476,10 +476,34 @@ void EretheaFornalhaImport::register_project_settings() {
 	GLOBAL_DEF(SETTING_LIVE_LINK, true);
 	GLOBAL_DEF(SETTING_AREA_ACOUSTICS, true);
 	GLOBAL_DEF(SETTING_INTERACTIVE_MUSIC, true);
+	GLOBAL_DEF(PropertyInfo(Variant::PACKED_STRING_ARRAY, SETTING_ERETHEA_DEFAULTS_APPLIED), PackedStringArray());
 }
 
 bool EretheaFornalhaImport::is_fornalha_project() {
 	return FileAccess::exists(GAME_PROJECT_FILE);
+}
+
+Vector<String> EretheaFornalhaImport::apply_erethea_defaults(const HashMap<String, Variant> &p_defaults) {
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	const PackedStringArray applied_before = GLOBAL_GET(SETTING_ERETHEA_DEFAULTS_APPLIED);
+	PackedStringArray applied = applied_before;
+	PackedStringArray changed;
+	for (const KeyValue<String, Variant> &E : p_defaults) {
+		if (applied.has(E.key)) {
+			continue;
+		}
+		applied.push_back(E.key);
+		// Keep what the project chose on purpose.
+		if (project_settings->has_setting(E.key) && project_settings->get_setting(E.key) != project_settings->property_get_revert(E.key)) {
+			continue;
+		}
+		project_settings->set_setting(E.key, E.value);
+		changed.push_back(E.key);
+	}
+	if (applied != applied_before) {
+		project_settings->set_setting(SETTING_ERETHEA_DEFAULTS_APPLIED, applied);
+	}
+	return changed;
 }
 
 EretheaFornalhaImport::Action EretheaFornalhaImport::decide(bool p_exists, const String &p_current_hash, const String &p_recorded_hash, const String &p_new_hash, bool p_force) {

@@ -534,6 +534,20 @@ raios de luz); esses pedidos estão nas Fases 4 e 5 acima. A Fornalha acha a
 Erethea em `%LOCALAPPDATA%\Erethea` (`erethea.console.exe`), que é onde o
 instalador põe.
 
+**Projetos da Fornalha com as configurações da Erethea (PR de 25/11).** A
+Fornalha escreve o próprio `project.godot` (modelo em
+`crates/fornalha-core/src/engine.rs` do repositório dela), sem nenhuma
+configuração da Erethea, então os jogos dela rodavam com o preset `Disabled`,
+iguais aos da Godot. Agora o módulo `erethea_fornalha`, ao abrir um projeto com
+`game.project.json` no editor (inclusive no `--headless --import` que a
+Fornalha chama), dá a ele uma vez cada configuração de projeto novo da Erethea
+(`EditorNode::erethea_get_initial_settings()`, que saiu do meio da lista da
+Godot no `editor_node.cpp`), guarda quais deu em
+`editor/erethea_fornalha/erethea_defaults_applied` e salva o `project.godot`.
+O que o projeto já mudou fica. Uma configuração nova da Erethea para projetos
+novos entra nessa função e chega sozinha aos projetos da Fornalha. Não precisa
+de pedido para a Fornalha.
+
 ## Como compilar e testar
 
 ```sh
