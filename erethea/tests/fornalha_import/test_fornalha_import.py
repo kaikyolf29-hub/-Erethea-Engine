@@ -301,6 +301,7 @@ def build_checks(mcp, project):
     )
     world = (project / "World/mundo.tscn").read_text(encoding="utf-8")
     check('path="res://World/blockout.glb"' in world, "the world uses the blockout's file")
+    check("directional_shadow_blend_splits = true" in world, "the sun's cascades blend into each other")
     check(
         'path="res://World/areas/vila.tscn"' in world and 'path="res://World/areas/floresta.tscn"' in world,
         "the world has its areas",
@@ -392,6 +393,16 @@ def main():
         print("Import")
         code, _ = run([editor, "--headless", "--import", "--path", str(project)], out / "import.log", args.timeout)
         check(code == 0, f"the project imports (exit code {code})")
+        settings = (project / "project.godot").read_text(encoding="utf-8")
+        check(
+            "erethea/quality_preset=4" in settings and "erethea/temporal_upscaler=4" in settings,
+            "the project from the Fornalha gets the settings of new Erethea projects",
+        )
+        check(
+            "erethea/subsurface_scattering/follow_surface=0.05" in settings,
+            "but keeps the one it had chosen",
+        )
+        check("erethea_fornalha/erethea_defaults_applied=PackedStringArray(" in settings, "and remembers them")
 
         print("Editor with the MCP server")
         imports = {
@@ -435,10 +446,10 @@ def main():
         for situation, text in imports.items():
             (project / f"Audio/musica/{situation}.wav.import").write_text(text, encoding="utf-8")
         settings = project / "project.godot"
+        text = settings.read_text(encoding="utf-8")
+        check("[editor]\n" in text, "the project settings have an editor section")
         settings.write_text(
-            settings.read_text(encoding="utf-8").replace(
-                "[layer_names]", "[editor]\n\nerethea_fornalha/interactive_music=false\n\n[layer_names]"
-            ),
+            text.replace("[editor]\n", "[editor]\n\nerethea_fornalha/interactive_music=false\n", 1),
             encoding="utf-8",
         )
         with editor_session(editor, project, out / "editor_no_music.log", args.port, args.timeout) as mcp:

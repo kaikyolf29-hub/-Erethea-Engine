@@ -18,6 +18,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/fornalha_link/` | Teste do elo ao vivo com a Fornalha, com uma Fornalha de mentira |
 | `tests/preview/` | Teste de ponta a ponta da prévia para a Fornalha (arquivos glTF gerados pelo teste) |
 | `tests/libgodot/` | Programa em C que embute a engine pela LibGodot e teste da prévia embutida |
+| `tests/hair_strands/` | Cabelo fio a fio sobre uma esfera com um osso girando, e o teste de captura |
 
 ## Atualizar a Godot
 
@@ -131,8 +132,8 @@ dele (no jogo exportado também):
 | Dedicada com ray tracing, NVIDIA (RTX) | Cinematic | Ray tracing + mapa de sombra | DLSS (com os arquivos da NVIDIA), senão AMD FSR |
 | Dedicada com ray tracing, Intel (Arc) | Cinematic | Ray tracing + mapa de sombra | XeSS, senão AMD FSR |
 
-Projetos novos criados na Erethea já começam com o preset e o upscaler em
-`Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
+Projetos novos criados na Erethea e os projetos da Fornalha (na primeira vez
+que abrem no editor) já começam com o preset e o upscaler em `Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
 (`Disabled`, `Automatic`, que é o padrão e segue o preset, ou `Enabled`, em
 toda placa com ray tracing) e `rendering/erethea/temporal_upscaler` com um
 upscaler fixo. Projetos da Godot ficam com o preset `Disabled`, então nada
@@ -233,10 +234,12 @@ sombra; desligue *Shadow* na luz para não calcular os dois. Com `light_size`
 sombra fica firme onde encosta no chão e suave longe dele, como a do sol de
 verdade. Com TAA ou FSR, o ruído das bordas some em poucos quadros.
 
-Fazem sombra as malhas comuns (`MeshInstance3D` sem esqueleto) e as
-`MultiMeshInstance3D` (árvores, grama, pedras); personagens com esqueleto e
-partículas ainda não. Materiais com transparência por recorte (folhas) fazem a
-sombra da superfície inteira.
+Fazem sombra as malhas (`MeshInstance3D`), as `MultiMeshInstance3D` (árvores,
+grama, pedras) e os personagens com esqueleto ou formas (blend shapes), na pose
+em que aparecem no quadro: as posições que o esqueleto deformou são copiadas na
+placa e a estrutura do personagem é refeita só nos quadros em que a pose muda
+(parado, não custa nada). Partículas ainda não fazem sombra. Materiais com
+transparência por recorte (folhas) fazem a sombra da superfície inteira.
 
 Para ver na cena de referência, acrescente `--rt=shadows` depois do `--` (troca
 o mapa de sombra do sol pelas sombras por ray tracing). Numa placa sem ray
@@ -250,6 +253,80 @@ velocidade numa placa de verdade (RTX) fica para o teste final.
 ```sh
 erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
 ```
+
+A sombra de quem tem esqueleto tem um teste próprio, que o CI também roda: um
+braço de dois ossos sobre o chão, só com as sombras por ray tracing. Com o braço
+reto, a sombra da ponta tem que cair num ponto do chão; com o osso de cima
+dobrado, esse ponto fica claro e a sombra cai em outro. Imprime
+`ERETHEA_RT_SKINNED_OK`.
+
+```sh
+erethea --path erethea/tests/raytracing/shadows_scene --fixed-fps 30 -- --skinned-check --out="$PWD/capturas/braco.png"
+```
+
+## Pele
+
+A pele usa a subsuperfície da Godot (Forward+), com três partes:
+
+- **Perfil por canal**: no material (`StandardMaterial3D`), *Subsurf Scatter*
+  ligado com *Skin Mode*. A Godot espalha o vermelho mais longe que o verde e
+  o azul, com o perfil da pele de Jimenez.
+- **Mapa de espessura**: *Transmittance* ligado, com a textura de espessura
+  (mais clara onde a pele é fina, como as orelhas e as narinas), a cor da luz
+  que atravessa, a profundidade e o reforço.
+- **Seguir a superfície (Erethea)**: a configuração do projeto
+  `rendering/erethea/subsurface_scattering/follow_surface` (em metros; 0,03
+  serve à pele humana). Sem ela, o filtro da Godot deixa a luz de uma pele
+  vazar para outra numa profundidade diferente (a mão na frente do rosto, o
+  nariz sobre a bochecha), com um halo claro na borda. Com ela, as amostras
+  mais longe em profundidade que essa distância não espalham luz no pixel. O
+  padrão é 0, que é o filtro da Godot; vale ao abrir o projeto. Projetos novos
+  da Erethea e os da Fornalha começam com 0,03.
+
+Teste: `erethea/tests/sss_scene` (uma pele iluminada na frente de outra, no
+escuro, a 1 m). Com a configuração do projeto (5 cm), a luz não vaza; com
+`--expect=bleed` e a configuração em 0 (por um `override.cfg`), vaza. O CI
+roda os dois. Imprime `ERETHEA_SSS_OK`.
+
+Pedido para a Fornalha (o Kaiky cola no chat dela):
+
+```text
+Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). (A configuração que faz a pele não vazar entre superfícies a Erethea já põe sozinha no project.godot quando abre o projeto.) Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
+```
+
+## Materiais do glTF que a Godot ignora
+
+O Blender exporta para o glTF, a partir do Principled BSDF, extensões de
+material que o importador da Godot descarta. A Fornalha usa algumas delas: o
+*coat* faz a córnea dos olhos (`fc_humano.py`: coat 1,0, rugosidade 0,02, IOR
+1,376) e o cabelo tem anisotropia 0,75 e *sheen* 0,2 (`fc_cabelo.py`). Na
+Godot, esses olhos chegavam sem o brilho da córnea e o cabelo sem o brilho
+esticado. Com `rendering/erethea/gltf/import_material_extensions` ligada, a
+importação (no editor e em jogo, pelo `GLTFDocument`) leva cada uma para a
+propriedade mais próxima do `StandardMaterial3D`:
+
+| Extensão do glTF | Vira na Godot | Diferença |
+| --- | --- | --- |
+| `KHR_materials_clearcoat` | *Clearcoat* (força e rugosidade) | O coat da Godot vai de alfa 0,001 a 0,1: não fica mais áspero que ~0,32 do glTF, e a Erethea não passa de 0,05 para baixo (abaixo de ~0,03 o pico do brilho estoura em meia precisão e some) |
+| `KHR_materials_anisotropy` | *Anisotropy* | A rotação vira um *flowmap* de um pixel |
+| `KHR_materials_sheen` | *Rim* (o "veludo" da Godot) | A largura vem da rugosidade do material, não da do sheen; sheen colorido liga o *rim tint* |
+| `KHR_materials_ior` e `KHR_materials_specular` | *Specular* | A Godot não tem specular colorido: média dos canais |
+
+Texturas: a do coat entra quando uma textura só tem o coat (vermelho) e a
+rugosidade dele (verde), que é como a Godot lê; as outras texturas dessas
+extensões e o mapa de normais do coat ficam de fora, com um aviso na
+importação. Desligada (o padrão nos projetos da Godot), a importação fica igual
+à da Godot. Projetos novos da Erethea e os da Fornalha começam com ela ligada.
+Mudar a configuração vale para a próxima importação: reimporte as cenas.
+
+O código fica em `modules/erethea_gltf/` (uma `GLTFDocumentExtension`, sem
+mexer no núcleo), um bom candidato a ser proposto para a Godot.
+
+**Teste.** `[Modules][EretheaGLTF]` importa um glTF com os materiais como o
+Blender exporta os da Fornalha (olho, cabelo, pele), desligado e ligado, e
+confere cada propriedade. Conferido no lavapipe numa cena com céu: o olho
+ganha o reflexo nítido do céu e o brilho da córnea, e o cabelo, o brilho
+esticado.
 
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
@@ -379,6 +456,100 @@ Erethea carrega o Streamline, que ele responde que a placa não tem DLSS, que a
 Erethea volta para o FSR 2.2 com a mesma imagem e que fecha sem erro; os
 arquivos da NVIDIA não vão para o artefato. **Não testado na placa:** o DLSS
 reconstruindo de fato, a qualidade e o custo em FPS na RTX 4060 Ti/5060 Ti.
+
+## Cabelo fio a fio
+
+`EretheaHairStrands` (módulo `modules/erethea_materials/`) desenha o penteado
+fio a fio, em vez de cards, no nível Máximo da Fornalha. A Fornalha gera os
+fios (`fc_cabelo.py`, no Blender); a Erethea só os **desenha**. Quem não usa a
+classe não muda em nada.
+
+**Como os fios chegam.** Como linhas: no Blender, cada fio é uma sequência de
+arestas soltas (*loose edges*, sem faces), e o exportador glTF as grava como
+primitivas `LINES`. O importador da Godot cria uma superfície
+`Mesh.PRIMITIVE_LINES` com índices (`LINE_STRIP` também serve, com ou sem
+índices). Os vértices podem ter ossos e pesos (o cabelo preso à cabeça) e UV
+(a Erethea não precisa dele). Um fio é uma cadeia de segmentos ligados: o
+segmento que começa onde o anterior terminou continua o fio; quando não
+começa, começa outro fio. Por isso as arestas de cada fio têm de vir na ordem
+(raiz → ponta), e fios que dividem um vértice não se ligam.
+
+**O que a classe faz.** `EretheaHairStrands` herda de `MeshInstance3D`, então
+`skeleton`, `skin`, `layers`, sombras e o resto são os do `MeshInstance3D`
+(aponte `skeleton` para o `Skeleton3D` da cabeça; nesta base o caminho vem
+vazio). Ao receber `source_mesh`, ela monta a malha de fitas: para cada ponto
+do fio, dois vértices na mesma posição, com a direção do fio no `TANGENT`, o
+lado (-1/+1) e a posição raiz→ponta (por comprimento) no `UV`, e um valor
+aleatório por fio e o comprimento do fio no `UV2`. Ossos e pesos são copiados
+do vértice de origem, então o skinning da Godot (que transforma `VERTEX`,
+`NORMAL` e `TANGENT`) leva as fitas junto com a pose. No shader (embutido no
+módulo, sem arquivo para editar), a fita abre para os lados no espaço de
+vista, perpendicular ao fio e à direção da câmera, afinando até a ponta; a
+transparência é *alpha hash* (sem erro de ordem, e funciona no Compatibility);
+o brilho tem duas faixas anisotrópicas (Kajiya-Kay), com deslocamento
+diferente em cada fio, mais a raiz mais escura e a luz atravessando contra a
+luz. A AABB inclui a metade da largura.
+
+```gdscript
+var hair := EretheaHairStrands.new()
+hair.source_mesh = hair_mesh_instance.mesh   # a malha de linhas importada do .glb
+hair.width = 0.0015                          # largura na raiz, em metros
+hair.tip_width = 0.25                        # largura na ponta, como fração da da raiz
+hair.strand_fraction = 0.5                   # LOD: desenha metade dos fios, espalhados
+hair.color_root = Color(0.05, 0.03, 0.02)
+hair.color_tip = Color(0.2, 0.12, 0.08)
+skeleton.add_child(hair)
+hair.skeleton = NodePath("..")               # o Skeleton3D da cabeça
+```
+
+Propriedades: `source_mesh`, `strand_fraction` (0 a 1), `width`, `tip_width`,
+`color_root`, `color_tip`, `roughness`, `specular_primary`,
+`specular_secondary`, `specular_shift_primary`, `specular_shift_secondary`,
+`backlight`. A malha de fitas é refeita (no fim do quadro) quando mudam
+`source_mesh`, `strand_fraction` ou `width`; as demais só atualizam o
+material. `get_strand_count()` diz quantos fios estão desenhados. Para usar
+um shader seu, ponha um `material_override`.
+
+**Teste.** `erethea/tests/hair_strands/` gera algumas centenas de fios sobre
+uma esfera, com um `Skeleton3D` de um osso, desenha o cabelo, gira o osso em
+90° e desenha de novo; confere que há pixels de cabelo sobre a cabeça, que eles
+mudam de lugar com o giro e que `strand_fraction` menor desenha menos, e
+imprime `ERETHEA_HAIR_OK`. O CI (`erethea_hair_strands.yml`) roda a cena no
+lavapipe e sobe as capturas. Rodando à mão:
+
+```sh
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 1280x720x24" \
+  bin/erethea.linuxbsd.editor.x86_64 --path erethea/tests/hair_strands --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/hair.png"
+```
+
+**O que falta.**
+
+- **Não testado** numa placa de verdade (RX 580, RTX 4060 Ti/5060 Ti) nem com
+  fios da Fornalha de verdade: o teste usa fios de mentira, desenhados no
+  lavapipe. O custo em quadros de dezenas de milhares de fios só se mede na
+  placa.
+- Nos renderizadores Mobile e Compatibility o shader é o mesmo (a Godot
+  trata o alpha hash neles), mas só o Forward+ foi desenhado em teste.
+- A Fornalha ainda não exporta as arestas soltas (veja o pedido abaixo).
+- Sombras próprias do cabelo (sombra entre os fios) e o LOD por distância
+  (hoje o `strand_fraction` é manual) ficam para depois.
+- Fios com uma aresta virada (`b → a` no meio da cadeia) não são ligados.
+
+**Pedido para a Fornalha** (cole no chat dela):
+
+> Erethea Engine: o cabelo fio a fio nativo está pronto (classe
+> `EretheaHairStrands`). Em vez de cards no nível Máximo, exporte o penteado
+> como **arestas soltas**: uma malha sem faces, onde cada fio é uma cadeia de
+> arestas (ponto 0 → ponto 1, ponto 1 → ponto 2, ... na ordem da raiz para a
+> ponta). Sem faces e sem vértices soltos, para o glTF gravar primitivas
+> `LINES`. Prenda os vértices à cabeça com o grupo de vértices e o modificador
+> Armature (como a `malha_de_fios` já faz, peso 1,0 no osso `head`); a UV é
+> opcional. Chame a malha `<id>_hair_strands` (para a Erethea achar) e ponha a
+> largura do fio em metros no nome do material, como hoje (`_cabelo_fios_70` =
+> 0,7 mm). A Erethea não precisa dos cards nesse nível. No Godot, monte um
+> `EretheaHairStrands` com `source_mesh = <a malha importada>`, `width`
+> da largura do material e `skeleton = NodePath("..")` sob o `Skeleton3D` do
+> personagem.
 
 ## Streaming de texturas
 
@@ -657,12 +828,33 @@ fica como está, e o relatório diz isso. Montar com *force* (ou o botão
 `res://.erethea/backup/`. Uma cena aberta no editor com mudanças não salvas
 nunca é trocada.
 
+**O sol do mundo.** O `World/mundo.tscn` tem o sol com sombra, as cascatas se
+misturando umas nas outras em vez de mostrar uma emenda
+(`directional_shadow_blend_splits`) e o alcance da sombra pelo tamanho do
+mundo: o dobro da borda de área mais longe do centro, entre os 100 m da Godot e
+300 m (mais que isso tira detalhe das quatro cascatas). Sem PCSS (sombra mais
+suave pelo tamanho do sol), que custa caro na RX 580 sem prova; na RTX, as
+sombras por ray tracing já dão isso.
+
 **Animações em loop.** O glTF não tem como dizer que uma animação é em loop,
 então as animações de andar da Forja chegavam na Godot tocando uma vez só. Em
 projetos da Fornalha, a importação deixa em loop as animações com os nomes de
 `editor/erethea_fornalha/looping_animations` (padrão: `parado`, `andar`,
 `correr` e `correr_rapido`). O que a pessoa escolher nas configurações de
 importação da animação vale mais.
+
+**Configurações da Erethea.** A Fornalha escreve o próprio `project.godot`,
+então os projetos dela não ganhavam o que um projeto novo da Erethea ganha e
+rodavam com cara de Godot comum. Agora, quando um projeto da Fornalha abre no
+editor (também na importação sem tela, `--headless --import`), ele recebe uma
+vez cada configuração de projeto novo da Erethea: o preset de qualidade e o
+upscaler `Automatic`, o streaming das texturas 3D e a pele que não vaza entre
+superfícies (`follow_surface` = 0,03). O que o projeto já tinha mudado fica
+como está, e a lista do que ele já recebeu fica em
+`editor/erethea_fornalha/erethea_defaults_applied`: desligar uma delas depois
+vale, ela não volta. Uma configuração que uma Erethea futura acrescentar aos
+projetos novos chega na próxima vez que o projeto abrir. A lista está em
+`EditorNode::erethea_get_initial_settings()` (`editor/editor_node.cpp`).
 
 **Como montar.**
 
@@ -680,7 +872,9 @@ monta as cenas, confere que a segunda montagem não muda nada, que a
 `principal.tscn` que a Erethea não fez fica até montar com *force* (e que a
 cópia vai para o backup) e que uma área mudada à mão fica. Depois roda o jogo
 sem janela: o herói anda mais de 2 m no chão tocando `andar` em loop, e cada
-lobo está na cena da sua área. O CI roda no Linux e no Windows.
+lobo está na cena da sua área. Também confere que a importação deu ao projeto
+as configurações da Erethea e manteve a que ele tinha escolhido. O CI roda no
+Linux e no Windows.
 
 ```sh
 python erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.linuxbsd.editor.x86_64
@@ -829,6 +1023,122 @@ para o teste final no PC do criador.
 ```sh
 python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64
 ```
+
+## Terreno
+
+O `EretheaTerrain3D` é um terreno nativo da Erethea, um pedido da Fornalha 3D
+(que não tem terreno): um mapa de altura desenhado por clipmap, com até 32
+materiais misturados, detiling e triplanar, e colisão. É um nó novo (e um
+recurso, `EretheaTerrainData`): quem não o usa não muda em nada. O código fica
+em `modules/erethea_terrain/`, e o Terrain3D (MIT, TokisanGames) serviu só de
+referência de desenho.
+
+**Como usar.** Num script ou numa cena:
+
+```gdscript
+var data := EretheaTerrainData.new()
+data.create(Vector2(512, 512), 1.0)            # tamanho em metros e espaço entre os vértices
+data.set_vertex_height(Vector2i(256, 256), 12.0)
+data.set_control(Vector2i(256, 256), 0, 3, 0.5) # material base 0, material de cima 3, metade e metade
+data.notify_maps_changed()                      # recalcula a altura mínima/máxima e a colisão
+
+var terrain := EretheaTerrain3D.new()
+terrain.data = data
+terrain.albedo_height_textures = albedo         # Texture2DArray: albedo em RGB, altura em A
+terrain.normal_roughness_textures = normais     # Texture2DArray: normal em RG, rugosidade em A
+terrain.detiling = true
+add_child(terrain)
+```
+
+O recurso (`data`) salva e carrega como `.res` ou `.tres`. O terreno fica
+centrado na origem do nó, e a altura em `(x, z)` vem de
+`data.get_height(x, z)` (interpolação bilinear; `NAN` fora do terreno) e a
+normal de `data.get_normal(x, z)`.
+
+**O que tem o recurso.**
+
+| Parte | Formato |
+| --- | --- |
+| Mapa de altura (`height_map`) | `Image` em `FORMAT_RF`, um float em metros por vértice, de 2×2 a 8192×8192 vértices. O vértice `(x, z)` fica em `((x − (largura − 1)/2) · vertex_spacing, altura, (z − (profundidade − 1)/2) · vertex_spacing)`, igual ao `HeightMapShape3D` |
+| Mapa de controle (`control_map`) | `Image` em `FORMAT_RGBA8` do mesmo tamanho. Por vértice: R = índice do material base (0 a 31), G = índice do material de cima (0 a 31), B = peso do de cima sobre o base (0 a 255), A reservado (255). Padrão: tudo material 0 |
+
+**O que o nó faz.**
+
+| Propriedade | O que faz |
+| --- | --- |
+| `clipmap_levels` (8), `mesh_size` (64) | Desenho por clipmap: anéis de malhas em grade, centrados na câmera atual do viewport (no editor, a câmera do editor), cada um com o dobro do espaçamento do anterior, presos aos vértices do mapa e atualizados quando a câmera anda. O nível de dentro tem o espaçamento do mapa. O vértice lê a altura do mapa de altura; o nível de fora não desenha o buraco onde o de dentro desenha, e uma saia em volta de cada nível esconde as frestas entre eles. A caixa de culling segue as alturas do mapa. O `mesh_size` é múltiplo de 4 |
+| `albedo_height_textures`, `normal_roughness_textures` | Dois `Texture2DArray` de até 32 camadas (uma por material): albedo + altura (RGB + A; a altura decide qual material aparece na borda da mistura) e normal + rugosidade (RG + A, convenção OpenGL) |
+| `uv_scale` (0,1) | Quantas vezes a textura repete por metro |
+| `detiling` (desligado) | Quebra a repetição: cada ladrilho ganha rotação e deslocamento aleatórios, e os 4 ladrilhos mais perto se misturam. Amostra 4 vezes mais |
+| `triplanar` (desligado), `triplanar_slope` (45°) | Nas encostas mais íngremes que o ângulo, projeta a textura pelos lados em vez de por cima, para ela não esticar |
+| `collision_enabled`, `collision_layer`, `collision_mask` | Colisão por um `HeightMapShape3D` feito do mapa de altura, num corpo interno (não salvo na cena), refeito quando o recurso muda. Um raio acha o chão na altura desenhada |
+
+As normais da superfície saem do mapa de altura. O shader (código no módulo,
+`erethea_terrain_shader.cpp`) mistura o material base e o de cima pelo peso do
+mapa de controle (as camadas vêm do vértice mais perto, o peso é interpolado).
+
+**O que foi testado.** Testes de unidade (`--test --test-case="*EretheaTerrain*"`):
+altura bilinear em pontos conhecidos, normais, mapa de controle, salvar e
+carregar o recurso, o encaixe do clipmap na grade (função pura), a malha de cada
+nível e a forma de colisão do nó. A cena `erethea/tests/terrain` monta um terreno
+de morros com dois materiais, dispara raios em pontos conhecidos e confere a
+altura, captura a tela e confere que ela não é de uma cor só; o workflow
+`erethea_terrain.yml` roda isso no Linux com lavapipe e sobe a captura como
+artefato `erethea-terrain`.
+
+```sh
+bin/erethea.linuxbsd.editor.x86_64 --headless --test --test-case="*EretheaTerrain*"
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 1280x720x24" \
+  bin/erethea.linuxbsd.editor.x86_64 --path erethea/tests/terrain --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/terrain.png"
+```
+
+**Pintar no editor.** Selecione um `EretheaTerrain3D` na cena: aparece uma
+barra na parte de cima do editor 3D, com o botão **Terrain**, o pincel, o
+**Radius**, o **Strength** e o **Material**. Ligue o botão **Terrain** e
+arraste com o botão esquerdo do mouse sobre o terreno (com o botão desligado, o
+clique seleciona como sempre). O ponto sob o mouse vem de um raio lançado no
+mapa de altura do próprio `data`. Cada arrastada é um passo do desfazer
+(`Ctrl+Z`), que guarda só a região que mudou, e marca o recurso como
+modificado para ele ser salvo.
+
+| Pincel | O que faz (um toque, `f` = 1 no centro e 0 na borda do raio) |
+| --- | --- |
+| Raise / Lower | Sobe ou desce `Strength × f` metros |
+| Smooth | Aproxima a altura da média dos 3×3 vértices em volta, `Strength × f` do caminho |
+| Flatten | Aproxima a altura da altura de onde a arrastada começou, `Strength × f` do caminho |
+| Paint Base Material | Põe o material base `Material` em todos os vértices que o pincel alcança (não usa o `Strength`) |
+| Paint Overlay Material | Põe o material de cima `Material` e soma `Strength × f` ao peso dele (se o vértice tinha outro material de cima, o peso recomeça) |
+| Erase Overlay | Tira `Strength × f` do peso do material de cima |
+
+Há um toque a cada um quarto do raio de arrastada, para a força não depender de
+quão rápido o mouse anda. As funções dos pincéis não dependem do editor
+(`modules/erethea_terrain/erethea_terrain_brush.*`) e os testes de unidade as
+cobrem: um toque só muda o que está dentro do raio, e o desfazer devolve os
+mapas iguais.
+
+**Emendas do clipmap.** Os vértices das bordas de fora de um nível que ficam
+entre dois vértices do nível mais grosso (os de posição ímpar) ficam na altura
+da reta entre esses dois, como o nível de fora a desenha, então não há frestas.
+O teste da cena pinta o fundo de magenta (cor que o terreno não tem) e exige
+zero pixels dessa cor abaixo do topo do terreno em cada coluna da captura;
+antes da correção ele achava 29 pixels.
+
+**O que ainda falta.**
+
+- Importar o blockout da Fornalha como terreno: parte 3.
+- Provar numa placa de verdade (RX 580 e RTX 4060 Ti/5060 Ti): os testes rodam
+  no lavapipe, na CPU, e dizem se desenha e colide, não quão rápido.
+- A pintura foi compilada e o editor abre com o plugin, mas não foi usada com
+  o mouse de verdade: o desenho do pincel (um anel na tela) não existe ainda, e
+  cada toque refaz a textura e a colisão do terreno inteiro, o que pesa em
+  mapas muito grandes (atualização parcial fica para depois).
+- Pintar a altura não mexe na lista de materiais: as camadas (`Texture2DArray`)
+  continuam vindo do Inspetor.
+- A mistura usa o material do vértice mais perto e interpola só o peso; a
+  borda entre dois pares de materiais diferentes é recortada na resolução do
+  mapa de controle.
+- O seguimento da câmera do editor (`EditorInterface.get_editor_viewport_3d()`)
+  ainda não foi testado com o editor aberto numa janela.
 
 ## Prévia para a Fornalha
 

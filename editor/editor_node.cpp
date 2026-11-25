@@ -8531,17 +8531,32 @@ HashMap<String, Variant> EditorNode::get_initial_settings() {
 	settings["physics/3d/physics_engine"] = PhysicsServer3DManager::JOLT_PHYSICS_NAME;
 	settings["rendering/rendering_device/driver.windows"] = "d3d12";
 	settings["rendering/lights_and_shadows/multi_bounce_occlusion/enabled"] = true;
-	// Erethea: New projects choose their quality preset from the graphics card
-	// (EretheaQuality::PRESET_AUTOMATIC). Godot projects keep it disabled.
+	// Erethea: And Erethea's own.
+	for (const KeyValue<String, Variant> &erethea_setting : erethea_get_initial_settings()) {
+		settings[erethea_setting.key] = erethea_setting.value;
+	}
+	return settings;
+}
+
+// Erethea: Settings that new Erethea projects start with. Projects made by the
+// Fornalha get them too, once, when they first open in the editor
+// (modules/erethea_fornalha). Godot projects keep Godot's defaults.
+HashMap<String, Variant> EditorNode::erethea_get_initial_settings() {
+	HashMap<String, Variant> settings;
+	// The quality preset chosen from the graphics card (EretheaQuality::PRESET_AUTOMATIC).
 	settings["rendering/erethea/quality_preset"] = 4;
-	// Erethea: And their temporal upscaler (EretheaUpscaler::MODE_AUTOMATIC):
-	// DLSS on NVIDIA, XeSS on Intel, AMD FSR on the others.
+	// The temporal upscaler (EretheaUpscaler::MODE_AUTOMATIC): DLSS on NVIDIA,
+	// XeSS on Intel, AMD FSR on the others.
 	settings["rendering/erethea/temporal_upscaler"] = 4;
-	// Erethea: New projects stream the mipmaps of the textures used in 3D
-	// (modules/erethea_streaming). 2D and UI textures load as in Godot, and
-	// Godot projects keep texture streaming off.
+	// Stream the mipmaps of the textures used in 3D (modules/erethea_streaming).
+	// 2D and UI textures load as in Godot.
 	settings["rendering/textures/streaming/enabled"] = true;
 	settings["rendering/erethea/stream_3d_textures"] = true;
+	// Skin light doesn't bleed between surfaces at different depths.
+	settings["rendering/erethea/subsurface_scattering/follow_surface"] = 0.03;
+	// glTF material extensions that Godot skips: the coat, anisotropy and sheen
+	// of Blender's Principled BSDF (modules/erethea_gltf).
+	settings["rendering/erethea/gltf/import_material_extensions"] = true;
 	return settings;
 }
 

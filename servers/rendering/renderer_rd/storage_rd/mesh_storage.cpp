@@ -1293,6 +1293,30 @@ void MeshStorage::update_mesh_instances() {
 	RD::get_singleton()->compute_list_end();
 }
 
+// Erethea: See modules/erethea_raytracing.
+RID MeshStorage::erethea_mesh_instance_get_surface_vertices(RID p_mesh_instance, int p_surface, uint32_t &r_vertex_count, uint32_t &r_stride, uint64_t &r_last_change) const {
+	const MeshInstance *mi = mesh_instance_owner.get_or_null(p_mesh_instance);
+	if (mi == nullptr || mi->mesh == nullptr || p_surface < 0 || p_surface >= int(mi->surfaces.size()) || p_surface >= int(mi->mesh->surface_count)) {
+		return RID();
+	}
+	const MeshInstance::Surface &mis = mi->surfaces[p_surface];
+	const Mesh::Surface *s = mi->mesh->surfaces[p_surface];
+	// Only the surfaces that update_mesh_instances() writes, with 3D positions.
+	if (mis.uniform_set[0].is_null() || s->uniform_set.is_null() || mis.last_change == 0 || s->vertex_count == 0 || (s->format & (RSE::ARRAY_FLAG_USE_2D_VERTICES | RSE::ARRAY_FLAG_COMPRESS_ATTRIBUTES))) {
+		return RID();
+	}
+	// The same layout as in update_mesh_instances().
+	const uint32_t normal_tangent_stride = ((s->format & RSE::ARRAY_FORMAT_NORMAL) ? 1 : 0) + ((s->format & RSE::ARRAY_FORMAT_TANGENT) ? 1 : 0);
+	const uint32_t vertex_stride = (s->vertex_buffer_size / s->vertex_count) / 4 - normal_tangent_stride;
+	if (vertex_stride < 3) {
+		return RID();
+	}
+	r_vertex_count = s->vertex_count;
+	r_stride = vertex_stride * sizeof(float);
+	r_last_change = mis.last_change;
+	return mis.vertex_buffer[mis.current_buffer];
+}
+
 RD::VertexFormatID MeshStorage::_mesh_surface_generate_vertex_format(uint64_t p_surface_format, uint64_t p_input_mask, bool p_instanced_surface, bool p_input_motion_vectors, bool p_point_size_emulated, uint32_t &r_position_stride) {
 	Vector<RD::VertexAttribute> attributes;
 	uint32_t normal_tangent_stride = 0;

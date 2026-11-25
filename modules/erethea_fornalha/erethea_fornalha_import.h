@@ -37,6 +37,7 @@
 #include "core/variant/dictionary.h"
 
 class Node;
+class Variant;
 
 struct EretheaFornalhaCharacter {
 	String id;
@@ -173,6 +174,7 @@ public:
 	static constexpr const char *SETTING_LIVE_LINK = "editor/erethea_fornalha/live_link";
 	static constexpr const char *SETTING_AREA_ACOUSTICS = "editor/erethea_fornalha/area_acoustics";
 	static constexpr const char *SETTING_INTERACTIVE_MUSIC = "editor/erethea_fornalha/interactive_music";
+	static constexpr const char *SETTING_ERETHEA_DEFAULTS_APPLIED = "editor/erethea_fornalha/erethea_defaults_applied";
 	static constexpr const char *MUSIC_FOLDER = "res://Audio/musica";
 	static constexpr const char *MUSIC_GROUP = "erethea_musica";
 
@@ -182,6 +184,13 @@ public:
 
 	static void register_project_settings();
 	static bool is_fornalha_project();
+	// Gives the project the settings that new Erethea projects start with
+	// (p_defaults), each one once: the Fornalha writes its own project.godot,
+	// so its projects would otherwise keep Godot's defaults. A setting the
+	// project already changed stays as it is, and so does one given before, so
+	// that turning it off again sticks. Returns the settings it changed; save
+	// the project settings afterwards.
+	static Vector<String> apply_erethea_defaults(const HashMap<String, Variant> &p_defaults);
 
 	static Action decide(bool p_exists, const String &p_current_hash, const String &p_recorded_hash, const String &p_new_hash, bool p_force);
 	// Build by itself when what the scenes come from changed since the last
@@ -201,6 +210,9 @@ public:
 	// How far an area's sound reaches from its center: half the way to the
 	// nearest other area, between 12 and 80 m.
 	static real_t get_area_radius(const EretheaFornalhaProject &p_project, int p_area);
+	// How far from the camera the sun casts shadows in the world: across it,
+	// from Godot's 100 m to 300 m, so that the four cascades keep their detail.
+	static real_t get_sun_shadow_distance(const EretheaFornalhaProject &p_project);
 	// Adds the reverb buses that the areas use, and that the project doesn't
 	// have yet, to its audio bus layout, and saves it. Returns the layout's
 	// file when it changed.
