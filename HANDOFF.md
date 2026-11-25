@@ -363,35 +363,31 @@ comparado na cena de referência:
      pose) e partículas; reflexos e GI pelo mesmo caminho; a escolha por placa
      (item 1) passa a ligar o efeito em placas com ray query; a prova de
      velocidade na RTX fica para o teste final.
-   - **Próximo PR: personagens com esqueleto** (os da Fornalha são todos
-     assim). Já estudado em 23/11:
-     - Os vértices deformados pelo esqueleto (e pelas blend shapes) ficam em
-       `MeshStorage::MeshInstance::Surface::vertex_buffer[current_buffer]`,
-       gravados pelo compute `shaders/skeleton.glsl` em
-       `update_mesh_instances()`, no começo do quadro (antes do `PRE_OPAQUE`).
-       No 3D, as posições vêm primeiro, em float 32 (`index * vertex_stride`
-       palavras, normalmente 3), depois as normais e tangentes.
-     - Esse buffer é criado em `_mesh_instance_add_surface_buffer`
-       (`mesh_storage.cpp`) só com `BUFFER_CREATION_AS_STORAGE_BIT`. Mudança
-       de uma linha no núcleo (`// Erethea:`): acrescentar
-       `BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT`
-       quando o `RenderingDevice` tem ray query. E uma função pública na
-       `MeshStorage` (`// Erethea:`) que devolve o RID desse buffer, a contagem
-       e o passo dos vértices para (mesh instance, superfície), ou `RID()` se a
-       superfície não tem buffer próprio (`uniform_set[0]` nulo).
-     - `RenderGeometryInstanceBase::mesh_instance` é público: o módulo sabe
-       qual instância da lista do cull tem esqueleto. Os índices saem do buffer
-       próprio do módulo (lidos uma vez por malha, como hoje).
-     - BLAS por mesh instance, refeita todo quadro com `blas_build` (a API do
-       RD não tem atualização parcial). O `current_buffer` alterna quando há
-       vetores de movimento (TAA, FSR): guarde até duas BLAS por mesh instance,
-       pela RID do buffer, e recrie se a RID mudar. O grafo do RD cuida das
-       barreiras entre o compute do esqueleto e a montagem da BLAS.
-     - As posições estão no espaço da malha: a transformação da instância vai
-       na TLAS, como nas malhas paradas.
-     - Teste: na `erethea/tests/raytracing/shadows_scene`, uma malha com
-       esqueleto montada em GDScript (ArrayMesh com ossos e pesos e um
-       `Skeleton3D` girando um osso) e a sombra seguindo a pose.
+   - **Personagens com esqueleto: feito (PR das sombras dos personagens,
+     25/11).** Como ficou, diferente do plano de 23/11 por um motivo: o
+     `blas_create` registra a BLAS como dependente dos buffers de vértices, e o
+     RD apaga os dependentes junto com o buffer; montar a BLAS direto do buffer
+     da `MeshInstance` deixaria RIDs apagados no cache quando a malha mudasse.
+     Então:
+     - No núcleo, só uma função de leitura (`// Erethea:`):
+       `MeshStorage::erethea_mesh_instance_get_surface_vertices(mesh_instance,
+       superfície, &contagem, &passo, &última_mudança)`, que devolve o buffer
+       onde o esqueleto e as blend shapes deixaram os vértices (posições em
+       float 32 primeiro), ou `RID()` quando a superfície desenha os vértices
+       da própria malha (superfície 2D ou comprimida também dá `RID()`).
+     - No módulo: `DeformedBLAS` por mesh instance, com cópias próprias das
+       posições (`buffer_copy` na placa) e os buffers de índices da BLAS da
+       malha; refeita só nos quadros em que `last_change` muda (personagem
+       parado não custa nada). A BLAS deformada é apagada antes dos buffers da
+       malha (`free_mesh` cuida disso).
+     - Teste: `--skinned-check` na `erethea/tests/raytracing/shadows_scene`
+       (braço de dois ossos, reto e dobrado, dois pontos do chão medidos), no
+       CI no passo "Check the ray traced shadows of a skinned mesh". Provado
+       que falha com a sombra presa à pose de repouso. Pegadinha: o
+       `MeshInstance3D.skeleton` vem vazio nesta base; aponte para o
+       `Skeleton3D` (`NodePath("..")`).
+     - Falta: partículas; reflexos e GI pelo mesmo caminho; a prova de
+       velocidade na RTX fica para o teste final.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
