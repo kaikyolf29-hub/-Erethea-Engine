@@ -208,10 +208,12 @@ sombra; desligue *Shadow* na luz para não calcular os dois. Com `light_size`
 sombra fica firme onde encosta no chão e suave longe dele, como a do sol de
 verdade. Com TAA ou FSR, o ruído das bordas some em poucos quadros.
 
-Fazem sombra as malhas comuns (`MeshInstance3D` sem esqueleto) e as
-`MultiMeshInstance3D` (árvores, grama, pedras); personagens com esqueleto e
-partículas ainda não. Materiais com transparência por recorte (folhas) fazem a
-sombra da superfície inteira.
+Fazem sombra as malhas (`MeshInstance3D`), as `MultiMeshInstance3D` (árvores,
+grama, pedras) e os personagens com esqueleto ou formas (blend shapes), na pose
+em que aparecem no quadro: as posições que o esqueleto deformou são copiadas na
+placa e a estrutura do personagem é refeita só nos quadros em que a pose muda
+(parado, não custa nada). Partículas ainda não fazem sombra. Materiais com
+transparência por recorte (folhas) fazem a sombra da superfície inteira.
 
 Para ver na cena de referência, acrescente `--rt=shadows` depois do `--` (troca
 o mapa de sombra do sol pelas sombras por ray tracing). O lavapipe do Linux
@@ -221,6 +223,16 @@ velocidade numa placa de verdade (RTX) fica para o teste final.
 
 ```sh
 erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
+```
+
+A sombra de quem tem esqueleto tem um teste próprio, que o CI também roda: um
+braço de dois ossos sobre o chão, só com as sombras por ray tracing. Com o braço
+reto, a sombra da ponta tem que cair num ponto do chão; com o osso de cima
+dobrado, esse ponto fica claro e a sombra cai em outro. Imprime
+`ERETHEA_RT_SKINNED_OK`.
+
+```sh
+erethea --path erethea/tests/raytracing/shadows_scene --fixed-fps 30 -- --skinned-check --out="$PWD/capturas/braco.png"
 ```
 
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
