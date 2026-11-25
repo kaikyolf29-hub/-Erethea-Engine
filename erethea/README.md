@@ -223,6 +223,23 @@ velocidade numa placa de verdade (RTX) fica para o teste final.
 erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
 ```
 
+**Sombra de contato (`EretheaContactShadows`).** Também um `CompositorEffect`,
+mas sem ray tracing: roda em qualquer placa com o Forward+, inclusive a RX 580.
+Depois da passada de profundidade, sai de cada pixel um raio curto (`length`,
+50 cm por padrão) na direção do sol, e a própria imagem de profundidade diz se
+algo cobre esse raio: são as sombras pequenas e firmes onde as coisas encostam
+(pés no chão, um copo na mesa), que o mapa de sombra perde. Ela se junta ao mapa
+de sombra do sol (fica a mais escura das duas). Como só enxerga o que a câmera
+vê, uma coisa escondida atrás de outra não faz sombra de contato, e `thickness`
+diz quão grossa a Erethea supõe cada superfície. Onde o
+`EretheaRayTracedShadows` roda, ela não faz nada: as sombras por ray tracing já
+têm o contato, com exatidão. Teste: `erethea/tests/raytracing/contact_scene`
+(imprime `ERETHEA_CONTACT_SHADOWS_OK`; o CI roda no lavapipe).
+
+```sh
+erethea --path erethea/tests/raytracing/contact_scene --fixed-fps 30 -- --out="$PWD/capturas/contato.png"
+```
+
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por

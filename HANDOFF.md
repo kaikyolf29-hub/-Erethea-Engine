@@ -395,6 +395,19 @@ comparado na cena de referência:
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
+   **Sombra de contato: feita (PR da sombra de contato, 25/11)**, pedido nº 2
+   da Fornalha junto com a pele. `EretheaContactShadows` em
+   `modules/erethea_raytracing/`: na tela, em qualquer placa com o Forward+
+   (inclusive a RX 580), grava a mesma máscara `erethea_rt/shadow_mask` que o
+   Forward+ aplica ao sol (`min` com o mapa de sombra). No núcleo, um pedido de
+   máscara sem juntar geometria (`erethea_request_shadow_mask`, `// Erethea:`).
+   Onde o ray tracing roda, ela não faz nada. Teste:
+   `erethea/tests/raytracing/contact_scene` (no CI). Achados no caminho: no
+   GLSL, `params.length` num bloco uniforme é lido como o método `.length()`
+   (dê outro nome); e o efeito só pede a máscara depois de ter a pipeline,
+   senão uma máscara nunca escrita escurece a cena inteira. Falta: cascatas
+   melhores; ligar a sombra de contato sozinha nas placas sem ray tracing
+   (como a escolha por placa faz com o ray tracing).
 5. **Materiais em camadas** (terra, sujeira, molhado), pele com subsuperfície
    melhor (perfil de espalhamento por canal, mapa de espessura e sombra de
    contato), cabelo (incluindo **fio a fio**: fitas viradas para a câmera ou
