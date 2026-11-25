@@ -133,7 +133,7 @@
 		<member name="height_map" type="Image" setter="set_height_map" getter="get_height_map">
 			The height map, in [constant Image.FORMAT_RF], one float of height in meters per vertex, from 2x2 to 8192x8192 vertices. Other formats are converted. Setting a map of another size than the current one makes a new control map with all vertices as material 0.
 		</member>
-		<member name="size" type="Vector2" setter="set_size" getter="get_size">
+		<member name="size" type="Vector2" setter="set_size" getter="get_size" default="Vector2(-1, -1)">
 			The size of the terrain in meters, in x and z: [code](resolution - 1) * vertex_spacing[/code]. Setting it changes the number of vertices, keeping the heights and materials that fit, from the first vertex on. It is not saved, the maps are.
 		</member>
 		<member name="vertex_spacing" type="float" setter="set_vertex_spacing" getter="get_vertex_spacing" default="1.0">

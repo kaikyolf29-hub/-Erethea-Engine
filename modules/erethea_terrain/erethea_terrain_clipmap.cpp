@@ -117,10 +117,10 @@ LevelMesh build_level_mesh(int p_quads, real_t p_spacing) {
 		bool flip; // Whether the edge runs the other way around the grid.
 	};
 	const Edge edges[4] = {
-		{ 0, 1, false }, // z = 0 (north), x increasing.
-		{ p_quads * side, 1, true }, // z = quads (south).
-		{ 0, side, true }, // x = 0 (west), z increasing.
-		{ p_quads, side, false }, // x = quads (east).
+		{ 0, 1, true }, // z = 0 (north), x increasing.
+		{ p_quads * side, 1, false }, // z = quads (south).
+		{ 0, side, false }, // x = 0 (west), z increasing.
+		{ p_quads, side, true }, // x = quads (east).
 	};
 	int skirt_vertex = side * side;
 	for (const Edge &edge : edges) {

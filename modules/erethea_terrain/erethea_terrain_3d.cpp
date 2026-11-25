@@ -35,8 +35,9 @@
 
 #include "core/config/engine.h"
 #include "core/object/callable_mp.h"
-#include "scene/main/viewport.h"
+#include "core/object/class_db.h"
 #include "scene/3d/camera_3d.h"
+#include "scene/main/viewport.h"
 #include "servers/rendering/rendering_server.h"
 
 #ifndef PHYSICS_3D_DISABLED
@@ -76,7 +77,7 @@ bool EretheaTerrain3D::_get_camera_position(Vector3 &r_position) const {
 
 void EretheaTerrain3D::_create_levels() {
 	_free_levels();
-	if (data.is_null() || !is_inside_tree() || !get_world_3d().is_valid()) {
+	if (data.is_null() || data->get_height_map().is_null() || !is_inside_tree() || !get_world_3d().is_valid()) {
 		return;
 	}
 	RenderingServer *rs = RenderingServer::get_singleton();
@@ -241,7 +242,7 @@ void EretheaTerrain3D::_update_level_positions(bool p_force) {
 
 void EretheaTerrain3D::_update_collision() {
 #ifndef PHYSICS_3D_DISABLED
-	if (!body || data.is_null()) {
+	if (!body || data.is_null() || data->get_height_map().is_null()) {
 		return;
 	}
 	const Vector2i resolution = data->get_resolution();

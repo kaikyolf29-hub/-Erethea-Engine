@@ -31,6 +31,7 @@
 #include "erethea_terrain_data.h"
 
 #include "core/math/math_funcs.h"
+#include "core/object/class_db.h"
 
 void EretheaTerrainData::_create_maps(const Vector2i &p_resolution, real_t p_height) {
 	height_map = Image::create_empty(p_resolution.x, p_resolution.y, false, Image::FORMAT_RF);
@@ -327,6 +328,7 @@ void EretheaTerrainData::_bind_methods() {
 	BIND_CONSTANT(MAX_MATERIALS);
 }
 
+// There are no maps until create() or set_height_map(), so that the default
+// values of the properties are empty.
 EretheaTerrainData::EretheaTerrainData() {
-	_create_maps(Vector2i(65, 65), 0.0);
 }

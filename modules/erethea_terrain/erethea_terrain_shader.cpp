@@ -85,6 +85,11 @@ float height_at(vec2 xz) {
 	return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
 }
 
+vec4 hash4(vec2 p) {
+	vec4 q = vec4(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)), dot(p, vec2(419.2, 371.9)), dot(p, vec2(83.7, 457.1)));
+	return fract(sin(q) * 43758.5453);
+}
+
 void vertex() {
 	vec2 xz = VERTEX.xz + level_center;
 	// The skirt vertices (UV x = 1) hang below the edge of the level.
@@ -96,11 +101,6 @@ void vertex() {
 
 // Detiling, and the sampling of the material layers.
 static const char *shader_sampling = R"(
-vec4 hash4(vec2 p) {
-	vec4 q = vec4(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)), dot(p, vec2(419.2, 371.9)), dot(p, vec2(83.7, 457.1)));
-	return fract(sin(q) * 43758.5453);
-}
-
 // The sampling code of each layered texture is the same, with the name of the
 // texture in the place of the word in capitals.
 vec4 sample_TEXTURE(int layer, vec2 uv, vec2 dx, vec2 dy) {

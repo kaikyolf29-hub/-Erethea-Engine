@@ -352,6 +352,7 @@ TEST_CASE("[Modules][EretheaTerrain][SceneTree] Terrain follows the camera and m
 
 	// When the terrain moves, the camera is somewhere else for it.
 	terrain->set_global_position(Vector3(100, 0, -50));
+	SceneTree::get_singleton()->flush_transform_notifications();
 	const PackedVector2Array moved = terrain->get_level_centers();
 	REQUIRE(moved.size() == 4);
 	CHECK(moved[0].distance_to(Vector2(0.3, 12.8)) <= 4.0);

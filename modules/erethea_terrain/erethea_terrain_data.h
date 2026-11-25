@@ -37,6 +37,7 @@
 #include "core/math/vector3.h"
 
 // The terrain's height map and material control map.
+// A new one has no maps: call create(), or set the height map.
 //
 // The terrain is centered on the origin of its node. Vertex (x, z) of the maps
 // is at ((x - (width - 1) / 2) * vertex_spacing, height, (z - (depth - 1) / 2) * vertex_spacing),
