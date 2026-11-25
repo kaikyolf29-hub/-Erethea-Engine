@@ -107,3 +107,8 @@ jobs:
     name: 🔥 Erethea assistant
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_assistant.yml
+
+  erethea-terrain:
+    name: 🔥 Erethea terrain
+    needs: linux-build
+    uses: ./.github/workflows/erethea_terrain.yml
