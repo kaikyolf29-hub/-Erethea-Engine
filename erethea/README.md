@@ -145,15 +145,44 @@ movimento da câmera, inclusive no céu. Coloque-o antes do `EretheaPostEffect`
 na lista do `Compositor`, para o grão não ser borrado. A intensidade é a
 fração do quadro em que o "obturador" fica aberto (0,5 = obturador de 180°).
 
-Os dois só funcionam no Forward+; nos outros renderizadores não fazem nada.
+**Raios de luz (`EretheaLightShafts`).** Um `CompositorEffect` barato para o
+sol: borra radialmente o céu claro em direção à posição do sol na tela (técnica
+clássica de *light scattering* em espaço de tela), então os raios aparecem onde
+árvores, casas ou um personagem cobrem parte do céu perto do sol. O sol é a
+primeira `DirectionalLight3D` visível com energia positiva, ou a direção
+configurável `custom_direction`. Só o céu (onde nada foi desenhado) acende os
+raios, e só o que passa do limite de brilho (`threshold`); objetos
+emissivos, como janelas, não fazem raios. Os raios somem de forma suave quando o
+sol sai da tela e quando a câmera vira de costas para ele (aí o efeito nem
+roda). Propriedades: `intensity` (0 desliga), `samples`, `density`, `decay`,
+`tint` e `threshold`. Coloque-o antes do `EretheaPostEffect`, para o grão não
+ser coberto. O custo é fixo por pixel, não depende da cena: `samples`
+amostras (padrão 24), duas leituras de textura cada, mais uma cópia da imagem.
+A prova de velocidade na RX 580 ainda não foi feita (o CI não tem placa de
+vídeo); fica para o teste final.
+
+**Névoa de altura.** A Erethea não reimplementa a névoa: a da Godot já
+tem névoa de altura e a névoa volumétrica. Para ligar a de altura, no
+`Environment` marque *Fog › Enabled* e dê um valor diferente de zero a *Height
+Density* (a névoa fica mais densa abaixo de *Height*, a altura onde ela começa);
+*Sun Scatter* clareia a névoa na direção do sol. A névoa volumétrica (*Volumetric
+Fog*) faz a luz atravessar a névoa de verdade, mas custa mais; numa placa fraca
+como a RX 580, a névoa de altura com os raios de luz acima é a opção barata
+(ainda sem medida na placa).
+
+Os efeitos de compositor só funcionam no Forward+; nos outros renderizadores
+não fazem nada.
 Os efeitos entram antes do TAA, do upscaling e do tone mapping. Os detalhes
 estão na referência das classes, dentro do editor.
 
 Para ver na cena de referência, importe o projeto uma vez e acrescente
 `--post=all` (ou uma lista com `lut`, `flare`, `vignette`, `aberration`,
-`grain` e `motion`) depois do `--`. Com `motion`, a câmera gira e o personagem
-vira de um lado para o outro, e os dois estão no lugar de sempre, em
-velocidade máxima, no quadro capturado:
+`grain`, `motion` e `shafts`) depois do `--`. Com `motion`, a câmera gira e o
+personagem vira de um lado para o outro, e os dois estão no lugar de sempre, em
+velocidade máxima, no quadro capturado. Com `shafts`, o sol é movido para ficar
+baixo na frente da câmera, por cima das casas, das árvores e do
+personagem (o mesmo vale para `--sun=front`, sem nenhum efeito, para comparar a
+mesma cena com e sem os raios):
 
 ```sh
 erethea --headless --import --path erethea/tests/reference_scene
@@ -162,6 +191,39 @@ erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --post=all --capt
 
 O CI captura a cena com todos os efeitos e mostra a diferença para o padrão.
 Ainda não medido nas placas de referência: o custo de cada efeito em FPS.
+
+## Ray tracing
+
+O código fica em `modules/erethea_raytracing/`. Tudo começa desligado e só
+funciona no Forward+, numa placa com ray tracing (ray query): RTX da NVIDIA,
+RX 6000 ou mais nova da AMD, Arc da Intel. Na RX 580, que não tem, nada muda.
+
+**Sombras do sol por ray tracing (`EretheaRayTracedShadows`).** É um
+`CompositorEffect`, como os de pós-processamento: crie um `Compositor` no
+`WorldEnvironment` ou na `Camera3D` e adicione um `EretheaRayTracedShadows`.
+Depois da passada de profundidade, sai de cada pixel um raio até o primeiro sol
+(a primeira `DirectionalLight3D` com energia), contra a geometria até
+`max_distance` metros da câmera, visível ou não (o que está fora da tela também
+faz sombra). A sombra que sai disso vai para essa luz no lugar do mapa de
+sombra; desligue *Shadow* na luz para não calcular os dois. Com `light_size`
+(o tamanho do sol no céu, 0,5° por padrão) e `samples` raios por pixel, a
+sombra fica firme onde encosta no chão e suave longe dele, como a do sol de
+verdade. Com TAA ou FSR, o ruído das bordas some em poucos quadros.
+
+Fazem sombra as malhas comuns (`MeshInstance3D` sem esqueleto) e as
+`MultiMeshInstance3D` (árvores, grama, pedras); personagens com esqueleto e
+partículas ainda não. Materiais com transparência por recorte (folhas) fazem a
+sombra da superfície inteira.
+
+Para ver na cena de referência, acrescente `--rt=shadows` depois do `--` (troca
+o mapa de sombra do sol pelas sombras por ray tracing). O lavapipe do Linux
+(Mesa 25.2) tem ray query, então o CI prova a imagem: de dia, ela tem que mudar
+em relação à Erethea sem o efeito, e sem o efeito continua igual à Godot. A
+velocidade numa placa de verdade (RTX) fica para o teste final.
+
+```sh
+erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
+```
 
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 

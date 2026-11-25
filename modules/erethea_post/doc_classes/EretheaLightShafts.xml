@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaLightShafts" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Cheap screen-space light shafts ("god rays") from the sun.
+	</brief_description>
+	<description>
+		A [CompositorEffect] that draws light shafts from the sun, as a radial blur of the bright sky towards the sun's position on screen. Each pixel adds up [member samples] samples along a ray towards the sun, so the cost is fixed per pixel and doesn't depend on the scene, unlike volumetric fog. Add it to a [Compositor] and set that compositor on a [WorldEnvironment] or a [Camera3D]. Put it before an [EretheaPostEffect] in [member Compositor.compositor_effects], so the film grain isn't covered by the shafts.
+		The sun is the first visible [DirectionalLight3D] with a positive energy, or [member custom_direction] when it is set. Only the sky, which is where nothing was drawn, lights the shafts: they appear where trees, buildings or characters cover part of a bright sky near the sun. Emissive materials and other bright objects don't. The shafts fade out smoothly as the sun leaves the screen and disappear when the camera faces away from it, and nothing is drawn at all in that case.
+		The shafts are drawn after the transparent pass, before temporal antialiasing, upscaling and tone mapping.
+		[b]Height fog:[/b] this effect doesn't draw fog. Height fog is a feature of [Environment]: turn on [member Environment.fog_enabled] and set a non-zero [member Environment.fog_height_density] (the fog gets denser below [member Environment.fog_height]); [member Environment.fog_sun_scatter] brightens it towards the sun. For fog that the lights shine through, use [member Environment.volumetric_fog_enabled], which costs more.
+		[b]Note:[/b] This effect needs the Forward+ renderer and a perspective camera. With the Mobile and Compatibility renderers, or with an orthogonal camera, it does nothing.
+		[b]Note:[/b] [member CompositorEffect.effect_callback_type] and the buffer settings of [CompositorEffect] don't apply to this effect, which always runs after the transparent pass with the resolved depth.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="custom_direction" type="Vector3" setter="set_custom_direction" getter="get_custom_direction" default="Vector3(0, 0, 0)">
+			Direction from the scene to the sun, in world space, used instead of the scene's [DirectionalLight3D] when it isn't [code]Vector3(0, 0, 0)[/code]. It doesn't need to be normalized. It is useful for a sun that is only in the sky, without a light.
+		</member>
+		<member name="decay" type="float" setter="set_decay" getter="get_decay" default="0.5">
+			How fast the shafts fade away from where they start. [code]0.0[/code] doesn't fade them at all, and [code]1.0[/code] fades them almost completely by the end of each ray.
+		</member>
+		<member name="density" type="float" setter="set_density" getter="get_density" default="0.9">
+			How far each ray goes towards the sun, as a fraction of the distance from the pixel to the sun's position on screen. Smaller values give shorter, sharper shafts.
+		</member>
+		<member name="intensity" type="float" setter="set_intensity" getter="get_intensity" default="0.8">
+			Brightness of the shafts. [code]0.0[/code] turns the effect off and skips all of its work.
+		</member>
+		<member name="samples" type="int" setter="set_samples" getter="get_samples" default="24">
+			Number of samples along each ray, which is also the cost of the effect in texture reads per pixel (two for each sample). More samples give smoother shafts. The start of each ray is shifted a little from pixel to pixel and from frame to frame, which hides the steps between samples, especially with temporal antialiasing.
+		</member>
+		<member name="threshold" type="float" setter="set_threshold" getter="get_threshold" default="0.4">
+			Brightness (before tone mapping) that the sky must exceed to light the shafts, so only the sun and the bright sky around it do, not the whole sky. Raise it to keep the shafts to a smaller, brighter area around the sun; lower it for a dim or dark sky.
+		</member>
+		<member name="tint" type="Color" setter="set_tint" getter="get_tint" default="Color(1, 1, 1, 1)">
+			Color that multiplies the shafts. The shafts already take the color of the sky they come from.
+		</member>
+	</members>
+</class>

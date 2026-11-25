@@ -4,11 +4,14 @@ extends SceneTree
 ##
 ##     erethea --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
 ##         --baseline=<folder> --candidate=<folder> --out=<folder> [--max-rmse=<value>]
+##         [--min-rmse=<value> --min-rmse-for=<name,name>]
 ##
 ## Each image in <out> shows the baseline on the left, the candidate in the
 ## middle and their difference, amplified, on the right. The error is measured
 ## on luminance, from 0 to 255. With --max-rmse, the exit code is 1 when a
-## capture differs more than that.
+## capture differs more than that. With --min-rmse, it is 1 when one of the
+## captures named in --min-rmse-for (for example dia_floresta) differs less
+## than that, to check that an effect changes the image.
 
 const DIFFERENCE_GAIN := 8.0
 
@@ -24,10 +27,13 @@ func _initialize() -> void:
 			printerr("Missing --%s=<folder>." % required)
 			quit(2)
 			return
-	quit(_compare(arguments["baseline"], arguments["candidate"], arguments["out"], float(arguments.get("max-rmse", "-1"))))
+	var must_change := {}
+	for capture_name: String in String(arguments.get("min-rmse-for", "")).split(",", false):
+		must_change[capture_name] = true
+	quit(_compare(arguments["baseline"], arguments["candidate"], arguments["out"], float(arguments.get("max-rmse", "-1")), float(arguments.get("min-rmse", "-1")), must_change))
 
 
-func _compare(baseline_folder: String, candidate_folder: String, out_folder: String, max_rmse: float) -> int:
+func _compare(baseline_folder: String, candidate_folder: String, out_folder: String, max_rmse: float, min_rmse := -1.0, must_change := {}) -> int:
 	DirAccess.make_dir_recursive_absolute(out_folder)
 	var baseline_times := _read_frame_times(baseline_folder)
 	var candidate_times := _read_frame_times(candidate_folder)
@@ -62,17 +68,18 @@ func _compare(baseline_folder: String, candidate_folder: String, out_folder: Str
 		var rmse: float = metrics["root_mean_squared"]
 		var psnr: float = metrics["peak_snr"]
 		var too_different := max_rmse >= 0.0 and rmse > max_rmse
-		failed = failed or too_different
+		var too_similar := min_rmse >= 0.0 and must_change.has(name) and rmse < min_rmse
+		failed = failed or too_different or too_similar
 		_side_by_side(baseline, candidate).save_png(out_folder.path_join(file))
 		lines.append("| %s%s | %.3f | %s | %s | %s |" % [
 			name,
-			" ❌" if too_different else "",
+			" ❌" if too_different or too_similar else "",
 			rmse,
 			"igual" if is_inf(psnr) or psnr >= 99.0 else "%.1f" % psnr,
 			baseline_times.get(name, "?"),
 			candidate_times.get(name, "?"),
 		])
-		print("%s: RMSE %.3f, PSNR %.1f dB%s" % [name, rmse, psnr, " (above %.3f)" % max_rmse if too_different else ""])
+		print("%s: RMSE %.3f, PSNR %.1f dB%s%s" % [name, rmse, psnr, " (above %.3f)" % max_rmse if too_different else "", " (below %.3f)" % min_rmse if too_similar else ""])
 
 	var summary := FileAccess.open(out_folder.path_join("summary.md"), FileAccess.WRITE)
 	summary.store_string("\n".join(lines) + "\n")

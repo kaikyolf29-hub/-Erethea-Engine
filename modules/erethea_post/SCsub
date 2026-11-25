@@ -10,6 +10,7 @@ if env["rendering_device"]:
     env_erethea_post.RD_GLSL("erethea_post_effect.glsl")
     env_erethea_post.RD_GLSL("erethea_motion_blur.glsl")
     env_erethea_post.RD_GLSL("erethea_lens_flare.glsl")
+    env_erethea_post.RD_GLSL("erethea_light_shafts.glsl")
     env_erethea_post.Depends(Glob("*.glsl.gen.h"), ["#glsl_builders.py"])
 
 module_obj = []

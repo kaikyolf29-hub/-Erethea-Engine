@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaRayTracedShadows" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Ray traced shadow of the sun, for the Forward+ renderer on graphics cards with ray tracing. Erethea only.
+	</brief_description>
+	<description>
+		After the depth pre-pass, rays go from the surface seen in each pixel towards the first [DirectionalLight3D] with energy, against the geometry within [member max_distance] of the camera, visible or not, so that what is off screen still casts shadows. The renderer applies the result to that light, instead of its shadow map or together with it (turn off [member Light3D.shadow_enabled] on the light to skip the shadow map). With [member light_size], the shadows are soft away from what casts them and sharp where they touch it, as with the real sun.
+		Add it to a [Compositor] on the [WorldEnvironment] or the [Camera3D]. It needs the Forward+ renderer and a graphics card with ray queries (see [method is_supported]); otherwise it does nothing and the shadow map stays.
+		[b]Note:[/b] [MeshInstance3D] without a skeleton and [MultiMeshInstance3D] cast ray traced shadows; skinned meshes and particles don't yet. The instances of a MultiMesh are read again once a second, so a MultiMesh that moves its instances every frame has its shadows a little behind. Alpha-tested materials (such as leaves) cast the shadow of their whole surfaces.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="is_supported" qualifiers="static">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the current rendering device can trace rays from compute shaders (ray queries), which this effect needs.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="light_size" type="float" setter="set_light_size" getter="get_light_size" default="0.5">
+			The angular diameter of the light, in degrees. The sun is about 0.53 degrees across. Larger values make softer shadows. [code]0.0[/code] makes hard shadows with a single ray per pixel.
+		</member>
+		<member name="max_distance" type="float" setter="set_max_distance" getter="get_max_distance" default="100.0">
+			How far from the camera the geometry that casts shadows is gathered, and how far the rays go, in meters.
+		</member>
+		<member name="normal_bias" type="float" setter="set_normal_bias" getter="get_normal_bias" default="0.02">
+			How far above the surface the rays start, in meters at 1 m from the camera. It grows with the distance. Raise it if surfaces shadow themselves in stripes (shadow acne); lower it if thin objects lose their contact shadows.
+		</member>
+		<member name="samples" type="int" setter="set_samples" getter="get_samples" default="4">
+			The number of rays per pixel, spread over [member light_size]. More rays make the soft edges less noisy, at a higher cost. With temporal antialiasing (TAA or FSR), the noise also fades over a few frames.
+		</member>
+	</members>
+</class>

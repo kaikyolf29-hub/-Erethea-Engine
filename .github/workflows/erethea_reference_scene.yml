@@ -139,10 +139,74 @@ jobs:
           {
             echo "## Pós-processamento da Erethea"
             echo
-            echo "Erethea sem efeitos × com todos: LUT .cube (luts/cinematic.cube), lens flare, vinheta, aberração cromática e grão (EretheaPostEffect) e motion blur (EretheaMotionBlur, com a câmera e o personagem em movimento)."
+            echo "Erethea sem efeitos × com todos: LUT .cube (luts/cinematic.cube), lens flare, vinheta, aberração cromática e grão (EretheaPostEffect), motion blur (EretheaMotionBlur, com a câmera e o personagem em movimento) e raios de luz (EretheaLightShafts, com o sol movido para a frente da câmera: por isso a iluminação também muda aqui; a comparação só dos raios vem no passo seguinte)."
             echo
             cat captures/comparison_post_all/summary.md
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The light shafts alone, against the same scene with the sun moved in
+      # front of the camera (--sun=front) and no effect, so the only difference
+      # is the shafts. In daylight, the sun is bright enough that the image
+      # must change; at night, the dim moon doesn't light any shafts.
+      - name: Capture the light shafts
+        if: always() && hashFiles('captures/erethea/results.json') != ''
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
+            --audio-driver Dummy --fixed-fps 30 -- --sun=front --capture="$PWD/captures/sun_front"
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
+            --audio-driver Dummy --fixed-fps 30 -- --post=shafts --capture="$PWD/captures/shafts"
+          status=0
+          "$ERETHEA" --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
+            --baseline="$PWD/captures/sun_front" --candidate="$PWD/captures/shafts" \
+            --out="$PWD/captures/comparison_shafts" \
+            --min-rmse=0.3 --min-rmse-for=dia_vila,dia_floresta,dia_personagem || status=$?
+          {
+            echo "## Raios de luz da Erethea"
+            echo
+            echo "Mesma cena, com o sol na frente da câmera, sem × com o efeito EretheaLightShafts. De dia os raios têm que mudar a imagem (RMSE de pelo menos 0,3; a diferença fica perto do sol e nas silhuetas das casas, das árvores e do personagem, veja as imagens no artefato \`reference-scene\`). Sem o efeito no Compositor, nada muda: é o que o passo contra a Godot, acima, confere."
+            if [ "$status" -ne 0 ]; then
+              echo
+              echo "**Os raios de luz não mudaram a imagem de dia.**"
+            fi
+            echo
+            cat captures/comparison_shafts/summary.md || true
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      # Ray traced shadows of the sun (EretheaRayTracedShadows) instead of its
+      # shadow map. lavapipe has ray queries, so the image is proven here: in
+      # daylight it must change. Without the effect, the step against stock
+      # Godot above shows that nothing changes.
+      - name: Capture the ray traced shadows
+        if: always() && hashFiles('captures/erethea/results.json') != ''
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
+            --audio-driver Dummy --fixed-fps 30 -- --rt=shadows --capture="$PWD/captures/rt_shadows" 2>&1 | tee rt_shadows.log
+          status=0
+          if ! grep -q "Ray tracing: shadows" rt_shadows.log; then
+            echo "::error::The ray traced shadows didn't start (no ray queries on this device?)."
+            status=1
+          fi
+          "$ERETHEA" --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
+            --baseline="$PWD/captures/erethea" --candidate="$PWD/captures/rt_shadows" \
+            --out="$PWD/captures/comparison_rt_shadows" \
+            --min-rmse=0.3 --min-rmse-for=dia_vila,dia_floresta,dia_personagem || status=$?
+          {
+            echo "## Sombras por ray tracing da Erethea"
+            echo
+            echo "Erethea sem efeitos × com EretheaRayTracedShadows no lugar do mapa de sombra do sol (lavapipe, com ray query). De dia a imagem tem que mudar (RMSE de pelo menos 0,3): as sombras ficam no mesmo lugar, com bordas suaves e firmes onde encostam. Veja as imagens no artefato \`reference-scene\`."
+            if [ "$status" -ne 0 ]; then
+              echo
+              echo "**As sombras por ray tracing não rodaram ou não mudaram a imagem.**"
+            fi
+            echo
+            cat captures/comparison_rt_shadows/summary.md || true
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: Upload the captures
         if: always()

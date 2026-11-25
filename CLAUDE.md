@@ -44,6 +44,12 @@ novas da Godot sem reescrever nada.
   5060 Ti de 16 GB.
 - Windows vem primeiro (janela, instalador, testes), mas o código continua
   compilando no Linux.
+- A Erethea completa a Fornalha 3D, não repete o que ela já faz: antes de um
+  recurso para projetos da Fornalha, confira no repositório dela
+  (`kaikyolf29-hub/fornalha`, só leitura). A Erethea soma o que é de engine.
+- Tarefas bem delimitadas podem ir para sessões Sonnet em paralelo (no máximo
+  duas), e a sessão principal revisa cada diff antes do merge. Veja
+  `HANDOFF.md`, "Como trabalhar com sessões em paralelo".
 
 ## Onde mexer
 
@@ -53,6 +59,7 @@ novas da Godot sem reescrever nada.
 | Gráficos, renderizador | `servers/rendering/renderer_rd/` |
 | Presets de qualidade | `modules/erethea_quality/` |
 | Pós-processamento (LUT `.cube`, lens flare, motion blur, grão) | `modules/erethea_post/` |
+| Ray tracing (sombras do sol; depois reflexos e GI) | `modules/erethea_raytracing/` |
 | Upscalers (AMD FSR 3.1/4, XeSS e DLSS) | `modules/erethea_upscale/` |
 | Streaming de texturas 3D | `modules/erethea_streaming/` |
 | Servidor MCP do editor (agentes como o Claude Code) | `modules/erethea_mcp/` |

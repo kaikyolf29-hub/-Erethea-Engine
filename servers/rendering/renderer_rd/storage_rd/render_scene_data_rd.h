@@ -55,6 +55,8 @@ public:
 
 	// For stereo rendering
 	uint32_t view_count = 1;
+	// Erethea: The first directional light uses the ray traced shadow mask, see modules/erethea_raytracing.
+	bool erethea_rt_shadows = false;
 	Vector3 view_eye_offset[RendererSceneRender::MAX_RENDER_VIEWS];
 	Projection view_projection[RendererSceneRender::MAX_RENDER_VIEWS];
 
@@ -112,6 +114,7 @@ private:
 		SCENE_DATA_FLAGS_USE_UV2_MATERIAL = 1 << 6,
 		SCENE_DATA_FLAGS_USE_PANCAKE_SHADOWS = 1 << 7,
 		SCENE_DATA_FLAGS_IN_SHADOW_PASS = 1 << 8, // Only used by Forward+ renderer.
+		SCENE_DATA_FLAGS_USE_ERETHEA_RT_SHADOWS = 1 << 9, // Erethea: Only used by Forward+ renderer, see modules/erethea_raytracing.
 		SCENE_DATA_FLAGS_MAX
 	};
 

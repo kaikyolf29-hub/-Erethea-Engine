@@ -1,6 +1,7 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 para continuar o trabalho de outra conta. Uma sessão nova
+Escrito em 22/11/2026 e atualizado em 23/11/2026, 23:30 UTC, quando o trabalho
+parou nesta conta para continuar de outra a partir de quarta, 25/11. Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -15,8 +16,9 @@ Depois cole:
 
 ```text
 Você vai continuar a Erethea Engine, o fork da Godot do repositório
-kaikyolf29-hub/-Erethea-Engine. Leia primeiro o HANDOFF.md (na raiz do main),
-depois o CLAUDE.md e o erethea/README.md. Siga o passo a passo do HANDOFF.md a
+kaikyolf29-hub/-Erethea-Engine. Leia primeiro o HANDOFF.md (na raiz do main;
+se o PR #34 ainda estiver aberto, leia o do branch claude/happy-dijkstra-gueto9,
+que é mais novo), depois o CLAUDE.md e o erethea/README.md. Siga o passo a passo do HANDOFF.md a
 partir de "O que fazer agora", na ordem, até a última fase e o lançamento.
 Trabalhe sozinho: um PR pequeno por tarefa, testes passando antes do merge, e
 você mesmo faz o merge no main quando o CI inteiro passar (nunca com o CI
@@ -26,6 +28,65 @@ que só eu posso fazer (contas, pagamentos, placa de vídeo). Fale comigo em
 português do Brasil. Ao terminar cada PR, atualize o HANDOFF.md com o que
 mudou.
 ```
+
+Na conta nova, as sessões do Claude Code desta conta (inclusive as sessões
+Sonnet que ajudavam em paralelo) não existem: os PRs abertos ficam no GitHub,
+e quem continua termina cada um (veja "Estado em 23/11, 23:30 UTC", logo
+abaixo).
+
+## Estado em 23/11, 23:30 UTC (leia antes de tudo)
+
+O trabalho parou aqui porque esta conta é a mesma em que a Fornalha 3D está
+sendo feita. Continua de outra conta a partir de quarta, 25/11. Nenhuma sessão
+do Claude desta conta segue trabalhando: a sessão Sonnet do PR #31 foi
+interrompida e não há nada agendado.
+
+- **No `main` hoje (23/11)**: #25 (WAV da dublagem e eco por área), #26
+  (janela moderna nos jogos), #27 (canal de testes da atualização), #28 e #30
+  (teste do instalador e diagnóstico do crash do editor no CI), #29 (música
+  que muda no fim do compasso), #32 (raios de luz `EretheaLightShafts`) e #33
+  (este HANDOFF preparado para outra conta).
+- **Primeiro: PR #34, meu, sombras do sol por ray tracing** (Fase 4, item 2;
+  branch `claude/happy-dijkstra-gueto9`). Este HANDOFF está nesse PR e é mais
+  novo que o do `main` até o merge. O primeiro CI falhou em quase todos os
+  builds por um erro só: a chamada `mesh_storage->mesh_get_surface(p_mesh,
+  surface)` em `modules/erethea_raytracing/erethea_ray_traced_shadows.cpp` era
+  ambígua (a `MeshStorage` tem a versão virtual `const` com `int` e uma
+  `inline` sem `const` com `uint32_t`), aviso no GCC (erro com `werror`) e erro
+  no MSVC. Corrigido no commit `f32d9de3c3` (chamada por ponteiro `const`);
+  aqui compilou sem aviso com `dev_mode=yes` no editor, no template e na
+  precisão dupla. O CI novo estava rodando quando parei. Se estiver verde e o PR
+  sem conflito, faça o merge (método "merge"). Se ficar vermelho, leia o log do
+  job (`get_job_logs` com `return_content`), corrija no mesmo branch e repita.
+  Depois do merge, o próximo passo é a Fase 4, item 2, "Depois deste PR".
+- **Depois: PR #31** (prévia com LibGodot, branch
+  `claude/erethea-libgodot-preview`, feito por uma sessão Sonnet e revisado por
+  mim). O link do "LibGodot on Windows" foi corrigido (`a694b251e8`, `#ifdef
+  D3D12_ENABLED` em `choose_backend()` do `amd_fsr_upscaler.cpp`). Todo o resto
+  do CI passou. Falta um problema no job "LibGodot on Windows": a DLL carrega, a
+  prévia desenha, salva a captura e imprime "the instance closed after 11
+  frames", e depois o programa de exemplo (`erethea/tests/libgodot/
+  libgodot_preview.c`) termina com o código 3762701893 = **0xE0464645**, ou
+  seja, alguma coisa quebra depois que a instância fecha (no
+  `libgodot_destroy_godot_instance`, no `FreeLibrary` ou na saída do processo,
+  por exemplo com threads do ANGLE/WARP ou da Godot ainda vivas). No Linux o
+  mesmo teste passa. A sessão Sonnet subiu o commit de diagnóstico
+  `a837816a44` ("Report the unhandled exceptions of the LibGodot host") pouco
+  antes de ser interrompida. Na conta nova: leia o log do job "LibGodot on
+  Windows" desse commit, descubra o que é 0xE0464645 (pesquise, não chute) e
+  em que ponto acontece, corrija a causa e não o teste (o código de saída tem
+  que ser 0), faça `git merge origin/main` no branch, espere o CI inteiro
+  passar (o job leva uns 40 min) e faça o merge. Se a causa for da base Godot,
+  a correção vai com `// Erethea:` e vale propor à Godot.
+- **Falhas conhecidas do CI** ainda abertas: o travamento do passo "Update
+  silently" do instalador (experimento 2 no `main` desde o #30: até agora passou
+  2 de 2 vezes, no CI do #30 e no push do `main` do #33; antes travava em ~40%;
+  conte mais umas 8 execuções antes de dar por resolvido) e o crash 0xC0000409
+  do editor no teste da janela (diagnóstico pronto; espere acontecer de novo e
+  leia o evento/minidump). Detalhes em "Falhas conhecidas do CI".
+- **Lição de hoje**: o build local sem `dev_mode=yes` não pega avisos que o CI
+  trata como erro. Antes de subir C++, compile os objetos mudados com
+  `dev_mode=yes` (veja "Como compilar e testar").
 
 ## O que é a Erethea
 
@@ -61,6 +122,9 @@ mudou.
 | Som | Bloco de som decidido em 22/11 (passo 3b): WAV da dublagem sem travar, eco por área, música que muda com o jogo e boca mexendo com a fala. |
 | Teste conjunto | O CI da Fornalha testa com a Godot 4.6.1 enquanto a Erethea não fica pronta. No fim, o Kaiky instala a Erethea e a Fornalha 3D (versões de desktop) e pede as gerações por um prompt no PC dele; a qualidade da Fornalha é provada já ligada à Erethea. |
 | Em aberto | Juntar a Fornalha dentro da Erethea no futuro ou manter dois apps ligados (a LibGodot deixa os dois caminhos abertos). Não precisa decidir agora. |
+| Não duplicar a Fornalha (23/11) | Antes de cada recurso, confira no repositório da Fornalha (`kaikyolf29-hub/fornalha`, só leitura) se ela já faz. Ela já faz no script do jogo: a boca mexendo com a fala, piscar e olhar (`movimento.gd`), cabelo em cards com brilho anisotrópico (`cabelo.gdshader`), grama com MultiMesh e vento (`principal.gd`). A Erethea soma o que é de engine: renderização, desempenho, ferramentas. Por isso o item "boca com a fala" do som saiu do plano. |
+| Trabalho em paralelo (23/11) | O Kaiky pediu para usar sessões mais baratas (Sonnet) em paralelo, com a sessão principal (Opus) coordenando e revisando. No máximo duas sessões Sonnet ao mesmo tempo além da principal: mais que isso esgota o limite de 5 horas da conta dele. Veja "Como trabalhar com sessões em paralelo". |
+| Ordem do fim (22/11) | Lançamento (instalador final e o teste do Kaiky no PC, com a Fornalha 3D) **antes** de juntar a Godot 4.8 estável, que é o último passo. |
 
 ## Onde cada fase está
 
@@ -69,10 +133,10 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | Fase | Pronto quando | Estado |
 | --- | --- | --- |
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
-| 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática). Falta só a assinatura (no lançamento) e dois extras opcionais, abaixo |
+| 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). Falta só a assinatura (no lançamento) |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Em andamento: MCP (#15), validações de exportação (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20) e painel de IA (#22) e Claude Code no painel (#24) no `main`; som: WAV da dublagem e eco por área no PR #25; música interativa, boca com a fala e prévia com LibGodot por fazer |
-| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Não começou |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Quase pronta: MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24) e o bloco de som (#25, #29; a boca é da Fornalha) no `main`. Falta a prévia com LibGodot (PR #31) e fechar a fase (passo 5) |
+| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32); sombras por ray tracing em andamento (item 2) |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
 ## O que fazer agora (na ordem)
@@ -142,23 +206,35 @@ por item, só em projetos da Fornalha ou desligado por padrão:
    pelo campo opcional `acustica`; os barramentos que faltam entram no
    `default_bus_layout.tres`. Desliga em `editor/erethea_fornalha/area_acoustics`.
    Veja `erethea/README.md`, "Som".
-3. **Música que muda com o jogo** (PR aberto no branch
-   `claude/erethea-som3-musica`): o `AudioStreamWAV` ganhou `bpm`, `beat_count`
-   e `bar_beats` (como o Ogg; correção genérica a propor à Godot, teste em
-   `tests/erethea/test_erethea_wav_bpm.cpp`), e o `build_fornalha_scenes` acerta
+3. **Música que muda com o jogo** (PR #29, feito): o `AudioStreamWAV` ganhou
+   `bpm`, `beat_count` e `bar_beats` (como o Ogg; correção genérica a propor à
+   Godot, teste em `tests/erethea/test_erethea_wav_bpm.cpp`), e o
+   `build_fornalha_scenes` acerta
    o `.import` de cada `Audio/musica/<situacao>.wav` (laço, bpm, compassos × 4)
    e põe na `principal.tscn` o nó `Musica` do grupo `erethea_musica`
    (`AudioStreamInteractive`, troca no fim do compasso) que o `Sons` da
    Fornalha chama. Desliga em `editor/erethea_fornalha/interactive_music`.
    Falta ouvir de verdade (o CI não toca som). Veja `erethea/README.md`, "Som".
-4. **Boca mexendo com a fala**: a curva do `.boca.json` move o osso da
-   mandíbula ou a forma de boca aberta que o `<id>.forja.json` disser.
+4. **Boca mexendo com a fala**: já feito pela Fornalha, sem nada a fazer na
+   Erethea (decidido em 23/11). O `Sons.falar()` dela toca a fala presa ao
+   personagem e passa a curva do `.boca.json` ao `Rosto` do `movimento.gd`, que
+   gira o osso `jaw` (e ainda pisca e mexe os olhos). A Erethea soma o eco da
+   área à fala (item 2). Se um dia a Fornalha mandar modelos com forma de boca
+   (blend shape) em vez de osso, aí sim cabe um complemento aqui.
 
-Os itens 2 a 4 dependem dos pedidos 1 a 5 para a Fornalha (abaixo), enviados
-ao Kaiky em 22/11. Enquanto a Fornalha não mudar, siga com o que já existe e
-confira no repositório público dela (`kaikyolf29-hub/fornalha`, só leitura).
+Com isso o bloco de som está fechado. A Fornalha atendeu os pedidos 1 a 4
+(`.musica.json`, grupo `erethea_musica`, `Sons.falar` com `personagem` e
+`texto` no `.boca.json`, osso da boca no `forja.json`).
 
 ### 4. Prévia com LibGodot (último item da Fase 3, no branch `claude/erethea-libgodot-preview`, PR a abrir)
+
+**Estado (23/11): PR #31 aberto**, revisado, falta o CI verde (veja "Estado em
+23/11"). O que ele traz: `modules/erethea_preview/` (`EretheaPreview` e
+`EretheaPreviewLoop`), `--erethea-preview=<glb>` com captura, troca de asset
+por arquivo de controle, `erethea/tests/preview/` e `erethea/tests/libgodot/`
+(programa C que carrega a biblioteca), workflow `erethea_preview.yml` (os jobs
+que compilam a biblioteca só rodam quando os arquivos ligados a ela mudam), e
+o pedido nº 9 para a Fornalha. O plano original segue para referência:
 
 Plano 2: "A LibGodot, que chegou na 4.6, permite embutir a engine em outro
 programa. A Fornalha pode mostrar o asset já com o renderizador da engine, do
@@ -203,11 +279,17 @@ Fornalha (a LibGodot abre a própria janela).
   de projeto `display/window/erethea/modern_title_bar`, desligada por padrão;
   o jogo que a liga desenha a própria barra. Documentada em `erethea/README.md`
   ("Janela moderna e barra de título") e testada no `erethea_window.yml`.
-- Canal de testes da atualização: opção no editor para receber prereleases
-  (as versões com traço já saem como prerelease).
+- ~~Canal de testes da atualização~~ (PR #27): configuração do editor
+  `erethea/update/prereleases`, desligada por padrão.
 - Geração de quadros (FSR 3.1 e DLSS): o plano cita "upscaling e geração de
   quadros"; hoje só há upscaling.
-- DLSS no Vulkan (hoje só Direct3D 12).
+- DLSS no Vulkan (hoje só Direct3D 12). Atenção: o Streamline da NVIDIA, no
+  Vulkan, precisa interceptar a criação da instância e do dispositivo Vulkan
+  (o `sl.interposer` no lugar do carregador, ou `slSetVulkanInfo` com as
+  extensões e recursos que ele pede), o que mexe no driver Vulkan da Godot
+  (`drivers/vulkan/`). Não é tarefa para sessão barata e não dá para provar sem
+  placa NVIDIA: faça com cuidado, desligado por padrão, e deixe a prova para o
+  teste final.
 - Compressão automática na importação dos assets da Fornalha (conferir se o
   importador da Fase 3 já liga a compressão VRAM certa).
 
@@ -231,6 +313,91 @@ comparado na cena de referência:
    Confira se o lavapipe do runner Linux e o WARP do Windows (DXR) têm ray
    tracing; se tiverem, o CI prova a imagem; se não, prova só o caminho sem
    ray tracing.
+
+   **Estado (23/11): sombras do sol num PR aberto** (branch
+   `claude/happy-dijkstra-gueto9`). Testado no lavapipe do contêiner: numa
+   cena simples (`erethea/tests/raytracing/shadows_scene`) as sombras caem no
+   lugar certo, presas ao que encosta no chão e suaves longe dele; na cena de
+   referência, com `--rt=shadows`, ficam no mesmo lugar das do mapa de sombra
+   (RMSE 2,5 a 3,5 de dia, só as bordas mudam). O que já está provado e
+   decidido:
+   - A base 4.8 tem a tubulação (experimental, Vulkan): `blas_create`/
+     `blas_build`, `tlas_create`/`tlas_build`, pipelines de ray tracing,
+     `hit_sbt_*`, `raytracing_list_*` e os recursos `SUPPORTS_RAY_QUERY` e
+     `SUPPORTS_RAYTRACING_PIPELINE`. O D3D12 com ray tracing ainda é um PR
+     aberto na Godot (#118654). A Godot não tem nenhum recurso de
+     renderização que use isso (nem sombras, nem reflexos, nem GI): a Erethea
+     é a primeira.
+   - O lavapipe do Ubuntu 24.04 (Mesa 25.2, o mesmo do CI) tem ray query e
+     pipeline de ray tracing. No contêiner do Claude Code dá para testar:
+     `sudo apt-get install -y mesa-vulkan-drivers vulkan-tools` e rodar com
+     `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s
+     "-screen 0 1280x720x24" bin/erethea... --path <projeto> --audio-driver
+     Dummy`. Um teste em GDScript (BLAS de um triângulo, TLAS, compute com
+     `#extension GL_EXT_ray_query : require` compilado pela Godot) deu os
+     acertos certos.
+   - Pegadinha da API: o `tlas_build` recusa instância com `hit_sbt_range == 0`
+     mesmo quando só se usa ray query (sem tabela de shaders). Use
+     `1 << 32` (um grupo, a partir do 0). Vale propor à Godot aceitar 0.
+   - Desenho: um `CompositorEffect` (`EretheaRayTracedShadows`, módulo
+     `modules/erethea_raytracing/`), como os efeitos de `erethea_post`: quem
+     quer adiciona ao `Compositor`, então fica desligado por padrão e não custa
+     nada a quem não usa. Ele roda em `PRE_OPAQUE` (depois da passada de
+     profundidade do Forward+), lança, de cada pixel, raios até o primeiro sol
+     (cone do tamanho do disco solar, `samples` raios) e grava a máscara
+     `erethea_rt`/`shadow_mask` (R8) nos buffers de renderização.
+   - Mudanças no núcleo (pequenas, todas com `// Erethea:`):
+     `RendererSceneRender` ganhou o pedido do efeito
+     (`erethea_request_ray_tracing(raio)`, válido no quadro e no seguinte) e a
+     lista de geometria; o `RendererSceneCull::_render_scene` junta, só quando
+     há pedido, a geometria num raio em volta da câmera (visível ou não, para
+     o que está fora da tela ainda fazer sombra) e entrega antes do
+     `render_scene`; o Forward+ liga a flag
+     `SCENE_DATA_FLAGS_USE_ERETHEA_RT_SHADOWS` quando há pedido e a máscara
+     existe, põe a máscara no binding 39 do conjunto 1 (branca quando não há)
+     e aplica `min(sombra, máscara)` na primeira luz direcional, depois da
+     opacidade da sombra (funciona com o mapa de sombra da luz desligado).
+   - No módulo: BLAS por malha (posições lidas uma vez pelo
+     `mesh_create_arrays_from_surface_data`, em float 32), TLAS por quadro com
+     as malhas sem esqueleto e as instâncias das MultiMesh (transformações
+     lidas do buffer uma vez por segundo, filtradas pelo raio), normal tirada
+     da profundidade, viés pela distância. Superfície de costas para o sol
+     (pela normal tirada da profundidade) fica com a máscara em 1 e a
+     iluminação cuida: escurecer ali fazia degraus nas faces de objetos low
+     poly (o problema do terminador).
+   - **Depois deste PR**: personagens com esqueleto (BLAS atualizada pela
+     pose) e partículas; reflexos e GI pelo mesmo caminho; a escolha por placa
+     (item 1) passa a ligar o efeito em placas com ray query; a prova de
+     velocidade na RTX fica para o teste final.
+   - **Próximo PR: personagens com esqueleto** (os da Fornalha são todos
+     assim). Já estudado em 23/11:
+     - Os vértices deformados pelo esqueleto (e pelas blend shapes) ficam em
+       `MeshStorage::MeshInstance::Surface::vertex_buffer[current_buffer]`,
+       gravados pelo compute `shaders/skeleton.glsl` em
+       `update_mesh_instances()`, no começo do quadro (antes do `PRE_OPAQUE`).
+       No 3D, as posições vêm primeiro, em float 32 (`index * vertex_stride`
+       palavras, normalmente 3), depois as normais e tangentes.
+     - Esse buffer é criado em `_mesh_instance_add_surface_buffer`
+       (`mesh_storage.cpp`) só com `BUFFER_CREATION_AS_STORAGE_BIT`. Mudança
+       de uma linha no núcleo (`// Erethea:`): acrescentar
+       `BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT`
+       quando o `RenderingDevice` tem ray query. E uma função pública na
+       `MeshStorage` (`// Erethea:`) que devolve o RID desse buffer, a contagem
+       e o passo dos vértices para (mesh instance, superfície), ou `RID()` se a
+       superfície não tem buffer próprio (`uniform_set[0]` nulo).
+     - `RenderGeometryInstanceBase::mesh_instance` é público: o módulo sabe
+       qual instância da lista do cull tem esqueleto. Os índices saem do buffer
+       próprio do módulo (lidos uma vez por malha, como hoje).
+     - BLAS por mesh instance, refeita todo quadro com `blas_build` (a API do
+       RD não tem atualização parcial). O `current_buffer` alterna quando há
+       vetores de movimento (TAA, FSR): guarde até duas BLAS por mesh instance,
+       pela RID do buffer, e recrie se a RID mudar. O grafo do RD cuida das
+       barreiras entre o compute do esqueleto e a montagem da BLAS.
+     - As posições estão no espaço da malha: a transformação da instância vai
+       na TLAS, como nas malhas paradas.
+     - Teste: na `erethea/tests/raytracing/shadows_scene`, uma malha com
+       esqueleto montada em GDScript (ArrayMesh com ossos e pesos e um
+       `Skeleton3D` girando um osso) e a sombra seguindo a pose.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
@@ -253,7 +420,12 @@ comparado na cena de referência:
    confira no repositório dela) e locomoção com o MotionBricks da NVIDIA
    (conferir a licença antes).
 9. **Efeitos de compositor** prontos: névoa de altura e raios de luz (pedido da
-   Fornalha).
+   Fornalha). **Raios de luz: feito no PR #32** (`EretheaLightShafts` em
+   `modules/erethea_post/`, `--post=shafts` e `--sun=front` na cena de
+   referência, passo próprio no CI). **Névoa de altura: não precisa de código**,
+   é a do `Environment` da Godot (`fog_enabled` + `fog_height_density`),
+   documentada no README. Falta a prova de velocidade na RX 580 (lista do teste
+   final).
 10. Teste de pronto no CI com o que der (WARP/lavapipe); a prova na RTX e na
     RX 580 entra na lista do teste final do Kaiky.
 
@@ -353,6 +525,13 @@ python3 erethea/tools/rebrand.py --check
 prek run --all-files                                     # estilo (ou pre-commit)
 ```
 
+Os builds do CI usam `dev_mode=yes` (aviso vira erro), o que o build acima não
+faz. Antes de subir C++, compile os arquivos mudados assim; os objetos ficam em
+`bin/obj/` (por exemplo
+`scons platform=linuxbsd target=editor dev_mode=yes accesskit=no bin/obj/modules/erethea_raytracing/`;
+para o template, `target=template_release` e o objeto `.template_release.`;
+para a precisão dupla, `precision=double` e `.editor.double.`).
+
 O CI (`.github/workflows/runner.yml`) roda as checagens de estilo, os builds de
 Linux e Windows, os testes da Godot e um workflow por recurso da Erethea
 (`erethea_*.yml`): marca, instalador, janela, cena de referência contra a Godot
@@ -381,13 +560,60 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
   Classe nova exposta pede o XML em `doc/classes` ou no `doc_classes` do
   módulo.
 
+## Como trabalhar com sessões em paralelo
+
+Pedido do Kaiky em 23/11: a sessão principal (Opus, esforço extra) coordena e
+revisa; tarefas bem delimitadas vão para sessões Sonnet, que custam menos da
+cota dele. Assim rendeu: PRs #26, #27, #29, #31 e #32 foram feitos por elas e
+revisados aqui antes do merge.
+
+- **Abrir**: ferramenta `create_session` do servidor `claude-code-remote`, com
+  `model: claude-sonnet-5-5`, `source_url` do repositório, `outcome_branch`
+  próprio (`claude/erethea-<tarefa>`) e tags `erethea`, `erethea-worker`.
+- **O que pôr nas instruções** (em português, completas, porque a sessão nova
+  não sabe nada): ler o `CLAUDE.md` e o `HANDOFF.md`; a tarefa com os
+  arquivos e as APIs já conferidos por você ("leia o código; não invente
+  API"); o que já existe na Fornalha (para não duplicar); recurso novo
+  desligado por padrão; código e commits em inglês com "Erethea:", trechos
+  em arquivos da Godot com `// Erethea:`; toda classe, propriedade ou
+  configuração nova (inclusive configuração do editor) precisa de doc no XML
+  (`doc/classes/` ou `doc_classes` do módulo), conferida com
+  `--doctool .` **sem** `--no-docbase`; teste que usa áudio precisa de
+  `[Audio]` no nome; os comandos de build e de teste (só `*Erethea*` e os
+  testes novos, para poupar cota); as pastas que outras sessões estão
+  mexendo; PR para `main` em português com os títulos do modelo, dizendo o
+  que foi testado e o que não; **não fazer merge**; acompanhar o CI até o
+  fim; avisar a sessão principal com `send_message` (número do PR, CI e um
+  resumo).
+- **Revisar** (sempre, antes do merge): `git diff origin/main...<branch>`;
+  mudanças em arquivos da Godot pequenas e marcadas; desligado por padrão;
+  cena de referência igual à da Godot com as configurações padrão; testes que
+  provam algo (que falhariam sem a mudança); depois de um `git merge` da
+  main no branch, confira que o diff de três pontos só tem o que você
+  revisou. Pequenos ajustes: peça à própria sessão (`send_message`).
+- **Merge**: só com o CI inteiro verde (os 32 checks, mais os novos);
+  `merge_method: merge`. Uma nova tentativa no máximo para as falhas
+  conhecidas (abaixo), nunca para outra coisa.
+- **Cota**: quando o limite de 5 horas acaba, todas as sessões param (aparece
+  "usage_limit_reached"). Quando voltar, mande `send_message` para cada uma
+  continuar de onde parou. No máximo duas sessões Sonnet de cada vez.
+- **Bom para Sonnet**: tarefas com modelo pronto no repositório (um efeito de
+  pós-processamento novo, uma opção de configuração, um passo de CI). **Faça
+  você**: o que mexe fundo no renderizador ou no driver (ray tracing, DLSS no
+  Vulkan, geometria densa) e o desenho de recursos novos.
+
 ## Falhas conhecidas do CI
 
-- Barra de título no Windows: o editor fechou uma vez com `0xC0000409` cerca de
-  10 s depois de abrir o projeto, duas vezes no mesmo artefato; um build novo
-  do mesmo código passou. O `title_bar_test.ps1` agora imprime o fim dos logs e
-  os eventos 1000/1001/1026 do Windows quando falha, então o log do job mostra o
-  módulo que caiu se acontecer de novo.
+- Barra de título no Windows: o editor fechou com `0xC0000409` cerca de 10 s
+  depois de abrir o `smoke_project`, duas vezes no mesmo artefato antes e de
+  novo em 23/11 (PR #29, que não mexe na janela); a nova tentativa passou. É um
+  "fast fail" (abort, parâmetro inválido do CRT ou estouro de pilha), que o
+  tratador de crash da Godot não vê, e o build do CI não tem PDB. Em 23/11 o
+  teste não achou os eventos do Windows porque olhava logo depois da queda;
+  agora espera até 30 s por eles, e o `erethea_window.yml` pede ao Windows um
+  minidump (LocalDumps) em `dumps/` no artefato `erethea-window-test`. Se
+  acontecer de novo, o evento 1000 diz o módulo e o deslocamento, e o 1001 o
+  código do fast fail; comece por aí (tarefa aberta).
 - Instalador, passo "Update silently": travou quatro vezes (duas antes do
   PR #23, duas em 23/11 mesmo com o limite de 4 minutos dele), sempre além do
   limite do passo e do job e sem log nenhum, nem dos passos anteriores; passou
@@ -398,9 +624,18 @@ no Windows o editor em janela usa ANGLE (`--rendering-driver opengl3_angle`).
   passo não o achava. Correção (PR #28): o instalador abre por ShellExecute,
   sem herdar nada do passo, o editor é procurado pelo caminho via
   `Win32_Process`, e tudo que a atualização abriu é fechado no fim (`finally`),
-  com a lista impressa no log. O job agora tem 20 minutos. Se travar de novo
-  mesmo assim, a hipótese caiu: aí a suspeita passa a ser a própria máquina
-  (o editor reaberto sem `--rendering-driver`, num executor sem placa de vídeo).
+  com a lista impressa no log. O job agora tem 20 minutos. **Não resolveu**:
+  em 23/11 travou de novo no PR #30, já com o #28 (no total, umas 4 em cada 10
+  execuções, antes e depois). Então é o próprio executor que para de
+  responder durante o passo (nem o limite do passo funciona), e não o script.
+  Experimento 2 (PR #30): o editor que o instalador reabre é fechado assim que
+  aparece, antes de montar a parte gráfica (ele abre com o renderizador padrão
+  num executor sem placa de vídeo; o teste da janela força o ANGLE por isso).
+  Conte as próximas execuções (a primeira, no próprio #30, passou; os PRs
+  #31 e #32 passaram com o script anterior): se não travar mais em umas 8, a
+  causa é essa inicialização gráfica; se travar, a suspeita passa ao instalador (o Restart
+  Manager do `/CLOSEAPPLICATIONS`, que pode querer fechar o Explorer, que
+  segura o ícone do `erethea.exe`).
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
   um build novo, suba um commit.
 

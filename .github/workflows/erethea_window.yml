@@ -30,6 +30,16 @@ jobs:
         shell: pwsh
         run: |
           $out = Join-Path $env:RUNNER_TEMP "erethea-window"
+          # The editor sometimes dies with a fast fail (0xC0000409), which its
+          # own crash handler doesn't see. Ask Windows for a minidump of it,
+          # which goes to the artifact with the logs.
+          $dumps = Join-Path $out "dumps"
+          New-Item -ItemType Directory -Force -Path $dumps | Out-Null
+          $key = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\erethea.windows.editor.x86_64.exe"
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpFolder -Value $dumps -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpCount -Value 5 -PropertyType DWord -Force | Out-Null
           ./erethea/tests/window/title_bar_test.ps1 `
             -Editor (Resolve-Path bin/erethea.windows.editor.x86_64.exe) `
             -Project (Resolve-Path erethea/tests/smoke_project) `
