@@ -418,6 +418,19 @@ comparado na cena de referência:
    arquivos `.github`). Na integração, deixe de fora o `.github` e o
    Aftermath, traga só o `thirdparty/streamline/` e o path tracer, e resolva
    os arquivos de renderização com os trechos `// Erethea:`.
+   Segunda tentativa (25/11, já com o #36 no `main`): o "Miscellaneous" é só
+   `.github`, `.gitignore` e pre-commit (fica de fora inteiro); o
+   "Dependencies" entra limpo; o "Pathtracer + DLSS" dá **33 arquivos em
+   conflito**, muitos que a Erethea nem tocou (`godot_shape_3d.h`,
+   `visual_shader.cpp`, `light_3d.*`, `material.cpp`, `mesh_library.cpp`,
+   `shader_preprocessor.*`, `particles_storage.cpp`, `texture_storage.*`...),
+   porque a base da NVIDIA está noutro ponto do `master`. **Decisão (25/11):
+   fica para depois do lançamento**, ou para quando a NVIDIA levar o path
+   tracer para a Godot (aí ele chega na junção da Godot sem custo). No
+   lançamento, as RTX usam o ray tracing da própria Erethea (sombras, item 2).
+   Se for retomar: refaça o cherry-pick sobre a base da Godot que a NVIDIA usou
+   (`c3e6b2c0`, merge do PR #119319) num branch à parte, e só depois junte
+   esse branch no `main`, resolvendo apenas os conflitos com a Erethea.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
 5. **Materiais em camadas** (terra, sujeira, molhado), pele com subsuperfície
    melhor (perfil de espalhamento por canal, mapa de espessura e sombra de
