@@ -211,6 +211,8 @@ static bool single_window = false;
 static bool editor = false;
 static bool project_manager = false;
 static bool cmdline_tool = false;
+// Erethea: --erethea-preview=<file> shows a glTF asset without a project, see modules/erethea_preview.
+static bool erethea_preview = false;
 static String locale;
 static String log_file;
 static bool show_help = false;
@@ -2045,6 +2047,11 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 		} else if (arg == "--" || arg == "++") {
 			adding_user_args = true;
+		} else if (arg.begins_with("--erethea-preview=")) {
+			// Erethea: The preview needs no project, so it is not the project manager either.
+			erethea_preview = true;
+			cmdline_tool = true;
+			main_args.push_back(arg);
 		} else {
 			main_args.push_back(arg);
 		}
@@ -4411,6 +4418,10 @@ int Main::start() {
 	MainLoop *main_loop = nullptr;
 	if (editor) {
 		main_loop = memnew(SceneTree);
+	}
+	if (erethea_preview && main_loop_type.is_empty()) {
+		// Erethea: The loop of the preview builds its own scene.
+		main_loop_type = "EretheaPreviewLoop";
 	}
 	if (main_loop_type.is_empty()) {
 		main_loop_type = GLOBAL_GET("application/run/main_loop_type");
