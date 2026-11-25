@@ -16,10 +16,22 @@ em minutos.
 *Erethea Engine is a 2D and 3D game engine based on Godot Engine. It opens
 Godot projects as they are. It is not affiliated with the Godot Foundation.*
 
+## Baixar
+
+O instalador do Windows (`erethea-setup-x86_64.exe`) está nos
+[releases](https://github.com/kaikyolf29-hub/-Erethea-Engine/releases). A
+versão atual é a **1.0.0**, baseada na Godot 4.8 beta 4. O instalador ainda
+não é assinado, então o Windows mostra o aviso do SmartScreen: clique em "Mais
+informações" e depois em "Executar assim mesmo". Depois de instalada, a
+Erethea avisa no gerenciador de projetos quando sai uma versão nova e se
+atualiza com um clique.
+
 ## Situação
 
-O projeto está na **fase 0 (fork e marca)**: código da Godot 4.8 beta 4,
-nome, logo, ícone, splash e instalador próprios, e CI de Windows e Linux.
+As cinco fases estão no `main` e saíram na 1.0.0, provadas no CI (Windows e
+Linux, com o Vulkan do lavapipe e o Direct3D 12 do WARP). A prova nas placas
+de vídeo de referência (RX 580 e RTX 4060 Ti ou 5060 Ti) e com a Fornalha 3D
+de verdade vem do teste no PC do criador. A assinatura do instalador fica para uma versão seguinte.
 
 | Fase | O que entrega | Pronto quando |
 | --- | --- | --- |

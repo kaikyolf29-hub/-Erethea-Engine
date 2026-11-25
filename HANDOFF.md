@@ -1,6 +1,6 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 e atualizado a cada PR (última vez em 25/11/2026). Uma sessão nova
+Escrito em 22/11/2026 e atualizado a cada PR (última vez em 25/11/2026, no lançamento da 1.0.0). Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -32,9 +32,16 @@ Na conta nova, as sessões do Claude Code desta conta (inclusive as sessões
 Sonnet que ajudavam em paralelo) não existem: os PRs abertos ficam no GitHub,
 e quem continua termina cada um (veja "Estado em 25/11", logo abaixo).
 
-## Estado em 25/11, fim da tarde (leia antes de tudo)
+## Estado em 25/11, noite: 1.0.0 lançada (leia antes de tudo)
 
 O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
+**A Erethea 1.0.0 saiu em 25/11**: release `v1.0.0`
+(https://github.com/kaikyolf29-hub/-Erethea-Engine/releases/tag/v1.0.0), com o
+`erethea-setup-x86_64.exe` (102,6 MB, SHA-256
+`233825ec8ce5fb47a6f1f714924435e752a050e3b677834ccf82e09196578ee0`), compilado
+do `main` em `f503067` pela rodada 45694563421 do `🔥 Erethea Release` (a
+compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele seguindo o
+`erethea/TESTE_DO_CRIADOR.md`.
 
 - **No `main`** (além do que a tabela das fases lista): #31 prévia com
   LibGodot (o 0xE0464645 era o fail fast do CoreMessaging, corrigido em
@@ -46,9 +53,9 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
   configurações da Erethea, #44 materiais do glTF que a Godot ignora, #46
   cascatas do sol no mundo da Fornalha, #47 texturas dos modelos da Fornalha
   comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
-  janela, #41 geometria densa (Fase 5).
-- **PRs abertos**: só o da opção *publish* do workflow de release (abaixo).
-  O #41 (geometria densa, Fase 5) entrou no `main` em 25/11. Regra: merge um
+  janela, #41 geometria densa (Fase 5), #52 opção *publish* do workflow de
+  release.
+- **PRs abertos**: nenhum. Regra para os próximos: merge um
   por vez, com o CI inteiro verde e conferindo conflito com o `main` antes;
   se conflitar, junte o `main`, valide o `doc/classes/ProjectSettings.xml` com
   `python3 -c "import xml.dom.minidom;xml.dom.minidom.parse('doc/classes/ProjectSettings.xml')"`
@@ -71,21 +78,26 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
     então o experimento 2 (fechar o editor reaberto antes da parte gráfica)
     não resolveu; a suspeita passa ao instalador (o Restart Manager do
     `/CLOSEAPPLICATIONS`). Detalhes em "Falhas conhecidas do CI".
-- **Próximos passos até o lançamento**: achar a causa do 0xC0000409 quando o
-  ProcDump pegar;
-  depois o item 9 da Fase 4 ("Lançamento"). **Decidido pelo Kaiky em 25/11:
-  versão `v1.0.0`, sem assinatura por enquanto (o Azure Artifact Signing não
-  aceita pessoa física no Brasil; a assinatura entra numa versão seguinte), e
-  o nome já conferido no INPI.** O ensaio do workflow `🔥 Erethea Release` à
-  mão (versão `1.0.0-rc.1`, não publica) rodou no `main` em 25/11. **A sessão
-  na nuvem não consegue enviar tags** (o proxy do git recusa com HTTP 403; só
-  branches passam), então o workflow ganhou a opção *publish*: rodado à mão no
-  `main` com a versão `1.0.0` e *publish* marcado, ele cria a tag `v1.0.0` no
-  commit compilado e publica o release (`erethea/README.md`, "Lançar uma
-  versão"). Depois do merge desse PR, rode-o assim (com a ferramenta
-  `actions_run_trigger`, método `run_workflow`, `ref` `main`), acompanhe até
-  aparecer o `erethea-setup-x86_64.exe` no release e avise o Kaiky para baixar
-  e seguir o `erethea/TESTE_DO_CRIADOR.md`.
+- **Lançamento (25/11)**: decidido pelo Kaiky: versão `v1.0.0`, sem
+  assinatura por enquanto (o Azure Artifact Signing não aceita pessoa física
+  no Brasil; a assinatura entra numa versão seguinte) e o nome já conferido no
+  INPI. **A sessão na nuvem não consegue enviar tags** (o proxy do git recusa
+  com HTTP 403; só branches passam), então o release sai pelo workflow
+  `🔥 Erethea Release` rodado à mão no `main` com a versão e *publish*
+  marcado (#52; `erethea/README.md`, "Lançar uma versão"; ferramenta
+  `actions_run_trigger`, método `run_workflow`, `ref` `main`). Ele cria a tag
+  no commit compilado e publica o release.
+- **Próximos passos**:
+  1. Esperar o relatório do teste do Kaiky (`erethea/TESTE_DO_CRIADOR.md`) e
+     corrigir o que ele achar, um PR por falha, em versões `1.0.x` lançadas do
+     mesmo jeito.
+  2. O 0xC0000409 do teste da janela, quando o ProcDump pegar (artefato
+     `erethea-window-test`), e o experimento 3 do travamento do instalador
+     (tirar o `/CLOSEAPPLICATIONS` do teste; "Falhas conhecidas do CI").
+  3. A assinatura do instalador, quando o Kaiky tiver a conta (SignPath
+     Foundation ou Certum; "Assinatura do instalador" no `erethea/README.md`).
+  4. Depois: path tracing da NVIDIA, reflexos e GI por ray tracing (Fase 4) e
+     a Godot 4.8 estável (item 10 de "O que fazer agora").
 - **Lições**: compile sempre com `dev_mode=yes` (sem ele, avisos que o CI
   trata como erro passam, e trocar refaz o build inteiro, 23 min). Arquivos só
   do Windows também compilam aqui com o MinGW. Para provar que um teste pega a
@@ -139,7 +151,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | Fase | Pronto quando | Estado |
 | --- | --- | --- |
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
-| 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). Falta só a assinatura (no lançamento) |
+| 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). A assinatura fica para uma versão depois da 1.0.0 |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
 | 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Pronta (25/11): MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24), bloco de som (#25, #29; a boca é da Fornalha) e prévia com LibGodot (#31). A prova com a Fornalha de verdade é do teste final |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Pronta no CI (25/11): com ray tracing no lavapipe (sombras do sol e dos personagens com esqueleto, #34 e #35) e sem ele no WARP, igual à sem a opção (#48). No `main` também: raios de luz (#32), escolha por placa (#36), sombra de contato (#37, #45), terreno (#38, #42, #50), pele (#39), cabelo fio a fio (#40), materiais do glTF (#44) e cascatas (#46). Depois do lançamento: path tracing da NVIDIA, reflexos e GI por ray tracing. A prova na RTX e na RX 580 é do teste final |
@@ -610,6 +622,9 @@ hierarquia contínua de LOD e streaming do disco (itens 1 a 3 acima).
 4. Tag `v1.0.0` (ou a versão que o Kaiky quiser) e o release com o
    instalador: da nuvem, pelo workflow `🔥 Erethea Release` rodado à mão no
    `main` com *publish* marcado. Só então avise o Kaiky para baixar e testar.
+
+Feito em 25/11: os itens 1, 3 e 4 (release `v1.0.0`). O item 2 fica para uma
+versão seguinte, sem assinatura por enquanto.
 
 ### 10. Godot 4.8 estável (depois do lançamento)
 
