@@ -30,6 +30,7 @@
 
 #include "register_types.h"
 
+#include "erethea_contact_shadows.h"
 #include "erethea_ray_traced_shadows.h"
 
 #include "core/object/class_db.h"
@@ -37,11 +38,13 @@
 void initialize_erethea_raytracing_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		GDREGISTER_CLASS(EretheaRayTracedShadows);
+		GDREGISTER_CLASS(EretheaContactShadows);
 	}
 }
 
 void uninitialize_erethea_raytracing_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		EretheaRayTracedShadows::finish();
+		EretheaContactShadows::finish();
 	}
 }

@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "../erethea_contact_shadows.h"
 #include "../erethea_ray_traced_shadows.h"
 
 #include "tests/test_macros.h"
@@ -62,6 +63,33 @@ TEST_CASE("[Modules][EretheaRayTracing] Ray traced shadows defaults and ranges")
 		CHECK(shadows->get_samples() == EretheaRayTracedShadows::MAX_SAMPLES);
 		shadows->set_normal_bias(2.0);
 		CHECK(shadows->get_normal_bias() == doctest::Approx(0.5));
+	}
+}
+
+TEST_CASE("[Modules][EretheaRayTracing] Contact shadows defaults and ranges") {
+	Ref<EretheaContactShadows> contact;
+	contact.instantiate();
+
+	SUBCASE("Defaults: short rays, a few steps") {
+		CHECK(contact->get_length() == doctest::Approx(0.5));
+		CHECK(contact->get_thickness() == doctest::Approx(0.2));
+		CHECK(contact->get_steps() == 16);
+		CHECK(contact->get_normal_bias() == doctest::Approx(0.01));
+		// It reads the resolved depth, before the opaque pass.
+		CHECK(contact->get_access_resolved_depth());
+	}
+
+	SUBCASE("Values are kept in their ranges") {
+		contact->set_length(0.0);
+		CHECK(contact->get_length() == doctest::Approx(0.01));
+		contact->set_thickness(-1.0);
+		CHECK(contact->get_thickness() == doctest::Approx(0.01));
+		contact->set_steps(1);
+		CHECK(contact->get_steps() == 4);
+		contact->set_steps(1000);
+		CHECK(contact->get_steps() == EretheaContactShadows::MAX_STEPS);
+		contact->set_normal_bias(2.0);
+		CHECK(contact->get_normal_bias() == doctest::Approx(0.5));
 	}
 }
 
