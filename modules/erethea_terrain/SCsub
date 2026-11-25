@@ -10,4 +10,8 @@ module_obj = []
 
 env_erethea_terrain.add_source_files(module_obj, "*.cpp")
 
+# The editor plugin that sculpts and paints.
+if env.editor_build:
+    env_erethea_terrain.add_source_files(module_obj, "editor/*.cpp")
+
 env.modules_sources += module_obj

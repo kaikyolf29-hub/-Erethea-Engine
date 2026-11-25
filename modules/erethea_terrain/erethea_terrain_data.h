@@ -32,9 +32,11 @@
 
 #include "core/io/image.h"
 #include "core/io/resource.h"
+#include "core/math/rect2i.h"
 #include "core/math/vector2.h"
 #include "core/math/vector2i.h"
 #include "core/math/vector3.h"
+#include "core/variant/dictionary.h"
 
 // The terrain's height map and material control map.
 // A new one has no maps: call create(), or set the height map.
@@ -110,6 +112,16 @@ public:
 	// To call after changing the maps by their vertices, to update the height
 	// range and tell the nodes that draw the data.
 	void notify_maps_changed();
+	// A faster notify_maps_changed() for a change that stays inside p_rect (in
+	// vertices): the height range only grows, which is the right range or a
+	// larger one. Call notify_maps_changed() when the changes are done.
+	void notify_region_changed(const Rect2i &p_rect);
+
+	// The heights and the material map of the vertices in p_rect (cut to the
+	// maps), as a dictionary with the "rect", the "height" image and the
+	// "control" image. For undo: set_region() puts them back where they were.
+	Dictionary get_region(const Rect2i &p_rect) const;
+	void set_region(const Rect2i &p_rect, const Dictionary &p_region);
 
 	EretheaTerrainData();
 };

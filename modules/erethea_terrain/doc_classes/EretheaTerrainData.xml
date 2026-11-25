@@ -73,6 +73,13 @@
 				Returns the normal of the surface at the point ([param x], [param z]), from the heights one vertex spacing around it. At the edge of the terrain it uses the heights on the side that exists. Outside of the terrain it returns the normal of the nearest edge.
 			</description>
 		</method>
+		<method name="get_region" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="rect" type="Rect2i" />
+			<description>
+				Returns a copy of the vertices inside [param rect] (in vertices, cut to the maps) as a dictionary: [code]"rect"[/code] is the [Rect2i] that was cut, [code]"height"[/code] is the [Image] of its heights and [code]"control"[/code] the [Image] of its materials. [method set_region] puts them back. This is what the editor keeps for undo.
+			</description>
+		</method>
 		<method name="get_resolution" qualifiers="const">
 			<return type="Vector2i" />
 			<description>
@@ -107,6 +114,13 @@
 				Call it after changing the maps vertex by vertex with [method set_vertex_height] or [method set_control]. It updates [method get_height_range] and emits [signal Resource.changed], which makes the [EretheaTerrain3D] that uses this data draw it again and rebuild its collision.
 			</description>
 		</method>
+		<method name="notify_region_changed">
+			<return type="void" />
+			<param index="0" name="rect" type="Rect2i" />
+			<description>
+				Like [method notify_maps_changed], for a change that stays inside [param rect] (in vertices): it only scans that area, so [method get_height_range] can grow but doesn't shrink. It is for sculpting, where it is called at every step. Call [method notify_maps_changed] when done.
+			</description>
+		</method>
 		<method name="set_control">
 			<return type="void" />
 			<param index="0" name="vertex" type="Vector2i" />
@@ -115,6 +129,14 @@
 			<param index="3" name="blend" type="float" />
 			<description>
 				Sets the materials of [param vertex]: [param base] and [param overlay] are indices from 0 to 31, and [param blend] is the weight of the overlay over the base, from 0 to 1. Values outside of these ranges are clamped. It doesn't emit [signal Resource.changed], call [method notify_maps_changed] when done.
+			</description>
+		</method>
+		<method name="set_region">
+			<return type="void" />
+			<param index="0" name="rect" type="Rect2i" />
+			<param index="1" name="region" type="Dictionary" />
+			<description>
+				Puts the [code]"height"[/code] and [code]"control"[/code] images of [param region] (as [method get_region] makes them) in the maps, with their top left corner at the vertex [code]rect.position[/code], and calls [method notify_maps_changed]. The images have to fit in the maps.
 			</description>
 		</method>
 		<method name="set_vertex_height">

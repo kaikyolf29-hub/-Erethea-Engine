@@ -35,11 +35,21 @@
 
 #include "core/object/class_db.h"
 
+#ifdef TOOLS_ENABLED
+#include "editor/erethea_terrain_editor_plugin.h"
+#include "editor/plugins/editor_plugin.h"
+#endif // TOOLS_ENABLED
+
 void initialize_erethea_terrain_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		GDREGISTER_CLASS(EretheaTerrainData);
 		GDREGISTER_CLASS(EretheaTerrain3D);
 	}
+#ifdef TOOLS_ENABLED
+	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+		EditorPlugins::add_by_type<EretheaTerrainEditorPlugin>();
+	}
+#endif // TOOLS_ENABLED
 }
 
 void uninitialize_erethea_terrain_module(ModuleInitializationLevel p_level) {

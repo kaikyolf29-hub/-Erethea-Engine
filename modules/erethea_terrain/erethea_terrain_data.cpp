@@ -291,6 +291,52 @@ void EretheaTerrainData::notify_maps_changed() {
 	emit_changed();
 }
 
+void EretheaTerrainData::notify_region_changed(const Rect2i &p_rect) {
+	ERR_FAIL_COND(height_map.is_null());
+	const Rect2i rect = p_rect.intersection(Rect2i(Vector2i(), get_resolution()));
+	const float *heights = reinterpret_cast<const float *>(height_map->ptr());
+	const int width = height_map->get_width();
+	for (int z = rect.position.y; z < rect.position.y + rect.size.y; z++) {
+		for (int x = rect.position.x; x < rect.position.x + rect.size.x; x++) {
+			min_height = MIN(min_height, real_t(heights[z * width + x]));
+			max_height = MAX(max_height, real_t(heights[z * width + x]));
+		}
+	}
+#ifdef TOOLS_ENABLED
+	// So that the editor saves the resource.
+	set_edited(true);
+#endif // TOOLS_ENABLED
+	emit_changed();
+}
+
+Dictionary EretheaTerrainData::get_region(const Rect2i &p_rect) const {
+	Dictionary region;
+	ERR_FAIL_COND_V(height_map.is_null() || control_map.is_null(), region);
+	const Rect2i rect = p_rect.intersection(Rect2i(Vector2i(), get_resolution()));
+	ERR_FAIL_COND_V_MSG(rect.size.x <= 0 || rect.size.y <= 0, region, "The region is outside of the maps.");
+	region["rect"] = rect;
+	region["height"] = height_map->get_region(rect);
+	region["control"] = control_map->get_region(rect);
+	return region;
+}
+
+void EretheaTerrainData::set_region(const Rect2i &p_rect, const Dictionary &p_region) {
+	ERR_FAIL_COND(height_map.is_null() || control_map.is_null());
+	Ref<Image> height = p_region.get("height", Variant());
+	Ref<Image> control = p_region.get("control", Variant());
+	ERR_FAIL_COND_MSG(height.is_null() || control.is_null(), "The region needs a \"height\" and a \"control\" image.");
+	ERR_FAIL_COND_MSG(height->get_size() != control->get_size(), "The images of the region have different sizes.");
+	ERR_FAIL_COND_MSG(height->get_format() != Image::FORMAT_RF || control->get_format() != Image::FORMAT_RGBA8, "The images of the region have the wrong formats.");
+	const Rect2i bounds(Vector2i(), get_resolution());
+	ERR_FAIL_COND_MSG(!bounds.encloses(Rect2i(p_rect.position, height->get_size())), "The region doesn't fit in the maps.");
+	height_map->blit_rect(height, Rect2i(Vector2i(), height->get_size()), p_rect.position);
+	control_map->blit_rect(control, Rect2i(Vector2i(), control->get_size()), p_rect.position);
+	notify_maps_changed();
+#ifdef TOOLS_ENABLED
+	set_edited(true);
+#endif // TOOLS_ENABLED
+}
+
 void EretheaTerrainData::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("create", "size", "vertex_spacing", "height"), &EretheaTerrainData::create, DEFVAL(1.0), DEFVAL(0.0));
 
@@ -318,6 +364,9 @@ void EretheaTerrainData::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_control_blend", "vertex"), &EretheaTerrainData::get_control_blend);
 
 	ClassDB::bind_method(D_METHOD("notify_maps_changed"), &EretheaTerrainData::notify_maps_changed);
+	ClassDB::bind_method(D_METHOD("notify_region_changed", "rect"), &EretheaTerrainData::notify_region_changed);
+	ClassDB::bind_method(D_METHOD("get_region", "rect"), &EretheaTerrainData::get_region);
+	ClassDB::bind_method(D_METHOD("set_region", "rect", "region"), &EretheaTerrainData::set_region);
 
 	// The size is only for the inspector: what is saved is the maps.
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "size", PROPERTY_HINT_RANGE, "2,8192,0.1,or_greater,suffix:m", PROPERTY_USAGE_EDITOR), "set_size", "get_size");
