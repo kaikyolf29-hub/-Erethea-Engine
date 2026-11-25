@@ -118,6 +118,29 @@ Ainda não testado nas placas de referência: a escolha do Automático (a RX 580
 deve cair em Balanced, e a RTX 4060 Ti ou 5060 Ti em Cinematic) e o FPS de
 cada preset.
 
+### Escolha por placa
+
+Com o preset `Automatic`, a Erethea escolhe pela placa de quem joga, no PC
+dele (no jogo exportado também):
+
+| Placa | Preset | Sombras do sol | Upscaler (com `Temporal Upscaler` = `Automatic`) |
+| --- | --- | --- | --- |
+| Integrada, sem placa ou Compatibility | Low | Mapa de sombra | — |
+| Dedicada sem ray tracing (RX 580) | Balanced | Mapa de sombra | AMD FSR (FSR 3.1) |
+| Dedicada com ray tracing, AMD | Cinematic | Ray tracing + mapa de sombra | AMD FSR (FSR 4 nas que suportam) |
+| Dedicada com ray tracing, NVIDIA (RTX) | Cinematic | Ray tracing + mapa de sombra | DLSS (com os arquivos da NVIDIA), senão AMD FSR |
+| Dedicada com ray tracing, Intel (Arc) | Cinematic | Ray tracing + mapa de sombra | XeSS, senão AMD FSR |
+
+Projetos novos criados na Erethea já começam com o preset e o upscaler em
+`Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
+(`Disabled`, `Automatic`, que é o padrão e segue o preset, ou `Enabled`, em
+toda placa com ray tracing) e `rendering/erethea/temporal_upscaler` com um
+upscaler fixo. Projetos da Godot ficam com o preset `Disabled`, então nada
+muda neles. As sombras por ray tracing entram no `Compositor` de cada
+`WorldEnvironment` (criado se não houver) e das câmeras que têm um próprio; uma
+cena sem `WorldEnvironment` nem compositor de câmera não as recebe. O path
+tracing da NVIDIA, quando entrar, vai para a linha das RTX.
+
 ## Pós-processamento
 
 O código fica em `modules/erethea_post/`. Tudo começa desligado.
@@ -264,6 +287,35 @@ streaming das páginas de pedaços do disco. O que já existe resolve o "pronto
 quando" da Fase 5 (um modelo de milhões de polígonos roda sem LOD feito à
 mão); a medida numa placa de verdade fica para o teste final.
 
+## Pele
+
+A pele usa a subsuperfície da Godot (Forward+), com três partes:
+
+- **Perfil por canal**: no material (`StandardMaterial3D`), *Subsurf Scatter*
+  ligado com *Skin Mode*. A Godot espalha o vermelho mais longe que o verde e
+  o azul, com o perfil da pele de Jimenez.
+- **Mapa de espessura**: *Transmittance* ligado, com a textura de espessura
+  (mais clara onde a pele é fina, como as orelhas e as narinas), a cor da luz
+  que atravessa, a profundidade e o reforço.
+- **Seguir a superfície (Erethea)**: a configuração do projeto
+  `rendering/erethea/subsurface_scattering/follow_surface` (em metros; 0,03
+  serve à pele humana). Sem ela, o filtro da Godot deixa a luz de uma pele
+  vazar para outra numa profundidade diferente (a mão na frente do rosto, o
+  nariz sobre a bochecha), com um halo claro na borda. Com ela, as amostras
+  mais longe em profundidade que essa distância não espalham luz no pixel. O
+  padrão é 0, que é o filtro da Godot; vale ao abrir o projeto.
+
+Teste: `erethea/tests/sss_scene` (uma pele iluminada na frente de outra, no
+escuro, a 1 m). Com a configuração do projeto (5 cm), a luz não vaza; com
+`--expect=bleed` e a configuração em 0 (por um `override.cfg`), vaza. O CI
+roda os dois. Imprime `ERETHEA_SSS_OK`.
+
+Pedido para a Fornalha (o Kaiky cola no chat dela):
+
+```text
+Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). No project.godot dos jogos, ponha rendering/erethea/subsurface_scattering/follow_surface=0.03 na seção [rendering] (a Godot ignora). Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
+```
+
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por
@@ -298,6 +350,10 @@ Erethea avisa e usa o FSR 2.2. Sem os arquivos, em outro
 sistema, com OpenGL ou em XR, também volta para o FSR 2.2 com um aviso. Os arquivos da AMD usam o runtime do Visual C++
 2015-2022, que quase todo PC com jogos já tem; sem ele, também volta para o
 FSR 2.2.
+
+Com `Temporal Upscaler` = `Automatic`, a Erethea escolhe pelo fabricante da
+placa, com o jogo rodando: DLSS na NVIDIA e XeSS na Intel quando podem rodar, e
+AMD FSR nas outras e quando aqueles não podem; onde nenhum roda, o FSR 2.2.
 
 Para ver na cena de referência, acrescente `--upscaler=amd_fsr` (ou `fsr2`)
 depois do `--`; ela renderiza a 67% e reconstrói na resolução da janela.
@@ -839,6 +895,85 @@ para o teste final no PC do criador.
 python erethea/tests/assistant/test_assistant.py bin/erethea.linuxbsd.editor.x86_64
 ```
 
+## Terreno
+
+O `EretheaTerrain3D` é um terreno nativo da Erethea, um pedido da Fornalha 3D
+(que não tem terreno): um mapa de altura desenhado por clipmap, com até 32
+materiais misturados, detiling e triplanar, e colisão. É um nó novo (e um
+recurso, `EretheaTerrainData`): quem não o usa não muda em nada. O código fica
+em `modules/erethea_terrain/`, e o Terrain3D (MIT, TokisanGames) serviu só de
+referência de desenho.
+
+**Como usar.** Num script ou numa cena:
+
+```gdscript
+var data := EretheaTerrainData.new()
+data.create(Vector2(512, 512), 1.0)            # tamanho em metros e espaço entre os vértices
+data.set_vertex_height(Vector2i(256, 256), 12.0)
+data.set_control(Vector2i(256, 256), 0, 3, 0.5) # material base 0, material de cima 3, metade e metade
+data.notify_maps_changed()                      # recalcula a altura mínima/máxima e a colisão
+
+var terrain := EretheaTerrain3D.new()
+terrain.data = data
+terrain.albedo_height_textures = albedo         # Texture2DArray: albedo em RGB, altura em A
+terrain.normal_roughness_textures = normais     # Texture2DArray: normal em RG, rugosidade em A
+terrain.detiling = true
+add_child(terrain)
+```
+
+O recurso (`data`) salva e carrega como `.res` ou `.tres`. O terreno fica
+centrado na origem do nó, e a altura em `(x, z)` vem de
+`data.get_height(x, z)` (interpolação bilinear; `NAN` fora do terreno) e a
+normal de `data.get_normal(x, z)`.
+
+**O que tem o recurso.**
+
+| Parte | Formato |
+| --- | --- |
+| Mapa de altura (`height_map`) | `Image` em `FORMAT_RF`, um float em metros por vértice, de 2×2 a 8192×8192 vértices. O vértice `(x, z)` fica em `((x − (largura − 1)/2) · vertex_spacing, altura, (z − (profundidade − 1)/2) · vertex_spacing)`, igual ao `HeightMapShape3D` |
+| Mapa de controle (`control_map`) | `Image` em `FORMAT_RGBA8` do mesmo tamanho. Por vértice: R = índice do material base (0 a 31), G = índice do material de cima (0 a 31), B = peso do de cima sobre o base (0 a 255), A reservado (255). Padrão: tudo material 0 |
+
+**O que o nó faz.**
+
+| Propriedade | O que faz |
+| --- | --- |
+| `clipmap_levels` (8), `mesh_size` (64) | Desenho por clipmap: anéis de malhas em grade, centrados na câmera atual do viewport (no editor, a câmera do editor), cada um com o dobro do espaçamento do anterior, presos aos vértices do mapa e atualizados quando a câmera anda. O nível de dentro tem o espaçamento do mapa. O vértice lê a altura do mapa de altura; o nível de fora não desenha o buraco onde o de dentro desenha, e uma saia em volta de cada nível esconde as frestas entre eles. A caixa de culling segue as alturas do mapa. O `mesh_size` é múltiplo de 4 |
+| `albedo_height_textures`, `normal_roughness_textures` | Dois `Texture2DArray` de até 32 camadas (uma por material): albedo + altura (RGB + A; a altura decide qual material aparece na borda da mistura) e normal + rugosidade (RG + A, convenção OpenGL) |
+| `uv_scale` (0,1) | Quantas vezes a textura repete por metro |
+| `detiling` (desligado) | Quebra a repetição: cada ladrilho ganha rotação e deslocamento aleatórios, e os 4 ladrilhos mais perto se misturam. Amostra 4 vezes mais |
+| `triplanar` (desligado), `triplanar_slope` (45°) | Nas encostas mais íngremes que o ângulo, projeta a textura pelos lados em vez de por cima, para ela não esticar |
+| `collision_enabled`, `collision_layer`, `collision_mask` | Colisão por um `HeightMapShape3D` feito do mapa de altura, num corpo interno (não salvo na cena), refeito quando o recurso muda. Um raio acha o chão na altura desenhada |
+
+As normais da superfície saem do mapa de altura. O shader (código no módulo,
+`erethea_terrain_shader.cpp`) mistura o material base e o de cima pelo peso do
+mapa de controle (as camadas vêm do vértice mais perto, o peso é interpolado).
+
+**O que foi testado.** Testes de unidade (`--test --test-case="*EretheaTerrain*"`):
+altura bilinear em pontos conhecidos, normais, mapa de controle, salvar e
+carregar o recurso, o encaixe do clipmap na grade (função pura), a malha de cada
+nível e a forma de colisão do nó. A cena `erethea/tests/terrain` monta um terreno
+de morros com dois materiais, dispara raios em pontos conhecidos e confere a
+altura, captura a tela e confere que ela não é de uma cor só; o workflow
+`erethea_terrain.yml` roda isso no Linux com lavapipe e sobe a captura como
+artefato `erethea-terrain`.
+
+```sh
+bin/erethea.linuxbsd.editor.x86_64 --headless --test --test-case="*EretheaTerrain*"
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 1280x720x24" \
+  bin/erethea.linuxbsd.editor.x86_64 --path erethea/tests/terrain --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/terrain.png"
+```
+
+**O que ainda falta.**
+
+- Pintura no editor (esculpir a altura e pintar os materiais), com desfazer: parte 2.
+- Importar o blockout da Fornalha como terreno: parte 3.
+- Provar numa placa de verdade (RX 580 e RTX 4060 Ti/5060 Ti): os testes rodam
+  no lavapipe, na CPU, e dizem se desenha e colide, não quão rápido.
+- A mistura usa o material do vértice mais perto e interpola só o peso; a
+  borda entre dois pares de materiais diferentes é recortada na resolução do
+  mapa de controle.
+- O editor ainda não foi aberto com o nó: o seguimento da câmera do editor
+  (`EditorInterface.get_editor_viewport_3d()`) não foi testado.
 ## Prévia para a Fornalha
 
 A Fornalha pode mostrar o asset que gerou **já com o renderizador da Erethea**,
