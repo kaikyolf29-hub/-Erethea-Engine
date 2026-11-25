@@ -3807,6 +3807,10 @@ void RenderingServer::init() {
 	GLOBAL_DEF(PropertyInfo(Variant::INT, "rendering/environment/subsurface_scattering/subsurface_scattering_quality", PROPERTY_HINT_ENUM, "Disabled (Fastest),Low (Fast),Medium (Average),High (Slow)"), 1);
 	GLOBAL_DEF(PropertyInfo(Variant::FLOAT, "rendering/environment/subsurface_scattering/subsurface_scattering_scale", PROPERTY_HINT_RANGE, "0.001,1,0.001"), 0.05);
 	GLOBAL_DEF(PropertyInfo(Variant::FLOAT, "rendering/environment/subsurface_scattering/subsurface_scattering_depth_scale", PROPERTY_HINT_RANGE, "0.001,1,0.001"), 0.01);
+	// Erethea: Subsurface scattering that follows the surface: samples farther
+	// in depth than this (in meters) don't scatter into the pixel. 0 keeps
+	// Godot's behavior.
+	GLOBAL_DEF(PropertyInfo(Variant::FLOAT, "rendering/erethea/subsurface_scattering/follow_surface", PROPERTY_HINT_RANGE, "0,0.5,0.001,suffix:m"), 0.0);
 
 	GLOBAL_DEF_RST(PropertyInfo(Variant::INT, "rendering/limits/global_shader_variables/buffer_size", PROPERTY_HINT_RANGE, "1024,1048576,1"), 65536);
 

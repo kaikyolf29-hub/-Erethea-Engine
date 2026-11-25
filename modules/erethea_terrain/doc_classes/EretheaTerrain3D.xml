@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaTerrain3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		A terrain drawn by a clipmap from a height map, with up to 32 blended materials.
+	</brief_description>
+	<description>
+		An [EretheaTerrain3D] draws the [member data] ([EretheaTerrainData]): a height map and, for each vertex, two of up to 32 materials to blend. It is part of the Erethea Engine, and a node that Godot projects don't have: nothing changes for projects that don't use it.
+		[b]Drawing.[/b] The terrain is drawn as a clipmap: [member clipmap_levels] square grids of [member mesh_size] quads, centered on the current camera of the viewport (in the editor, the editor's camera) and nested one inside the other. The finest has the data's vertex spacing and each next level doubles it, so the vertices are dense near the camera and far apart in the distance, and the ground is as far as the last level reaches. The grids move with the camera, always on the vertices of the data. The vertex shader reads the height from the height map, and the box used to cull the terrain follows the heights of the data.
+		[b]Materials.[/b] The materials are two [Texture2DArray], one layer per material: [member albedo_height_textures] has the albedo in RGB and the height in A (used to decide which material shows at the edge of a blend), and [member normal_roughness_textures] has the normal map in RG (OpenGL convention, +Y up, the blue channel is not used) and the roughness in A. Both can have up to 32 layers. Without them, the terrain is a flat gray. The normals of the surface come from the height map.
+		The shader blends the base and the overlay material of each vertex, by the weight of the control map (see [EretheaTerrainData]). [member detiling] breaks the repetition of the textures with a random rotation and offset for each tile, and [member triplanar] projects the textures from the sides on the slopes steeper than [member triplanar_slope], so that they don't stretch.
+		[b]Collision.[/b] The terrain has a body with a [HeightMapShape3D] made from the heights of the data, so rays and physics bodies find the ground at the heights that are drawn. It is rebuilt when the data changes. The body is internal to the node: it is not saved in the scene.
+		[codeblock]
+		var data = EretheaTerrainData.new()
+		data.create(Vector2(512, 512), 1.0)
+		# ... set heights and materials, then data.notify_maps_changed()
+
+		var terrain = EretheaTerrain3D.new()
+		terrain.data = data
+		terrain.albedo_height_textures = albedo_array
+		terrain.detiling = true
+		add_child(terrain)
+		[/codeblock]
+		[b]Not done yet:[/b] painting the heights and materials in the editor, and importing a Fornalha blockout as a terrain.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_level_centers" qualifiers="const">
+			<return type="PackedVector2Array" />
+			<description>
+				Returns the center of each level of the clipmap, the finest first, as x and z in the space of the terrain. The center of each level is on a vertex of the next level, and follows the camera.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="albedo_height_textures" type="Texture2DArray" setter="set_albedo_height_textures" getter="get_albedo_height_textures">
+			One layer per material, with the albedo in RGB and the height in A. The height decides which of two blended materials shows through at the edge of the blend: set A to the same value for a plain blend. At most 32 layers.
+		</member>
+		<member name="clipmap_levels" type="int" setter="set_clipmap_levels" getter="get_clipmap_levels" default="8">
+			The number of nested grids, from 1 to 16. Each doubles the spacing and the size of the one before, so the terrain is drawn up to [code]mesh_size / 2 * vertex_spacing * 2^(clipmap_levels - 1)[/code] meters from the camera.
+		</member>
+		<member name="collision_enabled" type="bool" setter="set_collision_enabled" getter="is_collision_enabled" default="true">
+			If [code]true[/code], the terrain has a collision shape.
+		</member>
+		<member name="collision_layer" type="int" setter="set_collision_layer" getter="get_collision_layer" default="1">
+			The physics layers that the terrain is in.
+		</member>
+		<member name="collision_mask" type="int" setter="set_collision_mask" getter="get_collision_mask" default="1">
+			The physics layers that the terrain scans for collisions.
+		</member>
+		<member name="data" type="EretheaTerrainData" setter="set_data" getter="get_data">
+			The height map and the materials of the terrain. Nothing is drawn without it.
+		</member>
+		<member name="detiling" type="bool" setter="set_detiling" getter="is_detiling" default="false">
+			If [code]true[/code], each tile of the textures gets a random rotation and offset, and the 4 nearest tiles are blended, so the repetition of the textures is not seen. It makes the shader sample the textures 4 times as much.
+		</member>
+		<member name="mesh_size" type="int" setter="set_mesh_size" getter="get_mesh_size" default="64">
+			The number of quads on each side of a level of the clipmap, from 8 to 256. It is a multiple of 4: other values are rounded down. A higher value makes the vertices denser at every distance, and costs more.
+		</member>
+		<member name="normal_roughness_textures" type="Texture2DArray" setter="set_normal_roughness_textures" getter="get_normal_roughness_textures">
+			One layer per material, with the normal map in RG (OpenGL convention, +Y up) and the roughness in A. At most 32 layers.
+		</member>
+		<member name="triplanar" type="bool" setter="set_triplanar" getter="is_triplanar" default="false">
+			If [code]true[/code], the slopes steeper than [member triplanar_slope] get their textures from the sides instead of from above, which avoids the stretching of the top projection on cliffs. It makes the shader sample the textures up to 3 times as much on the slopes.
+		</member>
+		<member name="triplanar_slope" type="float" setter="set_triplanar_slope" getter="get_triplanar_slope" default="45.0">
+			The slope, in degrees from the horizontal, from which the textures are projected from the sides, when [member triplanar] is on. The change is gradual around this angle.
+		</member>
+		<member name="uv_scale" type="float" setter="set_uv_scale" getter="get_uv_scale" default="0.1">
+			How many times the textures repeat per meter: with 0.1, a texture covers 10 meters.
+		</member>
+	</members>
+	<constants>
+		<constant name="MAX_LAYERS" value="32">
+			The most layers that the material textures can have.
+		</constant>
+	</constants>
+</class>
