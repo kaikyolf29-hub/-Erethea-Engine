@@ -32,7 +32,9 @@ Fornalha) basta numa placa, de preferência a RTX.
 2. Monte uma cena 3D simples (chão, cubo, `DirectionalLight3D`,
    `WorldEnvironment`) e rode com F5.
 3. Na saída do editor, com *Verbose* ligado (ou `--verbose`), confira:
-   - RX 580: preset `Balanced`, sem sombras por ray tracing.
+   - RX 580: preset `Balanced`, sem sombras por ray tracing, com a sombra de
+     contato (`EretheaContactShadows` aparece no `Compositor` do
+     `WorldEnvironment` enquanto o jogo roda).
    - RTX: preset `Cinematic` e sombras por ray tracing ligadas
      (`EretheaRayTracedShadows` aparece no `Compositor` do `WorldEnvironment`
      enquanto o jogo roda).
@@ -57,14 +59,20 @@ Fornalha) basta numa placa, de preferência a RTX.
 4. Na RX 580, o mesmo comando avisa uma vez que não há ray tracing e desenha
    com o mapa de sombra, sem erro.
 
-## 6. Sombra de contato e pele (as duas placas)
+## 6. Sombra de contato, pele e materiais do glTF (as duas placas)
 
-1. Na cena do passo 3, acrescente `EretheaContactShadows` ao `Compositor` do
-   `WorldEnvironment`: as coisas que encostam no chão ganham uma sombra curta e
-   firme na base.
-2. Num personagem com pele (material com *Subsurf Scatter* e *Skin Mode*), ligue
-   `rendering/erethea/subsurface_scattering/follow_surface = 0.03`: não pode
-   haver halo claro entre a mão e o rosto.
+1. Na RX 580, na cena do passo 3, as coisas que encostam no chão têm uma
+   sombra curta e firme na base (a sombra de contato, ligada sozinha). Anote o
+   FPS com ela e com `rendering/erethea/contact_shadows/sun` em `Disabled`.
+2. Num personagem com pele (material com *Subsurf Scatter* e *Skin Mode*): o
+   projeto novo já vem com `rendering/erethea/subsurface_scattering/follow_surface`
+   em 0,03. Não pode haver halo claro entre a mão e o rosto; com 0, o halo
+   aparece.
+3. Importe um `.glb` da Fornalha com olhos e cabelo (ou um do Blender com
+   *Coat* e *Anisotropic* no material): os olhos têm o brilho nítido da córnea
+   e o reflexo do céu, e o cabelo o brilho esticado. Nas configurações do
+   projeto (com *Advanced Settings* ligado), desligar
+   `rendering/erethea/gltf/import_material_extensions` e reimportar tira os dois.
 
 ## 7. Terreno e cabelo
 
@@ -97,9 +105,13 @@ Fornalha) basta numa placa, de preferência a RTX.
    cenário com vila e floresta, um inimigo, efeitos, música e dublagem.
 3. Abra o projeto na Erethea: as cenas se montam sozinhas, o personagem anda,
    a música troca no combate, a fala tem eco na caverna.
-4. Na Galeria da Fornalha, a prévia do asset mostra o modelo com o
+4. Confira que o projeto ganhou as configurações da Erethea (o `project.godot`
+   passa a ter `erethea/quality_preset=4`, entre outras) e que o jogo roda com
+   a escolha pela placa do passo 3: sombras por ray tracing na RTX, sombra de
+   contato na RX 580, olhos e cabelo com o brilho do passo 6.
+5. Na Galeria da Fornalha, a prévia do asset mostra o modelo com o
    renderizador da Erethea (pedido nº 9; só se a Fornalha já tiver feito).
-5. Procure falhas e o que pode melhorar; anote tudo.
+6. Procure falhas e o que pode melhorar; anote tudo.
 
 ## 11. Atualização
 
