@@ -103,8 +103,8 @@ TEST_CASE("[Modules][EretheaMaterials] Turns LINES strands into ribbons") {
 	CHECK(uv[1].x == 1.0f);
 	// Root to tip, by length.
 	CHECK(uv[0].y == 0.0f);
-	CHECK(Math::is_equal_approx(uv[2].y, 1.0f / 3.0f));
-	CHECK(Math::is_equal_approx(uv[6].y, 1.0f));
+	CHECK(Math::is_equal_approx(uv[2].y, (real_t)(1.0 / 3.0)));
+	CHECK(Math::is_equal_approx(uv[6].y, (real_t)1.0));
 	// The tangent follows the strand, root to tip.
 	CHECK(Math::is_equal_approx(tangents[1], -1.0f));
 	// Strands are separate: no triangle joins the last point of the first
@@ -203,7 +203,7 @@ TEST_CASE("[Modules][EretheaMaterials] Draws a fraction of the strands, spread e
 	// Evenly: every strand kept is followed by one left out.
 	const Vector<Vector3> vertices = half.surfaces[0].arrays[Mesh::ARRAY_VERTEX];
 	for (int s = 0; s < 50; s++) {
-		CHECK(Math::is_equal_approx(vertices[s * 4].x, (float)(2 * s + 1)));
+		CHECK(Math::is_equal_approx(vertices[s * 4].x, (real_t)(2 * s + 1)));
 	}
 	CHECK(EretheaHairBuilder::kept_strand_count(10, 0.35f) == 3);
 }
@@ -236,7 +236,7 @@ TEST_CASE("[Modules][EretheaMaterials] Hair strands node builds its mesh") {
 	// The renderer culls with the custom AABB, which holds the ribbons' width.
 	Ref<ArrayMesh> built = hair->get_mesh();
 	REQUIRE(built.is_valid());
-	CHECK(Math::is_equal_approx(built->get_custom_aabb().size.x, 0.9f + 0.02f));
+	CHECK(Math::is_equal_approx(built->get_custom_aabb().size.x, (real_t)0.92, (real_t)0.0001));
 
 	hair->set_strand_fraction(0.5f);
 	hair->rebuild();
