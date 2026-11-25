@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaPreviewLoop" inherits="SceneTree" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		The main loop that shows an [EretheaPreview] without a project.
+	</brief_description>
+	<description>
+		The engine uses this main loop when it starts with [code]--erethea-preview=&lt;file&gt;[/code]. It adds an [EretheaPreview] to the root window, loads the asset, follows the other [code]--erethea-preview-*[/code] arguments (capture, control file and quality preset) and quits after saving the capture. Games don't need this class: use [EretheaPreview] in a scene instead.
+		See "Prévia para a Fornalha" in [code]erethea/README.md[/code] for the arguments.
+	</description>
+	<tutorials>
+	</tutorials>
+</class>

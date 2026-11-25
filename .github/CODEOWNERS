@@ -582,3 +582,8 @@
 /modules/erethea_terrain/**/SCsub              @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_terrain/doc_classes/          @kaikyolf29-hub @godotengine/documentation
 /modules/erethea_terrain/tests/                @kaikyolf29-hub @godotengine/tests
+/modules/erethea_preview/                      @kaikyolf29-hub @godotengine/rendering @godotengine/editor
+/modules/erethea_preview/**/*.py               @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_preview/**/SCsub              @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_preview/doc_classes/          @kaikyolf29-hub @godotengine/documentation
+/modules/erethea_preview/tests/                @kaikyolf29-hub @godotengine/tests
