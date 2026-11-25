@@ -174,7 +174,11 @@ public:
 	static constexpr const char *SETTING_LIVE_LINK = "editor/erethea_fornalha/live_link";
 	static constexpr const char *SETTING_AREA_ACOUSTICS = "editor/erethea_fornalha/area_acoustics";
 	static constexpr const char *SETTING_INTERACTIVE_MUSIC = "editor/erethea_fornalha/interactive_music";
+	static constexpr const char *SETTING_TERRAIN_FROM_BLOCKOUT = "editor/erethea_fornalha/terrain_from_blockout";
 	static constexpr const char *SETTING_ERETHEA_DEFAULTS_APPLIED = "editor/erethea_fornalha/erethea_defaults_applied";
+	// The terrain made from the blockout's ground, and its materials.
+	static constexpr const char *TERRAIN_DATA_FILE = "res://World/terreno.res";
+	static constexpr const char *TERRAIN_MATERIALS_FILE = "res://World/terreno_materiais.res";
 	static constexpr const char *MUSIC_FOLDER = "res://Audio/musica";
 	static constexpr const char *MUSIC_GROUP = "erethea_musica";
 

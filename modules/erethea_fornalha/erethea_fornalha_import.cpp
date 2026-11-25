@@ -63,10 +63,21 @@
 #include "servers/audio/audio_server.h"
 #include "servers/audio/effects/audio_effect_reverb.h"
 
-#include "modules/modules_enabled.gen.h" // For MODULE_INTERACTIVE_MUSIC_ENABLED.
+#include "modules/modules_enabled.gen.h" // For MODULE_INTERACTIVE_MUSIC_ENABLED and MODULE_ERETHEA_TERRAIN_ENABLED.
 
 #ifdef MODULE_INTERACTIVE_MUSIC_ENABLED
 #include "modules/interactive_music/audio_stream_interactive.h"
+#endif
+
+#ifdef MODULE_ERETHEA_TERRAIN_ENABLED
+#include "erethea_fornalha_terrain.h"
+
+#include "scene/3d/mesh_instance_3d.h"
+#include "scene/3d/physics/collision_object_3d.h"
+#include "scene/resources/image_texture.h"
+
+#include "modules/erethea_terrain/erethea_terrain_3d.h"
+#include "modules/erethea_terrain/erethea_terrain_data.h"
 #endif
 
 static const char *MODEL_EXTENSIONS[] = { "glb", "gltf" };
@@ -329,6 +340,10 @@ String EretheaFornalhaProject::get_signature() const {
 		inputs.push_back(vformat("music track %s %s %d %d %d", track.situation, track.bpm, track.bars, int(track.imported), int64_t(FileAccess::get_modified_time(track.info))));
 	}
 	inputs.push_back(vformat("sky %s", sky));
+	// Only when on, so that the signature of the projects that don't use it stays.
+	if (bool(GLOBAL_GET(EretheaFornalhaImport::SETTING_TERRAIN_FROM_BLOCKOUT))) {
+		inputs.push_back("terrain from blockout");
+	}
 	return JSON::stringify(inputs).md5_text();
 }
 
@@ -476,6 +491,8 @@ void EretheaFornalhaImport::register_project_settings() {
 	GLOBAL_DEF(SETTING_LIVE_LINK, true);
 	GLOBAL_DEF(SETTING_AREA_ACOUSTICS, true);
 	GLOBAL_DEF(SETTING_INTERACTIVE_MUSIC, true);
+	// Off: the ground of the blockout stays as the Fornalha made it.
+	GLOBAL_DEF(SETTING_TERRAIN_FROM_BLOCKOUT, false);
 	GLOBAL_DEF(PropertyInfo(Variant::PACKED_STRING_ARRAY, SETTING_ERETHEA_DEFAULTS_APPLIED), PackedStringArray());
 }
 
@@ -619,7 +636,7 @@ String EretheaFornalhaImport::normalize_scene_text(const String &p_text) {
 	String result;
 	for (int i = 0; i < lines.size(); i++) {
 		String line = lines[i];
-		if (i == 0 && line.begins_with("[gd_scene ")) {
+		if (i == 0 && (line.begins_with("[gd_scene ") || line.begins_with("[gd_resource "))) {
 			line = _replace_attribute(line, "uid", String());
 		} else if (line.begins_with("[ext_resource ")) {
 			line = _replace_attribute(line, "id", ext_ids.has(_attribute(line, "id")) ? ext_ids[_attribute(line, "id")] : String());
@@ -924,11 +941,65 @@ Node *EretheaFornalhaImport::make_area(const EretheaFornalhaProject &p_project, 
 	return root;
 }
 
+#ifdef MODULE_ERETHEA_TERRAIN_ENABLED
+// Puts the terrain made from the blockout's ground in the world, and takes the
+// ground of the blockout out of it: it isn't drawn and doesn't collide, the
+// terrain does both. The houses, trees and rocks of the blockout stay as they are.
+static void _add_terrain(Node *p_world, Node *p_blockout, Vector<String> &r_warnings) {
+	const Ref<Resource> data_resource = ResourceLoader::exists(EretheaFornalhaImport::TERRAIN_DATA_FILE) ? ResourceLoader::load(EretheaFornalhaImport::TERRAIN_DATA_FILE, "", ResourceFormatLoader::CACHE_MODE_REPLACE) : Ref<Resource>();
+	Ref<EretheaTerrainData> data = data_resource;
+	if (data.is_null()) {
+		_add_warning(r_warnings, vformat("%s couldn't be loaded, so the world has no terrain and keeps the ground of the blockout.", EretheaFornalhaImport::TERRAIN_DATA_FILE));
+		return;
+	}
+	MeshInstance3D *ground = EretheaFornalhaTerrain::find_ground(p_blockout);
+	if (!ground) {
+		_add_warning(r_warnings, "The blockout has no ground (a mesh named chao-col), so the world has no terrain.");
+		return;
+	}
+	EretheaTerrain3D *terrain = _add<EretheaTerrain3D>(p_world, p_world, "Terreno");
+	terrain->set_editor_description("The ground of the blockout as a terrain (editor/erethea_fornalha/terrain_from_blockout). Its heights and materials are in World/terreno.res: paint it in the editor and Erethea keeps it.");
+	terrain->set_data(data);
+	// Where the middle of the blockout's ground is.
+	const Vector2 center = data->get_meta("erethea_center", Vector2());
+	terrain->set_position(Vector3(center.x, 0, center.y));
+	terrain->set_collision_layer(EretheaFornalhaImport::LAYER_WORLD);
+	terrain->set_collision_mask(EretheaFornalhaImport::LAYER_WORLD);
+	terrain->set_uv_scale(0.25);
+	terrain->set_detiling(true);
+	terrain->set_triplanar(true);
+	if (ResourceLoader::exists(EretheaFornalhaImport::TERRAIN_MATERIALS_FILE)) {
+		const Ref<Texture2DArray> textures = ResourceLoader::load(EretheaFornalhaImport::TERRAIN_MATERIALS_FILE, "Texture2DArray", ResourceFormatLoader::CACHE_MODE_REPLACE);
+		if (textures.is_valid()) {
+			terrain->set_albedo_height_textures(textures);
+		}
+	}
+
+	// The ground of the blockout: hidden, and nothing collides with it.
+	p_world->set_editable_instance(p_blockout, true);
+	ground->set_visible(false);
+	for (int i = 0; i < ground->get_child_count(); i++) {
+		CollisionObject3D *body = Object::cast_to<CollisionObject3D>(ground->get_child(i));
+		if (body) {
+			body->set_collision_layer(0);
+			body->set_collision_mask(0);
+		}
+	}
+}
+#endif // MODULE_ERETHEA_TERRAIN_ENABLED
+
 Node *EretheaFornalhaImport::make_world(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings) {
 	Node3D *root = memnew(Node3D);
 	root->set_name("Mundo");
 	if (!p_project.world_model.is_empty()) {
-		_add_instance(root, root, p_project.world_model, "Blockout", r_warnings);
+		Node *blockout = _add_instance(root, root, p_project.world_model, "Blockout", r_warnings);
+#ifdef MODULE_ERETHEA_TERRAIN_ENABLED
+		if (blockout && bool(GLOBAL_GET(SETTING_TERRAIN_FROM_BLOCKOUT))) {
+			_add_terrain(root, blockout, r_warnings);
+		}
+#else
+		(void)blockout;
+#endif
 	}
 
 	DirectionalLight3D *sun = _add<DirectionalLight3D>(root, root, "Sol");
@@ -1233,6 +1304,132 @@ static void _save_scene(Node *p_root, const String &p_file, EretheaFornalhaBuild
 	r_state.report->files.push_back(result);
 }
 
+// What a resource says once it is saved and loaded again, normalized like a scene,
+// so that two builds of it compare equal.
+static String _hash_resource(const Ref<Resource> &p_resource) {
+	const String draft = _work_file("draft.res");
+	if (ResourceSaver::save(p_resource, draft) != OK) {
+		return String();
+	}
+	const Ref<Resource> loaded = ResourceLoader::load(draft, "", ResourceFormatLoader::CACHE_MODE_IGNORE);
+	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(draft));
+	const String text_draft = _work_file("draft.tres");
+	if (loaded.is_null() || ResourceSaver::save(loaded, text_draft) != OK) {
+		return String();
+	}
+	const String hash = EretheaFornalhaImport::hash_scene_text(FileAccess::get_file_as_string(text_draft));
+	DirAccess::remove_absolute(ProjectSettings::get_singleton()->globalize_path(text_draft));
+	return hash;
+}
+
+// Saves a resource that Erethea makes, such as the terrain, with the same care
+// as a scene: one that was changed since it was built, or not built here, is kept.
+static void _save_resource(const Ref<Resource> &p_resource, const String &p_file, EretheaFornalhaBuildState &r_state) {
+	EretheaFornalhaImport::FileResult result;
+	result.file = p_file;
+	result.action = EretheaFornalhaImport::ACTION_FAILED;
+	if (p_resource.is_null()) {
+		result.message = "Couldn't be built. The warnings say why.";
+		r_state.report->files.push_back(result);
+		return;
+	}
+	const String new_hash = _hash_resource(p_resource);
+	if (new_hash.is_empty()) {
+		result.message = vformat("Couldn't be saved in %s.", EretheaFornalhaImport::WORK_FOLDER);
+		r_state.report->files.push_back(result);
+		return;
+	}
+	const bool exists = FileAccess::exists(p_file);
+	String current_hash;
+	if (exists) {
+		current_hash = _hash_resource(ResourceLoader::load(p_file, "", ResourceFormatLoader::CACHE_MODE_IGNORE));
+		if (current_hash.is_empty()) {
+			// Not a resource that loads: not ours to replace.
+			current_hash = "unreadable";
+		}
+	}
+	result.action = EretheaFornalhaImport::decide(exists, current_hash, _string(r_state.recorded.get(p_file, Variant())), new_hash, r_state.force);
+
+	switch (result.action) {
+		case EretheaFornalhaImport::ACTION_UNCHANGED: {
+			r_state.recorded[p_file] = current_hash;
+		} break;
+		case EretheaFornalhaImport::ACTION_KEPT_EDITED: {
+			result.message = "Changed since Erethea built it (painted in the editor, for example), so it was kept. Build with force to replace it (a copy goes to res://.erethea/backup/).";
+		} break;
+		case EretheaFornalhaImport::ACTION_KEPT_FOREIGN: {
+			result.message = "Not built by Erethea, so it was kept. Build with force to replace it (a copy goes to res://.erethea/backup/).";
+		} break;
+		case EretheaFornalhaImport::ACTION_CREATED:
+		case EretheaFornalhaImport::ACTION_UPDATED:
+		case EretheaFornalhaImport::ACTION_REPLACED: {
+			Ref<DirAccess> dir = DirAccess::create(DirAccess::ACCESS_RESOURCES);
+			if (result.action == EretheaFornalhaImport::ACTION_REPLACED) {
+				const String backup = r_state.backup_folder.path_join(p_file.trim_prefix("res://"));
+				dir->make_dir_recursive(backup.get_base_dir());
+				if (dir->copy(p_file, backup) != OK) {
+					result.action = EretheaFornalhaImport::ACTION_FAILED;
+					result.message = vformat("Couldn't be copied to %s first, so it wasn't replaced.", backup);
+					break;
+				}
+				r_state.report->backup_folder = r_state.backup_folder;
+				result.message = vformat("The old one is in %s.", backup);
+			}
+			dir->make_dir_recursive(p_file.get_base_dir());
+			const Error error = ResourceSaver::save(p_resource, p_file);
+			if (error != OK) {
+				result.action = EretheaFornalhaImport::ACTION_FAILED;
+				result.message = vformat("Couldn't be saved (error %d).", error);
+				break;
+			}
+			r_state.recorded[p_file] = new_hash;
+			r_state.changed.push_back(p_file);
+		} break;
+		default:
+			break;
+	}
+	r_state.report->files.push_back(result);
+}
+
+#ifdef MODULE_ERETHEA_TERRAIN_ENABLED
+// The terrain from the blockout's ground (World/terreno.res), with its materials.
+static void _save_terrain(const EretheaFornalhaProject &p_project, EretheaFornalhaBuildState &r_state) {
+	Vector<String> &warnings = r_state.report->warnings;
+	if (p_project.world_model.is_empty()) {
+		return; // The warning about the missing blockout is already there.
+	}
+	const Ref<PackedScene> scene = ResourceLoader::load(p_project.world_model, "PackedScene");
+	Node *blockout = scene.is_valid() ? scene->instantiate() : nullptr;
+	if (!blockout) {
+		_add_warning(warnings, vformat("%s couldn't be loaded, so there is no terrain yet. If it's new, wait for the editor to import it, then build again.", p_project.world_model));
+		return;
+	}
+	MeshInstance3D *ground = EretheaFornalhaTerrain::find_ground(blockout);
+	if (!ground) {
+		_add_warning(warnings, "The blockout has no ground (a mesh named chao-col), so there is no terrain.");
+		memdelete(blockout);
+		return;
+	}
+	const Vector<Vector3> triangles = EretheaFornalhaTerrain::get_ground_triangles(blockout, ground);
+	const Color color = EretheaFornalhaTerrain::get_ground_color(ground);
+	memdelete(blockout);
+
+	const EretheaFornalhaTerrain::Heights heights = EretheaFornalhaTerrain::sample_heights(triangles);
+	if (!heights.is_valid()) {
+		_add_warning(warnings, "The ground of the blockout has no triangles to take heights from, so there is no terrain.");
+		return;
+	}
+	if (heights.uncovered * 50 > heights.heights.size()) {
+		_add_warning(warnings, vformat("%d of the %d vertices of the terrain are not under any triangle of the blockout's ground (a ground with holes), so they took the height of their neighbors.", heights.uncovered, heights.heights.size()));
+	}
+	Ref<EretheaTerrainData> data = EretheaFornalhaTerrain::make_data(heights);
+	data->set_meta("erethea_center", heights.center);
+	EretheaFornalhaTerrain::paint_materials(data, heights.center, EretheaFornalhaTerrain::get_paint_areas(p_project));
+	_save_resource(data, EretheaFornalhaImport::TERRAIN_DATA_FILE, r_state);
+	_save_resource(EretheaFornalhaTerrain::make_textures(color), EretheaFornalhaImport::TERRAIN_MATERIALS_FILE, r_state);
+}
+#endif // MODULE_ERETHEA_TERRAIN_ENABLED
+
 EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	Report report;
 	if (!is_fornalha_project()) {
@@ -1266,6 +1463,13 @@ EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	}
 	for (int i = 0; i < project.areas.size(); i++) {
 		_save_scene(make_area(project, i, report.warnings), project.areas[i].scene, state);
+	}
+	if (bool(GLOBAL_GET(SETTING_TERRAIN_FROM_BLOCKOUT))) {
+#ifdef MODULE_ERETHEA_TERRAIN_ENABLED
+		_save_terrain(project, state);
+#else
+		report.warnings.push_back("This Erethea has no terrain (the erethea_terrain module is off), so the ground of the blockout stays as it is.");
+#endif
 	}
 	_save_scene(make_world(project, report.warnings), WORLD_SCENE, state);
 	_save_scene(make_main(project, report.warnings, &report.music_clips), MAIN_SCENE, state);

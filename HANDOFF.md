@@ -447,7 +447,23 @@ comparado na cena de referência:
    Plano 1 (`World/blockout.glb` e as áreas do `game.project.json`): malha por
    clipmap, colisão `HeightMapShape3D`, pintura no editor. O Terrain3D (MIT)
    serve de referência; a Fornalha pede compatibilidade com ele (32 materiais,
-   detiling, triplanar).
+   detiling, triplanar). **Feito em três partes** (`modules/erethea_terrain/`,
+   seção "Terreno" do README): parte 1 (PR #38) o nó `EretheaTerrain3D` e o
+   recurso `EretheaTerrainData`; parte 2 (PR #42) pintura no editor e emendas do
+   clipmap; **parte 3** o chão do blockout vira terreno
+   (`editor/erethea_fornalha/terrain_from_blockout`, desligado por padrão, em
+   `modules/erethea_fornalha/erethea_fornalha_terrain.*`): amostra as alturas do
+   `chao-col` numa grade de 1 m, salva `World/terreno.res` e
+   `World/terreno_materiais.res` (quatro camadas de cor lisa tiradas da cor do
+   chão), pinta o mapa de controle por inclinação e tipo de área (vila: terra,
+   arena: areia, masmorra/caverna/salão/ruínas/montanha: pedra), põe o nó
+   `Terreno` no `mundo.tscn` e esconde o chão do blockout, sem colisão; um
+   terreno mudado à mão fica. Teste no `test_fornalha_import.py` (o herói anda
+   no terreno; falha sem o código) e testes de unidade. **Não provado**: o chão
+   de verdade da Fornalha numa placa (RX 580, RTX), a pintura com o mouse no
+   editor, e a cor por vértice do chão (manchas de terra e grama seca), que o
+   terreno não leva. Falta, se o Kaiky quiser: texturas de foto no lugar da cor
+   lisa, atualização parcial da colisão ao pintar e o anel do pincel.
 7. **Vegetação**: espalhador com LOD, impostores e vento (MultiMesh,
    `visibility_range`, sombreador de vento).
 8. **Animação**: retarget automático para o esqueleto padrão do Plano 1 (a
