@@ -384,6 +384,16 @@ comparado na cena de referência:
      - Teste: na `erethea/tests/raytracing/shadows_scene`, uma malha com
        esqueleto montada em GDScript (ArrayMesh com ossos e pesos e um
        `Skeleton3D` girando um osso) e a sombra seguindo a pose.
+   - **Reflexos e GI por ray tracing: depois do lançamento (decidido em
+     25/11).** A sombra só pergunta "algo cobre o sol?"; reflexo e GI precisam
+     da cor do ponto atingido (material, textura, luz) de qualquer superfície,
+     dentro ou fora da tela, e o `RenderingDevice` não tem acesso sem limite a
+     texturas (bindless) para isso: seria montar à mão uma tabela de materiais
+     e texturas da cena inteira. É o que o path tracer da NVIDIA (item 3) já
+     faz, com reflexos e GI juntos, então os dois vêm com ele, depois do
+     lançamento. No lançamento, a RTX tem as sombras por ray tracing, o DLSS e
+     os reflexos e a GI da Godot (SSR, SDFGI, VoxelGI), no máximo pelo preset
+     `Cinematic`.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 
