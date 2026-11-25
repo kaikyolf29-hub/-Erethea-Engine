@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaPreview" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		A scene that shows a glTF asset the way it looks in a game: on a floor, under a sun with shadows and a sky, with a camera that turns around it.
+	</brief_description>
+	<description>
+		The preview of the Fornalha. [method load_asset] reads a [code].glb[/code] or [code].gltf[/code] file at runtime, with [GLTFDocument], so the asset needs no import. The asset stands on a floor at the center, and the camera frames the asset by its bounding box and turns around it slowly. The scene has a [DirectionalLight3D] with shadows and a procedural sky, and it follows the rendering settings of the project, including the [EretheaQuality] preset.
+		The asset can be replaced at any time with [method load_asset], without restarting. While [member auto_reload] is on, the preview also reloads the asset when its file changes on disk.
+		Without a project, the engine can start this scene by itself: [code]erethea --erethea-preview=asset.glb[/code]. With [code]--erethea-preview-capture=image.png[/code] it saves an image of the window after a few frames and exits, which is useful for tests. See "Prévia para a Fornalha" in [code]erethea/README.md[/code] for all the arguments and for how to embed the preview with LibGodot.
+		[codeblock]
+		var preview = EretheaPreview.new()
+		add_child(preview)
+		var error = preview.load_asset("C:/assets/dragon.glb")
+		if error != OK:
+		    push_error("The asset can't be shown.")
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="clear_asset">
+			<return type="void" />
+			<description>
+				Removes the asset from the scene. The floor, the sky and the camera stay.
+			</description>
+		</method>
+		<method name="get_asset_bounds" qualifiers="const">
+			<return type="AABB" />
+			<description>
+				Returns the bounding box of the asset in the preview, after the asset was moved to the center of the floor. Without an asset, returns a box of one meter.
+			</description>
+		</method>
+		<method name="get_asset_path" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the path of the file that [method load_asset] read last, or an empty string without an asset.
+			</description>
+		</method>
+		<method name="get_camera" qualifiers="const">
+			<return type="Camera3D" />
+			<description>
+				Returns the camera of the preview. The preview moves it every frame, so don't change its position.
+			</description>
+		</method>
+		<method name="has_asset" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if an asset is loaded.
+			</description>
+		</method>
+		<method name="load_asset">
+			<return type="int" enum="Error" />
+			<param index="0" name="path" type="String" />
+			<description>
+				Loads the [code].glb[/code] or [code].gltf[/code] file at [param path], a path of the file system (not a [code]res://[/code] path of an imported resource), and shows it in place of the current asset. The camera frames the new asset at once.
+				Returns [constant OK] on success. If the file can't be read or isn't a valid glTF file, returns an error and the current asset stays on screen.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="auto_reload" type="bool" setter="set_auto_reload" getter="is_auto_reload" default="true">
+			If [code]true[/code], the preview reloads the asset when its file changes on disk. It waits for the file to stop changing, so a file that is still being written isn't read half way.
+		</member>
+		<member name="orbit_angle" type="float" setter="set_orbit_angle" getter="get_orbit_angle" default="35.0">
+			The angle of the camera around the asset, in degrees. [member orbit_speed] changes it every frame.
+		</member>
+		<member name="orbit_speed" type="float" setter="set_orbit_speed" getter="get_orbit_speed" default="20.0">
+			How fast the camera turns around the asset, in degrees per second. [code]0[/code] stops it.
+		</member>
+	</members>
+	<signals>
+		<signal name="asset_loaded">
+			<param index="0" name="path" type="String" />
+			<description>
+				Emitted when [method load_asset] shows a new asset, including when [member auto_reload] reloads it.
+			</description>
+		</signal>
+	</signals>
+</class>

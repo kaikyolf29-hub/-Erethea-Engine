@@ -66,5 +66,10 @@ void libgodot_destroy_godot_instance(GDExtensionObjectPtr p_godot_instance) {
 		// Note: When Godot Engine supports reinitialization, clear the instance pointer here.
 		//instance = nullptr;
 		Main::cleanup();
+		// Erethea: Destroy the OS after Main::cleanup(), as the engine's own
+		// main() does, so that COM and WinRT are uninitialized on the host's
+		// thread before the host unloads the library.
+		delete os;
+		os = nullptr;
 	}
 }
