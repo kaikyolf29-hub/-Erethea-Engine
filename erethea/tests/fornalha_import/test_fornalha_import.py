@@ -28,7 +28,9 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import wave
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -53,6 +55,7 @@ class Glb:
         self.meshes = []
         self.nodes = []
         self.animations = []
+        self.images = []
 
     def _accessor(self, data, component, count, kind, target=None, low=None, high=None):
         while len(self.buffer) % 4:
@@ -67,6 +70,14 @@ class Glb:
             accessor["min"], accessor["max"] = low, high
         self.accessors.append(accessor)
         return len(self.accessors) - 1
+
+    def texture(self, name, png):
+        """An image in the file, used by the boxes made after it."""
+        while len(self.buffer) % 4:
+            self.buffer.append(0)
+        self.views.append({"buffer": 0, "byteOffset": len(self.buffer), "byteLength": len(png)})
+        self.buffer += png
+        self.images.append({"name": name, "mimeType": "image/png", "bufferView": len(self.views) - 1})
 
     def box(self, name, size, center):
         """A box whose bottom is at center's height."""
@@ -85,7 +96,14 @@ class Glb:
             [max(v[i] for v in vertices) for i in range(3)],
         )
         index = self._accessor(struct.pack(f"<{len(indices)}H", *indices), 5123, len(indices), "SCALAR", 34963)
-        self.meshes.append({"primitives": [{"attributes": {"POSITION": position}, "indices": index}]})
+        primitive = {"attributes": {"POSITION": position}, "indices": index}
+        if self.images:
+            uvs = [(v[0] - cx + 0.5, v[2] - cz + 0.5) for v in vertices]
+            primitive["attributes"]["TEXCOORD_0"] = self._accessor(
+                b"".join(struct.pack("<2f", *uv) for uv in uvs), 5126, len(uvs), "VEC2", 34962
+            )
+            primitive["material"] = len(self.images) - 1
+        self.meshes.append({"primitives": [primitive]})
         self.nodes.append({"name": name, "mesh": len(self.meshes) - 1})
 
     def animation(self, name, lift):
@@ -114,6 +132,16 @@ class Glb:
         }
         if self.animations:
             document["animations"] = self.animations
+        if self.images:
+            document["images"] = self.images
+            document["textures"] = [{"source": i} for i in range(len(self.images))]
+            document["materials"] = [
+                {
+                    "name": image["name"],
+                    "pbrMetallicRoughness": {"baseColorTexture": {"index": i}, "metallicFactor": 0.0},
+                }
+                for i, image in enumerate(self.images)
+            ]
         text = json.dumps(document).encode()
         text += b" " * (-len(text) % 4)
         chunks = struct.pack("<II", len(text), 0x4E4F534A) + text
@@ -122,11 +150,29 @@ class Glb:
         path.write_bytes(struct.pack("<III", 0x46546C67, 2, 12 + len(chunks)) + chunks)
 
 
+# The texture that the import extracts from the hero's model.
+HERO_TEXTURE = "res://Characters/heroi/heroi_pele.png"
+
+
+def png(width, height, color):
+    """An RGBA PNG of one color."""
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    rows = b"".join(b"\x00" + bytes(color) * width for _ in range(height))
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
+
+
 def make_assets(project):
     # The Forja's characters: their measures next to the model, and the
-    # animations by the names the Fornalha's scripts play.
+    # animations by the names the Fornalha's scripts play. The hero has a
+    # texture, as the Forja's models do, which the build has to compress.
     for folder, name, size in (("Characters", "heroi", (0.5, 1.7, 0.3)), ("Enemies", "lobo", (0.4, 0.8, 1.0))):
         model = Glb()
+        if name == "heroi":
+            model.texture("pele", png(64, 64, (200, 150, 120, 255)))
         model.box("Corpo", size, (0.0, 0.0, 0.0))
         for animation in ("parado", "andar", "correr", "atacar"):
             model.animation(animation, 0.05)
@@ -277,6 +323,15 @@ def build_checks(mcp, project):
     check(any("arena" in warning for warning in report["warnings"]), "an area not in the blockout yet is reported")
     check(report["ok"], "nothing failed")
     check(report.get("music_clips") == ["combate", "vila"], "the report lists the music clips")
+    # The hero's texture: imported without a window, nothing drew it in 3D, so
+    # Godot left it uncompressed; the build marks it, and the editor compresses it
+    # (and, as the project has Erethea's settings, streams its mipmaps).
+    check(report.get("compressed_textures") == [HERO_TEXTURE], "the build marks the hero's texture as used in 3D")
+    texture_import = project / (HERO_TEXTURE.removeprefix("res://") + ".import")
+    deadline = time.monotonic() + 120
+    while '"vram_texture": true' not in texture_import.read_text(encoding="utf-8") and time.monotonic() < deadline:
+        time.sleep(1)
+    check('"vram_texture": true' in texture_import.read_text(encoding="utf-8"), "and the editor compresses it in VRAM")
     check(sorted(report.get("music_imports", [])) == sorted(MUSIC_FILES), "the WAV files are set to import again")
     music_import_checks(project)
     character = (project / "Characters/heroi/heroi.tscn").read_text(encoding="utf-8")
@@ -403,6 +458,13 @@ def main():
             "but keeps the one it had chosen",
         )
         check("erethea_fornalha/erethea_defaults_applied=PackedStringArray(" in settings, "and remembers them")
+
+        texture_import = project / (HERO_TEXTURE.removeprefix("res://") + ".import")
+        check(texture_import.exists(), "the hero's texture is extracted from the model")
+        check(
+            '"vram_texture": false' in texture_import.read_text(encoding="utf-8"),
+            "and, imported without a window, left uncompressed",
+        )
 
         print("Editor with the MCP server")
         imports = {

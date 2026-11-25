@@ -156,6 +156,8 @@ public:
 		// files whose import options were set for them.
 		Vector<String> music_clips;
 		Vector<String> music_imports;
+		// The textures of the models marked as used in 3D, to be compressed.
+		Vector<String> compressed_textures;
 
 		int count(Action p_action) const;
 		int count_kept() const;
@@ -225,6 +227,13 @@ public:
 	// Does so for the .import file of each music, and asks the editor to import
 	// them again. Returns the WAV files that changed.
 	static Vector<String> prepare_music_imports(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings);
+	// The image files that the models use (the characters', the enemies' and
+	// the world's) and that the texture importer would compress on its own once
+	// they are seen in 3D. Godot only sees that when the editor draws them, so
+	// imported without a window, as the Fornalha does, they would stay
+	// uncompressed. Marks them as used in 3D, which compresses them (and lets
+	// Erethea stream their mipmaps), and returns them.
+	static Vector<String> mark_model_textures_used_in_3d(const EretheaFornalhaProject &p_project);
 
 	static Node *make_character(const EretheaFornalhaCharacter &p_character, Vector<String> &r_warnings);
 	static Node *make_area(const EretheaFornalhaProject &p_project, int p_area, Vector<String> &r_warnings);

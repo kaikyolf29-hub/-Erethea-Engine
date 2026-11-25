@@ -825,6 +825,19 @@ fica como está, e o relatório diz isso. Montar com *force* (ou o botão
 `res://.erethea/backup/`. Uma cena aberta no editor com mudanças não salvas
 nunca é trocada.
 
+**Texturas dos modelos.** A Godot só passa uma textura para a compressão de
+VRAM (e a Erethea só faz streaming dos mipmaps dela) quando a vê desenhada num
+material 3D no editor. Na importação sem tela que a Fornalha roda, e para
+modelos que nunca aparecem no viewport, as texturas extraídas dos `.glb`
+ficavam sem compressão: uma textura 4K de pele ocupa umas quatro vezes mais
+VRAM assim. Agora, ao montar as cenas, a Erethea marca como usadas em 3D as
+texturas dos personagens, dos inimigos e do mundo
+(`ResourceImporterTexture::erethea_mark_used_in_3d`, o mesmo caminho do
+desenho), e o editor as importa de novo comprimidas (e com streaming, nos
+projetos com as configurações da Erethea). O relatório da montagem lista essas
+texturas em `compressed_textures`. A textura que alguém configurou à mão para
+ficar como está não muda.
+
 **O sol do mundo.** O `World/mundo.tscn` tem o sol com sombra, as cascatas se
 misturando umas nas outras em vez de mostrar uma emenda
 (`directional_shadow_blend_splits`) e o alcance da sombra pelo tamanho do
@@ -870,7 +883,9 @@ monta as cenas, confere que a segunda montagem não muda nada, que a
 cópia vai para o backup) e que uma área mudada à mão fica. Depois roda o jogo
 sem janela: o herói anda mais de 2 m no chão tocando `andar` em loop, e cada
 lobo está na cena da sua área. Também confere que a importação deu ao projeto
-as configurações da Erethea e manteve a que ele tinha escolhido. O CI roda no
+as configurações da Erethea e manteve a que ele tinha escolhido, e que a
+textura do herói, sem compressão depois da importação sem tela, sai comprimida
+em VRAM depois da montagem. O CI roda no
 Linux e no Windows.
 
 ```sh
