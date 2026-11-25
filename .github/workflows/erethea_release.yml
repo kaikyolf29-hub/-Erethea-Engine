@@ -6,16 +6,23 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to build, like 0.2.0 or 0.2.0-beta.1. A manual run only builds and checks the installer, it publishes nothing.
+        description: Version to build, like 0.2.0 or 0.2.0-beta.1. Without "publish", a manual run only builds and checks the installer.
         required: true
         type: string
+      publish:
+        description: Publish the release, creating the tag v<version> on the commit being built. Only on main.
+        required: false
+        default: false
+        type: boolean
 
 # Builds the Windows editor and installer of a version, checks them, and
 # publishes a GitHub release with the installer. The editor finds the release
 # there and offers to update itself (see editor/project_manager/erethea_update.h).
 #
-# To release, push a tag "v<version>" on main, for example "v0.2.0". A version
-# with a dash ("v0.2.0-beta.1") is published as a prerelease.
+# To release, push a tag "v<version>" on main, for example "v0.2.0", or run
+# this workflow by hand on main with "publish" checked, which creates the tag
+# on the commit it builds. A version with a dash ("v0.2.0-beta.1") is
+# published as a prerelease.
 #
 # Code signing with Azure Artifact Signing is off until the repository variable
 # ARTIFACT_SIGNING_ENDPOINT is set. "Assinatura do instalador" in
@@ -44,6 +51,7 @@ jobs:
         shell: pwsh
         env:
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
         run: |
           if ($env:GITHUB_REF_TYPE -eq "tag") {
             $version = $env:GITHUB_REF_NAME -replace "^v", ""
@@ -52,6 +60,15 @@ jobs:
           }
           if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$') {
             throw "Invalid version '$version'. Use <major>.<minor>.<patch>, optionally with a prerelease like -beta.1."
+          }
+          if ($env:INPUT_PUBLISH -eq "true") {
+            # Fail now rather than after the build.
+            if ($env:GITHUB_REF -ne "refs/heads/main") {
+              throw "Releases are published from main, not $env:GITHUB_REF."
+            }
+            git ls-remote --exit-code --tags origin "refs/tags/v$version"
+            if ($LASTEXITCODE -eq 0) { throw "The tag v$version already exists." }
+            $global:LASTEXITCODE = 0
           }
           "version=$version" >> $env:GITHUB_OUTPUT
           "prerelease=$(if ($version.Contains('-')) { 'true' } else { 'false' })" >> $env:GITHUB_OUTPUT
@@ -199,14 +216,20 @@ jobs:
           retention-days: 30
 
       - name: Publish the release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.publish
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $arguments = @("release", "create", "v$version", "erethea/installer/erethea-setup-x86_64.exe",
-            "--title", "Erethea Engine $version", "--generate-notes", "--verify-tag")
+            "--title", "Erethea Engine $version", "--generate-notes")
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $arguments += "--verify-tag"
+          } else {
+            # A manual run on main: the tag is created on the commit that was built.
+            $arguments += @("--target", $env:GITHUB_SHA)
+          }
           if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $arguments += "--prerelease" }
           & gh @arguments
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
