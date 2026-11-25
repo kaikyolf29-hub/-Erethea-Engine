@@ -75,11 +75,13 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
     `/CLOSEAPPLICATIONS`). Detalhes em "Falhas conhecidas do CI".
 - **Próximos passos até o lançamento**: merge do #41 e deste PR; achar a
   causa do 0xC0000409 quando o ProcDump pegar;
-  depois o item 9 da Fase 4 ("Lançamento"): o Kaiky confere o nome no INPI e o
-  domínio, decide a assinatura (dá para lançar sem ela, com o aviso do
-  Windows) e o número da versão (proposta: `v1.0.0`); rodar o workflow
-  `🔥 Erethea Release` à mão (não publica), criar a tag e avisar o Kaiky para
-  baixar e seguir o `erethea/TESTE_DO_CRIADOR.md`.
+  depois o item 9 da Fase 4 ("Lançamento"). **Decidido pelo Kaiky em 25/11:
+  versão `v1.0.0`, sem assinatura por enquanto (o Azure Artifact Signing não
+  aceita pessoa física no Brasil; a assinatura entra numa versão seguinte), e
+  o nome já conferido no INPI.** O ensaio do workflow `🔥 Erethea Release` à
+  mão (versão `1.0.0-rc.1`, não publica) rodou no `main` em 25/11; depois dos
+  merges, crie a tag `v1.0.0` no `main` e avise o Kaiky para baixar e seguir o
+  `erethea/TESTE_DO_CRIADOR.md`.
 - **Lições**: compile sempre com `dev_mode=yes` (sem ele, avisos que o CI
   trata como erro passam, e trocar refaz o build inteiro, 23 min). Arquivos só
   do Windows também compilam aqui com o MinGW. Para provar que um teste pega a
