@@ -506,6 +506,12 @@ comparado na cena de referência:
    final).
 10. Teste de pronto no CI com o que der (WARP/lavapipe); a prova na RTX e na
     RX 580 entra na lista do teste final do Kaiky.
+    **Feito (25/11, PR do teste sem ray tracing):** com ray tracing, o passo
+    "Capture the ray traced shadows" no lavapipe (desde o #34); sem ray tracing,
+    o workflow `erethea_raytracing_fallback.yml` no WARP do Direct3D 12 (que não
+    tem ray tracing nesta base): a cena de referência com `--rt=shadows` avisa
+    e sai igual à sem a opção (RMSE ≤ 0,5), e o `EretheaRayTracedShadows`
+    colocado à força numa cena só avisa.
 
 ### 8. Fase 5 · Geometria densa
 
@@ -745,6 +751,17 @@ revisados aqui antes do merge.
   minidump (LocalDumps) em `dumps/` no artefato `erethea-window-test`. Se
   acontecer de novo, o evento 1000 diz o módulo e o deslocamento, e o 1001 o
   código do fast fail; comece por aí (tarefa aberta).
+  **25/11: aconteceu de novo duas vezes seguidas** (#40 e #42; as novas
+  tentativas passaram), sempre uns 10 s depois de o editor abrir o
+  `smoke_project` pela primeira vez, e **sem evento nenhum do Windows nem
+  dump** (no mesmo tipo de executor, a queda da LibGodot deixou os eventos).
+  O editor já descarrega a saída a cada linha (`flush_stdout_on_print.debug`),
+  então ele não imprimia nada antes de cair. Agora o teste abre esse editor com
+  `--verbose` e prende a ele o ProcDump da Sysinternals (`-e`, que pega o fast
+  fail como depurador), com o dump MiniPlus em `dumps/` e o log do ProcDump
+  (`procdump-editor.log`, que já diz o código e o endereço) no artefato. Na
+  próxima falha, leia esse log; para o dump no Linux, `pip install minidump`
+  dá a lista de módulos e o registro da exceção.
 - Instalador, passo "Update silently": travou quatro vezes (duas antes do
   PR #23, duas em 23/11 mesmo com o limite de 4 minutos dele), sempre além do
   limite do passo e do job e sem log nenhum, nem dos passos anteriores; passou

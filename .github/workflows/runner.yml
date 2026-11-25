@@ -113,6 +113,11 @@ jobs:
     needs: linux-build
     uses: ./.github/workflows/erethea_dense_geometry.yml
 
+  erethea-raytracing-fallback:
+    name: 🔥 Erethea ray tracing fallback
+    needs: windows-build
+    uses: ./.github/workflows/erethea_raytracing_fallback.yml
+
   erethea-assistant:
     name: 🔥 Erethea assistant
     needs: [linux-build, windows-build]

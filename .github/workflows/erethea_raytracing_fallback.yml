@@ -1,0 +1,84 @@
+name: 🔥 Erethea ray tracing fallback
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Phase 4 is done when the reference scene runs with ray tracing on an RTX card
+# and without it on a graphics card that has none. The first half runs on
+# lavapipe, which has ray queries (erethea_reference_scene.yml); this is the
+# second half: Direct3D 12 has no ray tracing in this Godot base, so on WARP the
+# reference scene with --rt=shadows must say so, keep the sun's shadow map and
+# draw the same image as without it, and EretheaRayTracedShadows added to a scene
+# anyway must only warn.
+
+env:
+  # WARP from NuGet (https://www.nuget.org/packages/Microsoft.Direct3D.WARP).
+  WARP_VERSION: 1.0.22
+
+jobs:
+  raytracing-fallback:
+    runs-on: windows-latest
+    name: Ray tracing fallback on Direct3D 12 (WARP)
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Windows editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: windows-editor
+          path: bin
+
+      - name: Install a recent WARP
+        shell: pwsh
+        run: |
+          $package = "microsoft.direct3d.warp.$env:WARP_VERSION.nupkg"
+          Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/microsoft.direct3d.warp/$env:WARP_VERSION/$package" -OutFile warp.zip
+          Expand-Archive warp.zip -DestinationPath warp -Force
+          Copy-Item warp/build/native/bin/x64/d3d10warp.dll bin/
+          Write-Output "WARP: $((Get-Item bin/d3d10warp.dll).VersionInfo.FileVersion)"
+
+      - name: Reference scene with and without --rt=shadows
+        shell: pwsh
+        run: |
+          $exe = "bin/erethea.windows.editor.x86_64.exe"
+          $project = "erethea/tests/reference_scene"
+          & $exe --path $project --rendering-driver d3d12 --fixed-fps 30 -- "--capture=$PWD/captures/plain" --warmup=12 --frames=4 2>&1 | Tee-Object -FilePath plain.log
+          if ($LASTEXITCODE -ne 0) { throw "The capture without ray tracing failed with exit code $LASTEXITCODE" }
+          & $exe --path $project --rendering-driver d3d12 --fixed-fps 30 -- "--capture=$PWD/captures/rt" "--rt=shadows" --warmup=12 --frames=4 2>&1 | Tee-Object -FilePath rt.log
+          if ($LASTEXITCODE -ne 0) { throw "The capture with --rt=shadows failed with exit code $LASTEXITCODE" }
+          if (-not (Select-String -Path rt.log -Pattern "Direct3D|D3D12" -Quiet)) { throw "Direct3D 12 didn't start" }
+          if (-not (Select-String -Path rt.log -Pattern "has no ray tracing" -Quiet)) { throw "The scene didn't say that this device has no ray tracing" }
+
+      - name: Compare the two captures
+        shell: pwsh
+        run: |
+          & bin/erethea.windows.editor.x86_64.exe --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- `
+            "--baseline=$PWD/captures/plain" "--candidate=$PWD/captures/rt" "--out=$PWD/captures/comparison" "--max-rmse=0.5" 2>&1 | Tee-Object -FilePath compare.log
+          $code = $LASTEXITCODE
+          "## Sem ray tracing (Direct3D 12, WARP)" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "A cena de referência com --rt=shadows numa placa sem ray tracing tem que sair igual à sem a opção (RMSE de no máximo 0,5)." >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content captures/comparison/summary.md -ErrorAction SilentlyContinue >> $env:GITHUB_STEP_SUMMARY
+          if ($code -ne 0) { throw "With --rt=shadows the image changed on a device without ray tracing" }
+
+      - name: The effect only warns without ray tracing
+        shell: pwsh
+        run: |
+          & bin/erethea.windows.editor.x86_64.exe --path erethea/tests/raytracing/shadows_scene --rendering-driver d3d12 --fixed-fps 30 -- --rt "--out=$PWD/captures/shadows_scene.png" 2>&1 | Tee-Object -FilePath effect.log
+          if ($LASTEXITCODE -ne 0) { throw "The scene with the effect failed with exit code $LASTEXITCODE" }
+          if (-not (Select-String -Path effect.log -Pattern "RTSCENE supported=false" -Quiet)) { throw "The effect said this device has ray tracing" }
+          if (-not (Select-String -Path effect.log -Pattern "EretheaRayTracedShadows needs a graphics card with ray tracing" -Quiet)) { throw "The effect didn't warn" }
+          if (-not (Select-String -Path effect.log -Pattern "RTSCENE saved" -Quiet)) { throw "The scene didn't draw" }
+
+      - name: Upload captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-raytracing-fallback
+          path: |
+            captures
+            *.log
+          retention-days: 14
