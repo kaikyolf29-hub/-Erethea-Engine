@@ -830,6 +830,16 @@ real_t EretheaFornalhaImport::get_area_radius(const EretheaFornalhaProject &p_pr
 	return Math::is_inf(nearest) ? real_t(80.0) : CLAMP(nearest * real_t(0.5), real_t(12.0), real_t(80.0));
 }
 
+real_t EretheaFornalhaImport::get_sun_shadow_distance(const EretheaFornalhaProject &p_project) {
+	// The farthest edge of an area from the center of the world, on the ground.
+	real_t extent = 0.0;
+	for (int i = 0; i < p_project.areas.size(); i++) {
+		const Vector3 &center = p_project.areas[i].center;
+		extent = MAX(extent, Vector2(center.x, center.z).length() + get_area_radius(p_project, i));
+	}
+	return CLAMP(extent * real_t(2.0), real_t(100.0), real_t(300.0));
+}
+
 String EretheaFornalhaImport::add_reverb_buses(const EretheaFornalhaProject &p_project, Vector<String> &r_added, String &r_error) {
 	r_added.clear();
 	AudioServer *audio = AudioServer::get_singleton();
@@ -924,6 +934,10 @@ Node *EretheaFornalhaImport::make_world(const EretheaFornalhaProject &p_project,
 	DirectionalLight3D *sun = _add<DirectionalLight3D>(root, root, "Sol");
 	sun->set_rotation_degrees(Vector3(-50, -30, 0));
 	sun->set_shadow(true);
+	// The cascades blend into each other instead of showing a seam, and reach
+	// across the world.
+	sun->set_blend_splits(true);
+	sun->set_param(Light3D::PARAM_SHADOW_MAX_DISTANCE, get_sun_shadow_distance(p_project));
 
 	Ref<Material> sky_material;
 	if (!p_project.sky.is_empty()) {

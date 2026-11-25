@@ -38,6 +38,7 @@
 #include "core/io/config_file.h"
 #include "editor/editor_node.h"
 #include "scene/3d/camera_3d.h"
+#include "scene/3d/light_3d.h"
 #include "scene/3d/physics/character_body_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
 #include "scene/3d/physics/spring_arm_3d.h"
@@ -165,6 +166,37 @@ static Ref<PackedScene> _model(const String &p_path) {
 	memdelete(root);
 	scene->set_path(p_path);
 	return scene;
+}
+
+TEST_CASE("[SceneTree][Modules][EretheaFornalha] The sun of the world") {
+	EretheaFornalhaProject project;
+	// No areas yet: Godot's distance.
+	CHECK(EretheaFornalhaImport::get_sun_shadow_distance(project) == doctest::Approx(100.0));
+	EretheaFornalhaArea village;
+	village.id = "vila";
+	village.center = Vector3(40, 0, 30);
+	project.areas.push_back(village);
+	EretheaFornalhaArea forest;
+	forest.id = "floresta";
+	forest.center = Vector3(-60, 0, 0);
+	project.areas.push_back(forest);
+	// Each area reaches half way to the other (52.2 m): the forest's edge is
+	// 112.2 m from the center of the world, so the world is 224.4 m across.
+	CHECK(EretheaFornalhaImport::get_sun_shadow_distance(project) == doctest::Approx(224.4).epsilon(0.01));
+	EretheaFornalhaArea mountain;
+	mountain.id = "montanha";
+	mountain.center = Vector3(0, 0, 400);
+	project.areas.push_back(mountain);
+	CHECK(EretheaFornalhaImport::get_sun_shadow_distance(project) == doctest::Approx(300.0));
+
+	Vector<String> warnings;
+	Node *world = EretheaFornalhaImport::make_world(project, warnings);
+	DirectionalLight3D *sun = Object::cast_to<DirectionalLight3D>(world->get_node_or_null(NodePath("Sol")));
+	REQUIRE(sun != nullptr);
+	CHECK(sun->has_shadow());
+	CHECK(sun->is_blend_splits_enabled());
+	CHECK(sun->get_param(Light3D::PARAM_SHADOW_MAX_DISTANCE) == doctest::Approx(300.0));
+	memdelete(world);
 }
 
 TEST_CASE("[SceneTree][Modules][EretheaFornalha] Character scenes") {
