@@ -175,6 +175,39 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
+      # Ray traced shadows of the sun (EretheaRayTracedShadows) instead of its
+      # shadow map. lavapipe has ray queries, so the image is proven here: in
+      # daylight it must change. Without the effect, the step against stock
+      # Godot above shows that nothing changes.
+      - name: Capture the ray traced shadows
+        if: always() && hashFiles('captures/erethea/results.json') != ''
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" "$ERETHEA" --path "$RUNNER_TEMP/scene_erethea" \
+            --audio-driver Dummy --fixed-fps 30 -- --rt=shadows --capture="$PWD/captures/rt_shadows" 2>&1 | tee rt_shadows.log
+          status=0
+          if ! grep -q "Ray tracing: shadows" rt_shadows.log; then
+            echo "::error::The ray traced shadows didn't start (no ray queries on this device?)."
+            status=1
+          fi
+          "$ERETHEA" --headless --path erethea/tests/reference_scene --script res://compare_captures.gd -- \
+            --baseline="$PWD/captures/erethea" --candidate="$PWD/captures/rt_shadows" \
+            --out="$PWD/captures/comparison_rt_shadows" \
+            --min-rmse=0.3 --min-rmse-for=dia_vila,dia_floresta,dia_personagem || status=$?
+          {
+            echo "## Sombras por ray tracing da Erethea"
+            echo
+            echo "Erethea sem efeitos × com EretheaRayTracedShadows no lugar do mapa de sombra do sol (lavapipe, com ray query). De dia a imagem tem que mudar (RMSE de pelo menos 0,3): as sombras ficam no mesmo lugar, com bordas suaves e firmes onde encostam. Veja as imagens no artefato \`reference-scene\`."
+            if [ "$status" -ne 0 ]; then
+              echo
+              echo "**As sombras por ray tracing não rodaram ou não mudaram a imagem.**"
+            fi
+            echo
+            cat captures/comparison_rt_shadows/summary.md || true
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
       - name: Upload the captures
         if: always()
         uses: actions/upload-artifact@v7

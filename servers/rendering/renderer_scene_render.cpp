@@ -31,6 +31,8 @@
 #include "renderer_scene_render.h"
 
 #include "core/variant/typed_array.h"
+#include "servers/rendering/renderer_compositor.h"
+#include "servers/rendering/rendering_server_globals.h"
 
 /////////////////////////////////////////////////////////////////////////////
 // CameraData
@@ -612,4 +614,16 @@ bool RendererSceneRender::environment_get_use_1d_color_correction(RID p_env) con
 
 RID RendererSceneRender::environment_get_color_correction(RID p_env) const {
 	return environment_storage.environment_get_color_correction(p_env);
+}
+
+// Erethea: See modules/erethea_raytracing.
+void RendererSceneRender::erethea_request_ray_tracing(float p_radius) {
+	const uint64_t frame = RSG::rasterizer->get_frame_number();
+	// The largest radius asked for in a frame.
+	erethea_rt_radius = erethea_rt_requested_frame == frame ? MAX(erethea_rt_radius, p_radius) : p_radius;
+	erethea_rt_requested_frame = frame;
+}
+
+bool RendererSceneRender::erethea_is_ray_tracing_requested() const {
+	return erethea_rt_radius > 0.0 && RSG::rasterizer->get_frame_number() - erethea_rt_requested_frame <= 1;
 }

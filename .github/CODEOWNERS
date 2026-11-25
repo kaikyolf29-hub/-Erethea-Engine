@@ -543,6 +543,11 @@
 /modules/erethea_post/doc_classes/            @kaikyolf29-hub @godotengine/documentation
 /modules/erethea_post/editor/                 @kaikyolf29-hub @godotengine/editor @godotengine/asset-pipeline
 /modules/erethea_post/tests/                  @kaikyolf29-hub @godotengine/tests
+/modules/erethea_raytracing/                  @kaikyolf29-hub @godotengine/rendering
+/modules/erethea_raytracing/**/*.py           @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_raytracing/**/SCsub          @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_raytracing/doc_classes/      @kaikyolf29-hub @godotengine/documentation
+/modules/erethea_raytracing/tests/            @kaikyolf29-hub @godotengine/tests
 /modules/erethea_streaming/                   @kaikyolf29-hub @godotengine/rendering @godotengine/asset-pipeline
 /modules/erethea_streaming/**/*.py            @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_streaming/**/SCsub           @kaikyolf29-hub @godotengine/buildsystem

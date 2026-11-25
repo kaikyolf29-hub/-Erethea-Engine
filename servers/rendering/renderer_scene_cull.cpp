@@ -3730,6 +3730,34 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
 		prev_camera_data = RSG::viewport->viewport_get_prev_camera_data(p_viewport);
 	}
 
+	// Erethea: The geometry around the camera for ray tracing effects, while
+	// one asked for it in this frame or the previous one.
+	erethea_rt_instances.clear();
+	if (scene_render->erethea_is_ray_tracing_requested()) {
+		const real_t erethea_rt_radius = scene_render->erethea_get_ray_tracing_radius();
+		struct CullAABB {
+			PagedArray<Instance *> *result;
+			_FORCE_INLINE_ bool operator()(void *p_data) {
+				result->push_back((Instance *)p_data);
+				return false;
+			}
+		};
+		erethea_rt_cull_result.clear();
+		CullAABB cull_aabb;
+		cull_aabb.result = &erethea_rt_cull_result;
+		const AABB around_camera(camera_position - Vector3(erethea_rt_radius, erethea_rt_radius, erethea_rt_radius), Vector3(erethea_rt_radius, erethea_rt_radius, erethea_rt_radius) * 2.0);
+		scenario->indexers[Scenario::INDEXER_GEOMETRY].aabb_query(around_camera, cull_aabb);
+		for (uint64_t i = 0; i < erethea_rt_cull_result.size(); i++) {
+			Instance *instance = erethea_rt_cull_result[i];
+			if (!instance->visible || !((1 << instance->base_type) & RSE::INSTANCE_GEOMETRY_MASK) || !(p_visible_layers & instance->layer_mask) || !instance->base_data) {
+				continue;
+			}
+			erethea_rt_instances.push_back(static_cast<InstanceGeometryData *>(instance->base_data)->geometry_instance);
+		}
+		erethea_rt_cull_result.clear();
+	}
+	scene_render->erethea_set_ray_tracing_instances(&erethea_rt_instances);
+
 	RENDER_TIMESTAMP("Render 3D Scene");
 	scene_render->render_scene(p_render_buffers, p_camera_data, prev_camera_data, scene_cull_result.geometry_instances, scene_cull_result.light_instances, scene_cull_result.reflections, scene_cull_result.voxel_gi_instances, scene_cull_result.decals, scene_cull_result.lightmaps, scene_cull_result.fog_volumes, p_environment, camera_attributes, p_compositor, p_shadow_atlas, occluders_tex, p_reflection_probe.is_valid() ? RID() : scenario->reflection_atlas, p_reflection_probe, p_reflection_probe_pass, p_screen_mesh_lod_threshold, render_shadow_data, max_shadows_used, render_sdfgi_data, cull.sdfgi.region_count, p_window_output_max_value, &sdfgi_update_data, r_render_info);
 
@@ -4526,6 +4554,9 @@ RendererSceneCull::RendererSceneCull() {
 
 	instance_cull_result.set_page_pool(&instance_cull_page_pool);
 	instance_shadow_cull_result.set_page_pool(&instance_cull_page_pool);
+	// Erethea: Geometry for ray tracing effects.
+	erethea_rt_cull_result.set_page_pool(&instance_cull_page_pool);
+	erethea_rt_instances.set_page_pool(&geometry_instance_cull_page_pool);
 
 	for (uint32_t i = 0; i < MAX_UPDATE_SHADOWS; i++) {
 		render_shadow_data[i].instances.set_page_pool(&geometry_instance_cull_page_pool);
@@ -4557,6 +4588,8 @@ RendererSceneCull::RendererSceneCull() {
 RendererSceneCull::~RendererSceneCull() {
 	instance_cull_result.reset();
 	instance_shadow_cull_result.reset();
+	erethea_rt_cull_result.reset(); // Erethea
+	erethea_rt_instances.reset(); // Erethea
 
 	for (uint32_t i = 0; i < MAX_UPDATE_SHADOWS; i++) {
 		render_shadow_data[i].instances.reset();
