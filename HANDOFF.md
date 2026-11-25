@@ -386,6 +386,29 @@ comparado na cena de referência:
        `Skeleton3D` girando um osso) e a sombra seguindo a pose.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
+
+   **Estudo (25/11):** o fork é `NVIDIA-RTX/godot`, branch `nvidia-pt-dlss`
+   (também `nvidia-pt-dlss-dev` e `backport/nvidia-pt-dlss-4.6.3`), sem
+   binários. Sobre a Godot `master` de início de novembro (merge do PR
+   #119319), quase a nossa base 4.8-beta4. São três commits de L. Sikkes
+   (02/11): "Miscellaneous", "Dependencies" (o Streamline em
+   `thirdparty/streamline/`, +13 mil linhas) e "Pathtracer + DLSS" (297
+   arquivos, +36,6 mil linhas): o path tracer dentro do Forward+
+   (`render_raytracing*.cpp`, `shaders/raytracing/`, pipeline de ray tracing
+   do Vulkan, materiais, luzes, decalques e névoa no path tracer) e o **DLSS
+   pelo Streamline no Vulkan** (`drivers/streamline/`), que é o extra "DLSS no
+   Vulkan" da lista. Muda 218 arquivos da Godot (núcleo, drivers Vulkan,
+   D3D12, Metal e GLES3, editor, cena); só 26 deles a Erethea também mudou (o
+   gancho das sombras por ray tracing no Forward+ e no cull, o driver Vulkan,
+   `main.cpp`, o CI). Decisão: trazer como tarefa própria, depois dos PRs da
+   fila e antes do lançamento se der tempo, num branch só dele: juntar os três
+   commits, resolver os 26 arquivos, conferir que com a configuração padrão a
+   cena de referência continua igual à Godot (o CI prova), ligar só em RTX pela
+   escolha por placa (item 1) e escolher entre o DLSS da NVIDIA (Vulkan) e o da
+   Erethea (D3D12) sem duplicar o Streamline. Risco: 218 arquivos do núcleo a
+   manter até a NVIDIA levar isso para a Godot (o que diminui quando ela
+   levar). O lavapipe tem pipeline de ray tracing, então o CI consegue provar
+   que o path tracer desenha.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
 5. **Materiais em camadas** (terra, sujeira, molhado), pele com subsuperfície
    melhor (perfil de espalhamento por canal, mapa de espessura e sombra de

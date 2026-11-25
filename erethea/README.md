@@ -18,6 +18,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/fornalha_link/` | Teste do elo ao vivo com a Fornalha, com uma Fornalha de mentira |
 | `tests/preview/` | Teste de ponta a ponta da prévia para a Fornalha (arquivos glTF gerados pelo teste) |
 | `tests/libgodot/` | Programa em C que embute a engine pela LibGodot e teste da prévia embutida |
+| `TESTE_DO_CRIADOR.md` | Roteiro do teste final do Kaiky no PC, nas placas de referência e com a Fornalha 3D |
 
 ## Atualizar a Godot
 
