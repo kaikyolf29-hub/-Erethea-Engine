@@ -30,8 +30,14 @@
 
 #include "erethea_ray_traced_shadows.h"
 
+#include "core/config/engine.h"
+#include "core/config/project_settings.h"
 #include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
+#include "scene/3d/camera_3d.h"
+#include "scene/3d/world_environment.h"
+#include "scene/main/scene_tree.h"
+#include "scene/main/window.h"
 #include "servers/rendering/rendering_server.h"
 
 #ifdef RD_ENABLED
@@ -520,6 +526,84 @@ void EretheaRayTracedShadows::set_normal_bias(float p_bias) {
 
 float EretheaRayTracedShadows::get_normal_bias() const {
 	return normal_bias;
+}
+
+void EretheaRayTracedShadows::register_project_settings() {
+	GLOBAL_DEF(PropertyInfo(Variant::INT, SUN_SHADOWS_SETTING, PROPERTY_HINT_ENUM, "Disabled,Automatic,Enabled"), SUN_SHADOWS_AUTOMATIC);
+}
+
+bool EretheaRayTracedShadows::is_added_to_scenes(int p_setting, bool p_supported, bool p_automatic_cinematic_quality) {
+	if (!p_supported) {
+		return false;
+	}
+	switch (p_setting) {
+		case SUN_SHADOWS_ENABLED:
+			return true;
+		case SUN_SHADOWS_AUTOMATIC:
+			return p_automatic_cinematic_quality;
+		default:
+			return false;
+	}
+}
+
+void EretheaRayTracedShadows::_add_to_node(Node *p_node) {
+	WorldEnvironment *environment = Object::cast_to<WorldEnvironment>(p_node);
+	Camera3D *camera = Object::cast_to<Camera3D>(p_node);
+	if (environment == nullptr && camera == nullptr) {
+		return;
+	}
+	Ref<Compositor> compositor = environment != nullptr ? environment->get_compositor() : camera->get_compositor();
+	if (compositor.is_null()) {
+		// A camera without its own compositor uses the environment's.
+		if (camera != nullptr) {
+			return;
+		}
+		compositor.instantiate();
+		environment->set_compositor(compositor);
+	}
+	TypedArray<CompositorEffect> effects = compositor->get_compositor_effects();
+	for (int i = 0; i < effects.size(); i++) {
+		if (Object::cast_to<EretheaRayTracedShadows>(effects[i])) {
+			return;
+		}
+	}
+	Ref<EretheaRayTracedShadows> effect;
+	effect.instantiate();
+	effects.push_back(effect);
+	compositor->set_compositor_effects(effects);
+}
+
+void EretheaRayTracedShadows::_add_to_tree(Node *p_node) {
+	_add_to_node(p_node);
+	for (int i = 0; i < p_node->get_child_count(); i++) {
+		_add_to_tree(p_node->get_child(i));
+	}
+}
+
+void EretheaRayTracedShadows::add_to_running_scenes() {
+	const int setting = GLOBAL_GET(SUN_SHADOWS_SETTING);
+	if (setting == SUN_SHADOWS_DISABLED) {
+		return;
+	}
+	RenderingServer *rs = RenderingServer::get_singleton();
+	const bool supported = rs != nullptr && rs->get_current_rendering_method() == "forward_plus" && is_supported();
+	// What the "Automatic" quality preset picks (see modules/erethea_quality),
+	// read by name so that this module doesn't need that one.
+	bool automatic_cinematic = false;
+	Engine *engine = Engine::get_singleton();
+	if (int(GLOBAL_GET("rendering/erethea/quality_preset")) == 4 && engine->has_singleton("EretheaQuality")) {
+		automatic_cinematic = int(engine->get_singleton_object("EretheaQuality")->call("get_recommended_preset")) == 3;
+	}
+	if (!is_added_to_scenes(setting, supported, automatic_cinematic)) {
+		return;
+	}
+	SceneTree *tree = SceneTree::get_singleton();
+	if (tree == nullptr || tree->get_root() == nullptr) {
+		return;
+	}
+	print_verbose("Erethea: ray traced shadows of the sun added to the scenes (rendering/erethea/ray_tracing/sun_shadows).");
+	tree->connect("node_added", callable_mp_static(&EretheaRayTracedShadows::_add_to_node));
+	_add_to_tree(tree->get_root());
 }
 
 bool EretheaRayTracedShadows::is_supported() {
