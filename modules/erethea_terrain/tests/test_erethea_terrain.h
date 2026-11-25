@@ -272,6 +272,24 @@ TEST_CASE("[Modules][EretheaTerrain] Clipmap mesh has the grid and the skirt") {
 		}
 	}
 	CHECK(skirt_vertices == 4 * 9);
+
+	// The odd vertices of the edge, and their skirt, say which way their line goes.
+	int along_x = 0;
+	int along_z = 0;
+	for (int i = 0; i < mesh.vertices.size(); i++) {
+		if (mesh.uvs[i].y == 1) {
+			along_x++;
+			CHECK(Math::abs(Math::abs(mesh.vertices[i].z) - 8) < 0.0001);
+		} else if (mesh.uvs[i].y == 2) {
+			along_z++;
+			CHECK(Math::abs(Math::abs(mesh.vertices[i].x) - 8) < 0.0001);
+		} else {
+			CHECK(mesh.uvs[i].y == 0);
+		}
+	}
+	// 4 odd vertices on each of the 2 edges, with the skirt copy of each.
+	CHECK(along_x == 2 * 4 * 2);
+	CHECK(along_z == 2 * 4 * 2);
 	for (int i = 0; i < mesh.indices.size(); i++) {
 		CHECK(mesh.indices[i] >= 0);
 		CHECK(mesh.indices[i] < mesh.vertices.size());

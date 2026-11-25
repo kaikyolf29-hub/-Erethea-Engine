@@ -8,6 +8,10 @@ extends Node3D
 #   terrain, exactly on the vertices and within a small tolerance between them.
 # - A capture of the viewport is not a single color, and shows the terrain's
 #   green material.
+# - The background is pure magenta, a color that the terrain never has. Below
+#   the top of the terrain, in each column of the capture, there must be no
+#   magenta pixel: any would be a crack between two levels of the clipmap
+#   that shows the background through the ground.
 #
 # Prints ERETHEA_TERRAIN_OK and exits with 0 if all of that holds, or exits
 # with 1 otherwise.
@@ -21,6 +25,8 @@ const SPACING := 2.0
 const TOLERANCE_BETWEEN_VERTICES := 0.25
 const TOLERANCE_ON_VERTICES := 0.02
 const TIMEOUT_MSEC := 120000
+# A color that is not in the terrain, for finding the cracks.
+const BACKGROUND := Color(1.0, 0.0, 1.0)
 
 var failures: PackedStringArray = []
 var terrain: EretheaTerrain3D
@@ -83,7 +89,8 @@ func _build() -> void:
 
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.45, 0.6, 0.95)
+	environment.background_color = BACKGROUND
+	environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.6, 0.65, 0.75)
 	environment.ambient_light_energy = 0.6
@@ -208,6 +215,43 @@ func _check_image(image: Image, out_path: String) -> void:
 		failures.append("The capture is almost a single color.")
 	if green < total * 0.03:
 		failures.append("The capture has no green: the terrain's grass material isn't drawn.")
+	_check_cracks(image)
+
+
+# In each column, counts the background pixels below the first pixel of the
+# terrain, which is the silhouette of the ground. There are none without cracks.
+func _check_cracks(image: Image) -> void:
+	var cracks := 0
+	var columns_with_cracks := 0
+	var first_crack := Vector2i(-1, -1)
+	var covered_columns := 0
+	for x in image.get_width():
+		var top := -1
+		for y in image.get_height():
+			if not _is_background(image.get_pixel(x, y)):
+				top = y
+				break
+		if top < 0:
+			continue
+		covered_columns += 1
+		var column_cracks := 0
+		for y in range(top, image.get_height()):
+			if _is_background(image.get_pixel(x, y)):
+				column_cracks += 1
+				if first_crack.x < 0:
+					first_crack = Vector2i(x, y)
+		cracks += column_cracks
+		if column_cracks > 0:
+			columns_with_cracks += 1
+	print("Cracks: %d background pixels below the terrain, in %d of %d columns%s." % [cracks, columns_with_cracks, covered_columns, "" if cracks == 0 else " (first at %s)" % first_crack])
+	if covered_columns < image.get_width() / 2:
+		failures.append("The terrain covers only %d of %d columns of the capture." % [covered_columns, image.get_width()])
+	if cracks > 0:
+		failures.append("%d background pixels show through the terrain, in %d columns (first at %s): there are cracks in the clipmap." % [cracks, columns_with_cracks, first_crack])
+
+
+func _is_background(color: Color) -> bool:
+	return color.r > 0.9 and color.g < 0.1 and color.b > 0.9
 
 
 func _finish() -> void:

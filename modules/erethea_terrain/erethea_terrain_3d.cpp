@@ -177,6 +177,7 @@ void EretheaTerrain3D::_update_material_parameters() {
 		material->set_shader_parameter("vertex_spacing", built_spacing);
 		material->set_shader_parameter("level_spacing", level_spacing);
 		material->set_shader_parameter("skirt_depth", _get_skirt_depth(level_spacing));
+		material->set_shader_parameter("match_outer_edge", i < (int)levels.size() - 1);
 		material->set_shader_parameter("hole_half_extent", get_hole_half_extent(built_spacing, i, mesh_size));
 		material->set_shader_parameter("uv_scale", uv_scale);
 		material->set_shader_parameter("detiling", detiling);

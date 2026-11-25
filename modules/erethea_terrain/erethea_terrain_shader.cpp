@@ -59,6 +59,8 @@ uniform float vertex_spacing = 1.0;
 uniform vec2 level_center = vec2(0.0);
 uniform float level_spacing = 1.0;
 uniform float skirt_depth = 1.0;
+// Whether there is a coarser level around this one, with its edge to match.
+uniform bool match_outer_edge = false;
 // The square that the next finer level covers. Not drawn here. 0 for no hole.
 uniform vec2 hole_center = vec2(0.0);
 uniform float hole_half_extent = 0.0;
@@ -92,8 +94,16 @@ vec4 hash4(vec2 p) {
 
 void vertex() {
 	vec2 xz = VERTEX.xz + level_center;
+	float h = height_at(xz);
+	if (match_outer_edge && UV.y > 0.5) {
+		// A vertex of the edge between two vertices of the next level: it takes
+		// the height of the line between them, as the next level draws it, so that
+		// there is no crack between the two.
+		vec2 along = UV.y < 1.5 ? vec2(level_spacing, 0.0) : vec2(0.0, level_spacing);
+		h = 0.5 * (height_at(xz - along) + height_at(xz + along));
+	}
 	// The skirt vertices (UV x = 1) hang below the edge of the level.
-	float h = height_at(xz) - UV.x * skirt_depth;
+	h -= UV.x * skirt_depth;
 	v_local = vec3(xz.x, h, xz.y);
 	VERTEX = v_local;
 }

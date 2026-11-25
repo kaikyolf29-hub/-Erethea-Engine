@@ -76,8 +76,10 @@ real_t get_hole_half_extent(real_t p_base_spacing, int p_level, int p_mesh_size)
 // The vertices, UVs and indices of a level's mesh, on the plane y = 0, centered
 // on the origin and spaced by p_spacing. Besides the (p_quads + 1)^2 grid
 // vertices there is a skirt around the edge: a row of vertices with the UV x set
-// to 1, which the vertex shader lowers by the skirt depth. The skirt hides the
-// cracks between two levels. Triangles are clockwise, as seen from the front,
+// to 1, which the vertex shader lowers by the skirt depth. The skirt hides what
+// the cracks between two levels leave. The UV y of the vertices at the odd
+// positions of the edge is 1 or 2 (see build_level_mesh), so that the shader can
+// put them on the edge of the next level. Triangles are clockwise, as seen from the front,
 // like Godot's, and follow the diagonal of Godot's HeightMapShape3D.
 struct LevelMesh {
 	Vector<Vector3> vertices;

@@ -91,6 +91,17 @@ LevelMesh build_level_mesh(int p_quads, real_t p_spacing) {
 		}
 	}
 
+	// The vertices at the odd positions of the edge are the ones that the next
+	// level doesn't have: they sit between two of its vertices. The shader
+	// puts them on the line between those two. UV y says which way the line goes:
+	// 1 along x (the north and south edges), 2 along z (the west and east).
+	for (int i = 1; i < p_quads; i += 2) {
+		uvs[i].y = 1;
+		uvs[p_quads * side + i].y = 1;
+		uvs[i * side].y = 2;
+		uvs[i * side + p_quads].y = 2;
+	}
+
 	int index = 0;
 	for (int z = 0; z < p_quads; z++) {
 		for (int x = 0; x < p_quads; x++) {
@@ -127,7 +138,7 @@ LevelMesh build_level_mesh(int p_quads, real_t p_spacing) {
 		const int skirt_first = skirt_vertex;
 		for (int i = 0; i < side; i++) {
 			vertices[skirt_vertex] = vertices[edge.first + i * edge.step];
-			uvs[skirt_vertex] = Vector2(1, 0);
+			uvs[skirt_vertex] = Vector2(1, uvs[edge.first + i * edge.step].y);
 			skirt_vertex++;
 		}
 		for (int i = 0; i < p_quads; i++) {
