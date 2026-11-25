@@ -37,12 +37,14 @@
 #include "core/io/json.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
+#include "core/io/resource_uid.h"
 #include "core/object/class_db.h"
 #include "core/object/script_language.h"
 #include "core/os/time.h"
 #include "editor/editor_node.h"
 #include "editor/editor_undo_redo_manager.h"
 #include "editor/file_system/editor_file_system.h"
+#include "editor/import/resource_importer_texture.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
 #include "scene/3d/physics/area_3d.h"
@@ -464,6 +466,9 @@ Dictionary EretheaFornalhaImport::Report::to_dictionary() const {
 		result["music_clips"] = Variant(PackedStringArray(music_clips));
 		result["music_imports"] = Variant(PackedStringArray(music_imports));
 	}
+	if (!compressed_textures.is_empty()) {
+		result["compressed_textures"] = Variant(PackedStringArray(compressed_textures));
+	}
 	if (!backup_folder.is_empty()) {
 		result["backup_folder"] = backup_folder;
 	}
@@ -744,6 +749,49 @@ Vector<String> EretheaFornalhaImport::prepare_music_imports(const EretheaFornalh
 		EditorFileSystem::get_singleton()->reimport_files(changed);
 	}
 	return changed;
+}
+
+Vector<String> EretheaFornalhaImport::mark_model_textures_used_in_3d(const EretheaFornalhaProject &p_project) {
+	Vector<String> models;
+	for (const EretheaFornalhaCharacter &character : p_project.characters) {
+		models.push_back(character.model);
+	}
+	if (!p_project.world_model.is_empty()) {
+		models.push_back(p_project.world_model);
+	}
+	Vector<String> marked;
+	for (const String &model : models) {
+		if (!ResourceLoader::exists(model)) {
+			continue;
+		}
+		List<String> dependencies;
+		ResourceLoader::get_dependencies(model, &dependencies);
+		for (const String &dependency : dependencies) {
+			// "<uid or path>::<type>::<path>", the type and the path optional.
+			const Vector<String> parts = dependency.split("::");
+			String path = ResourceUID::ensure_path(parts[0]);
+			if (path.is_empty() && parts.size() > 2) {
+				path = parts[2];
+			}
+			if (path.is_empty() || marked.has(path)) {
+				continue;
+			}
+			// Only images imported as textures that would still be compressed
+			// once seen in 3D: not those compressed already or set by hand.
+			Ref<ConfigFile> import_settings;
+			import_settings.instantiate();
+			if (import_settings->load(path + ".import") != OK || String(import_settings->get_value("remap", "importer", String())) != "texture" || int(import_settings->get_value("params", "detect_3d/compress_to", 0)) == 0) {
+				continue;
+			}
+			ResourceImporterTexture::erethea_mark_used_in_3d(path);
+			marked.push_back(path);
+		}
+	}
+	if (!marked.is_empty() && ResourceImporterTexture::get_singleton()) {
+		// Reimports them now, or later from the editor's loop if it's busy importing.
+		ResourceImporterTexture::get_singleton()->update_imports();
+	}
+	return marked;
 }
 
 Node *EretheaFornalhaImport::make_character(const EretheaFornalhaCharacter &p_character, Vector<String> &r_warnings) {
@@ -1473,6 +1521,7 @@ EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	}
 	_save_scene(make_world(project, report.warnings), WORLD_SCENE, state);
 	_save_scene(make_main(project, report.warnings, &report.music_clips), MAIN_SCENE, state);
+	report.compressed_textures = mark_model_textures_used_in_3d(project);
 
 	Dictionary new_record;
 	new_record["format"] = 1;

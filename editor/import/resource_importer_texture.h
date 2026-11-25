@@ -103,6 +103,11 @@ public:
 	// erethea_streaming module streams their mipmaps after the editor restarts.
 	typedef void (*Texture3DDetectedCallback)(const String &p_path);
 	static Texture3DDetectedCallback texture_3d_detected_callback;
+	// Erethea: Marks a texture as used in 3D, as drawing it in a 3D material
+	// in the editor does, for a module that knows it before anything draws it
+	// (the Fornalha's models, imported without a window). update_imports()
+	// then compresses it, as if it had been detected.
+	static void erethea_mark_used_in_3d(const String &p_path);
 	virtual String get_importer_name() const override;
 	virtual String get_visible_name() const override;
 	virtual void get_recognized_extensions(List<String> *p_extensions) const override;

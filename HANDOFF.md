@@ -292,8 +292,13 @@ Fornalha (a LibGodot abre a própria janela).
   (`drivers/vulkan/`). Não é tarefa para sessão barata e não dá para provar sem
   placa NVIDIA: faça com cuidado, desligado por padrão, e deixe a prova para o
   teste final.
-- Compressão automática na importação dos assets da Fornalha (conferir se o
-  importador da Fase 3 já liga a compressão VRAM certa).
+- ~~Compressão automática na importação dos assets da Fornalha~~ (PR das
+  texturas dos modelos, 25/11): não ligava. A Godot só comprime (e a Erethea
+  só faz streaming) quando o editor desenha a textura num material 3D, o que
+  nunca acontece na importação sem tela da Fornalha. A montagem das cenas
+  agora marca as texturas dos modelos como usadas em 3D
+  (`ResourceImporterTexture::erethea_mark_used_in_3d`, `// Erethea:`), e o
+  teste da Fornalha prova com uma textura no herói.
 
 ### 7. Fase 4 · Visual avançado
 
