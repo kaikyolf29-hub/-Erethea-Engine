@@ -61,6 +61,7 @@ novas da Godot sem reescrever nada.
 | Pós-processamento (LUT `.cube`, lens flare, motion blur, grão) | `modules/erethea_post/` |
 | Ray tracing e sombra de contato do sol (depois reflexos e GI) | `modules/erethea_raytracing/` |
 | Upscalers (AMD FSR 3.1/4, XeSS e DLSS) | `modules/erethea_upscale/` |
+| Geometria densa (malhas de milhões de triângulos divididas na importação) | `modules/erethea_dense_geometry/` |
 | Streaming de texturas 3D | `modules/erethea_streaming/` |
 | Servidor MCP do editor (agentes como o Claude Code) | `modules/erethea_mcp/` |
 | Modo de teste para agentes (`--agent-test`) | `modules/erethea_agent_test/` |
@@ -73,7 +74,7 @@ novas da Godot sem reescrever nada.
 | Materiais do glTF que a Godot ignora (coat, anisotropia, sheen, IOR) | `modules/erethea_gltf/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
-| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`, `erethea_terrain.yml`, `erethea_hair_strands.yml`, `erethea_raytracing_fallback.yml`) |
+| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`, `erethea_terrain.yml`, `erethea_hair_strands.yml`, `erethea_raytracing_fallback.yml`, `erethea_dense_geometry.yml`) |
 
 ## Compilar e testar
 

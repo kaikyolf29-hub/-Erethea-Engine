@@ -582,6 +582,11 @@
 /modules/erethea_assistant/**/*.py             @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_assistant/**/SCsub            @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_assistant/tests/              @kaikyolf29-hub @godotengine/tests
+/modules/erethea_dense_geometry/               @kaikyolf29-hub @godotengine/asset-pipeline @godotengine/rendering
+/modules/erethea_dense_geometry/**/*.py        @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_dense_geometry/**/SCsub       @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_dense_geometry/editor/        @kaikyolf29-hub @godotengine/editor @godotengine/asset-pipeline
+/modules/erethea_dense_geometry/tests/         @kaikyolf29-hub @godotengine/tests
 /modules/erethea_terrain/                      @kaikyolf29-hub @godotengine/rendering
 /modules/erethea_terrain/**/*.py               @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_terrain/**/SCsub              @kaikyolf29-hub @godotengine/buildsystem

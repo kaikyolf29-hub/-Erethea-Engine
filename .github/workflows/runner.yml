@@ -108,6 +108,11 @@ jobs:
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_fornalha_import.yml
 
+  erethea-dense-geometry:
+    name: 🔥 Erethea dense geometry
+    needs: linux-build
+    uses: ./.github/workflows/erethea_dense_geometry.yml
+
   erethea-raytracing-fallback:
     name: 🔥 Erethea ray tracing fallback
     needs: windows-build

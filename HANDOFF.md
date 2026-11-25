@@ -47,14 +47,12 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
   cascatas do sol no mundo da Fornalha, #47 texturas dos modelos da Fornalha
   comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
   janela.
-- **PRs abertos** (merge um por vez, com o CI inteiro verde e conferindo
-  conflito com o `main` antes; se conflitar, junte o `main`, valide o
-  `doc/classes/ProjectSettings.xml` com
+- **PRs abertos**: nenhum depois do #41 (geometria densa, Fase 5) e do #51
+  (roteiro do teste do criador e estado). Regra para os próximos: merge um
+  por vez, com o CI inteiro verde e conferindo conflito com o `main` antes;
+  se conflitar, junte o `main`, valide o `doc/classes/ProjectSettings.xml` com
   `python3 -c "import xml.dom.minidom;xml.dom.minidom.parse('doc/classes/ProjectSettings.xml')"`
-  e rode os testes):
-  - **#41** geometria densa (Fase 5), com o `main` juntado de novo em 25/11
-    (o CI anterior estava todo verde);
-  - este PR (roteiro do teste do criador e estado).
+  e rode os testes.
 - **Sessões Sonnet**: nenhuma rodando. As duas de 25/11 terminaram (cabelo
   no #40; terreno nos #38, #42 e #50).
 - **Decisões de 25/11**: o path tracing da NVIDIA e, com ele, reflexos e GI
@@ -73,8 +71,8 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
     então o experimento 2 (fechar o editor reaberto antes da parte gráfica)
     não resolveu; a suspeita passa ao instalador (o Restart Manager do
     `/CLOSEAPPLICATIONS`). Detalhes em "Falhas conhecidas do CI".
-- **Próximos passos até o lançamento**: merge do #41 e deste PR; achar a
-  causa do 0xC0000409 quando o ProcDump pegar;
+- **Próximos passos até o lançamento**: achar a causa do 0xC0000409 quando o
+  ProcDump pegar;
   depois o item 9 da Fase 4 ("Lançamento"). **Decidido pelo Kaiky em 25/11:
   versão `v1.0.0`, sem assinatura por enquanto (o Azure Artifact Signing não
   aceita pessoa física no Brasil; a assinatura entra numa versão seguinte), e
@@ -139,7 +137,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
 | 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Pronta (25/11): MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24), bloco de som (#25, #29; a boca é da Fornalha) e prévia com LibGodot (#31). A prova com a Fornalha de verdade é do teste final |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Pronta no CI (25/11): com ray tracing no lavapipe (sombras do sol e dos personagens com esqueleto, #34 e #35) e sem ele no WARP, igual à sem a opção (#48). No `main` também: raios de luz (#32), escolha por placa (#36), sombra de contato (#37, #45), terreno (#38, #42, #50), pele (#39), cabelo fio a fio (#40), materiais do glTF (#44) e cascatas (#46). Depois do lançamento: path tracing da NVIDIA, reflexos e GI por ray tracing. A prova na RTX e na RX 580 é do teste final |
-| 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Primeira versão em PR (#41): divisão em pedaços na importação, com LOD e corte por pedaço (2 milhões de triângulos, 24× menos primitivas de perto); falta a prova na placa |
+| 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Pronta na primeira versão (#41, 25/11): divisão em pedaços na importação, com LOD e corte por pedaço (2 milhões de triângulos, 24× menos primitivas de perto). Seleção na placa, LOD contínuo e streaming do disco só se o teste final pedir; falta a prova na placa |
 
 ## O que fazer agora (na ordem)
 
@@ -572,6 +570,23 @@ Pronto quando: um modelo de milhões de polígonos roda sem LOD feito à mão.
    e um teste com um modelo de milhões de polígonos medindo FPS e memória.
    É também o pedido da Fornalha de "geometria virtual" para cenário denso
    (castelos, vilas).
+
+**Estado (25/11): primeira versão feita (PR da geometria densa)**, que já
+cumpre o "pronto quando". `modules/erethea_dense_geometry/` (só no editor): na
+importação, com `rendering/erethea/dense_geometry/cluster_triangles` (padrão 0)
+ou a opção de importação de mesmo nome, um `EditorScenePostImportPlugin`
+(`pre_process`, antes de a Godot gerar os LODs) divide as malhas grandes em
+pedaços espaciais (mediana dos centros no eixo mais longo) e cada pedaço vira
+um `ImporterMeshInstance3D` filho. A Godot gera os LODs de cada pedaço com as
+bordas presas (`SIMPLIFY_LOCK_BORDER`, sem rachar), corta cada um sozinho e
+escolhe o LOD de cada um pela distância dele. Nada no núcleo. Teste de 2
+milhões de triângulos no CI (`erethea_dense_geometry.yml`): de perto, 43.008
+primitivas em vez de 1.048.576 e quadro de ~190 ms para ~37 ms no lavapipe.
+Limites: os pedaços usam as configurações de importação padrão (as por malha
+do diálogo avançado ficam com o nome da malha original); de longe a divisão
+desenha um pouco mais (o LOD mais simples de cada pedaço). Próximos passos,
+se o teste final pedir: seleção na placa (compute e desenho indireto),
+hierarquia contínua de LOD e streaming do disco (itens 1 a 3 acima).
 
 ### 9. Lançamento
 
