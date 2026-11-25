@@ -131,8 +131,8 @@ dele (no jogo exportado também):
 | Dedicada com ray tracing, NVIDIA (RTX) | Cinematic | Ray tracing + mapa de sombra | DLSS (com os arquivos da NVIDIA), senão AMD FSR |
 | Dedicada com ray tracing, Intel (Arc) | Cinematic | Ray tracing + mapa de sombra | XeSS, senão AMD FSR |
 
-Projetos novos criados na Erethea já começam com o preset e o upscaler em
-`Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
+Projetos novos criados na Erethea e os projetos da Fornalha (na primeira vez
+que abrem no editor) já começam com o preset e o upscaler em `Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
 (`Disabled`, `Automatic`, que é o padrão e segue o preset, ou `Enabled`, em
 toda placa com ray tracing) e `rendering/erethea/temporal_upscaler` com um
 upscaler fixo. Projetos da Godot ficam com o preset `Disabled`, então nada
@@ -264,7 +264,8 @@ A pele usa a subsuperfície da Godot (Forward+), com três partes:
   vazar para outra numa profundidade diferente (a mão na frente do rosto, o
   nariz sobre a bochecha), com um halo claro na borda. Com ela, as amostras
   mais longe em profundidade que essa distância não espalham luz no pixel. O
-  padrão é 0, que é o filtro da Godot; vale ao abrir o projeto.
+  padrão é 0, que é o filtro da Godot; vale ao abrir o projeto. Projetos novos
+  da Erethea e os da Fornalha começam com 0,03.
 
 Teste: `erethea/tests/sss_scene` (uma pele iluminada na frente de outra, no
 escuro, a 1 m). Com a configuração do projeto (5 cm), a luz não vaza; com
@@ -274,7 +275,7 @@ roda os dois. Imprime `ERETHEA_SSS_OK`.
 Pedido para a Fornalha (o Kaiky cola no chat dela):
 
 ```text
-Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). No project.godot dos jogos, ponha rendering/erethea/subsurface_scattering/follow_surface=0.03 na seção [rendering] (a Godot ignora). Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
+Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). (A configuração que faz a pele não vazar entre superfícies a Erethea já põe sozinha no project.godot quando abre o projeto.) Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
 ```
 
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
@@ -690,6 +691,19 @@ projetos da Fornalha, a importação deixa em loop as animações com os nomes d
 `correr` e `correr_rapido`). O que a pessoa escolher nas configurações de
 importação da animação vale mais.
 
+**Configurações da Erethea.** A Fornalha escreve o próprio `project.godot`,
+então os projetos dela não ganhavam o que um projeto novo da Erethea ganha e
+rodavam com cara de Godot comum. Agora, quando um projeto da Fornalha abre no
+editor (também na importação sem tela, `--headless --import`), ele recebe uma
+vez cada configuração de projeto novo da Erethea: o preset de qualidade e o
+upscaler `Automatic`, o streaming das texturas 3D e a pele que não vaza entre
+superfícies (`follow_surface` = 0,03). O que o projeto já tinha mudado fica
+como está, e a lista do que ele já recebeu fica em
+`editor/erethea_fornalha/erethea_defaults_applied`: desligar uma delas depois
+vale, ela não volta. Uma configuração que uma Erethea futura acrescentar aos
+projetos novos chega na próxima vez que o projeto abrir. A lista está em
+`EditorNode::erethea_get_initial_settings()` (`editor/editor_node.cpp`).
+
 **Como montar.**
 
 - Sozinha, quando muda o que as cenas usam, como um personagem novo da
@@ -706,7 +720,9 @@ monta as cenas, confere que a segunda montagem não muda nada, que a
 `principal.tscn` que a Erethea não fez fica até montar com *force* (e que a
 cópia vai para o backup) e que uma área mudada à mão fica. Depois roda o jogo
 sem janela: o herói anda mais de 2 m no chão tocando `andar` em loop, e cada
-lobo está na cena da sua área. O CI roda no Linux e no Windows.
+lobo está na cena da sua área. Também confere que a importação deu ao projeto
+as configurações da Erethea e manteve a que ele tinha escolhido. O CI roda no
+Linux e no Windows.
 
 ```sh
 python erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.linuxbsd.editor.x86_64

@@ -817,6 +817,8 @@ public:
 	static bool is_cmdline_mode();
 
 	static HashMap<String, Variant> get_initial_settings();
+	// Erethea: The part of get_initial_settings() that is Erethea's own.
+	static HashMap<String, Variant> erethea_get_initial_settings();
 
 	static void cleanup();
 

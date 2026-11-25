@@ -223,6 +223,14 @@ EretheaFornalhaPlugin::EretheaFornalhaPlugin() {
 
 	// Godot projects see no new menu and don't look for the Fornalha.
 	if (EretheaFornalhaImport::is_fornalha_project()) {
+		const PackedStringArray applied_before = GLOBAL_GET(EretheaFornalhaImport::SETTING_ERETHEA_DEFAULTS_APPLIED);
+		const PackedStringArray changed = EretheaFornalhaImport::apply_erethea_defaults(EditorNode::erethea_get_initial_settings());
+		if (PackedStringArray(GLOBAL_GET(EretheaFornalhaImport::SETTING_ERETHEA_DEFAULTS_APPLIED)) != applied_before) {
+			ProjectSettings::get_singleton()->save();
+		}
+		if (!changed.is_empty()) {
+			print_line(vformat("Erethea: this project from the Fornalha now starts with Erethea's settings: %s.", String(", ").join(changed)));
+		}
 		dialog = memnew(EretheaFornalhaBuildDialog);
 		EditorNode::get_singleton()->get_gui_base()->add_child(dialog);
 		add_tool_menu_item(TTR("Build Scenes from game.project.json..."), callable_mp(this, &EretheaFornalhaPlugin::_show_dialog));
