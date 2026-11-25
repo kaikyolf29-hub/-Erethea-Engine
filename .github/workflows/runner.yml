@@ -112,3 +112,8 @@ jobs:
     name: 🔥 Erethea assistant
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_assistant.yml
+
+  erethea-preview:
+    name: 🔥 Erethea preview
+    needs: [linux-build, windows-build]
+    uses: ./.github/workflows/erethea_preview.yml
