@@ -123,7 +123,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
 | 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Quase pronta: MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24) e o bloco de som (#25, #29; a boca é da Fornalha) no `main`. Falta a prévia com LibGodot (PR #31) e fechar a fase (passo 5) |
 | 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32) e sombras do sol por ray tracing (#34) no `main`; próximo: sombras dos personagens com esqueleto (item 2) |
-| 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
+| 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Primeira versão em PR: divisão em pedaços na importação, com LOD e corte por pedaço (2 milhões de triângulos, 24× menos primitivas de perto); falta a prova na placa |
 
 ## O que fazer agora (na ordem)
 
@@ -429,6 +429,23 @@ Pronto quando: um modelo de milhões de polígonos roda sem LOD feito à mão.
    e um teste com um modelo de milhões de polígonos medindo FPS e memória.
    É também o pedido da Fornalha de "geometria virtual" para cenário denso
    (castelos, vilas).
+
+**Estado (25/11): primeira versão feita (PR da geometria densa)**, que já
+cumpre o "pronto quando". `modules/erethea_dense_geometry/` (só no editor): na
+importação, com `rendering/erethea/dense_geometry/cluster_triangles` (padrão 0)
+ou a opção de importação de mesmo nome, um `EditorScenePostImportPlugin`
+(`pre_process`, antes de a Godot gerar os LODs) divide as malhas grandes em
+pedaços espaciais (mediana dos centros no eixo mais longo) e cada pedaço vira
+um `ImporterMeshInstance3D` filho. A Godot gera os LODs de cada pedaço com as
+bordas presas (`SIMPLIFY_LOCK_BORDER`, sem rachar), corta cada um sozinho e
+escolhe o LOD de cada um pela distância dele. Nada no núcleo. Teste de 2
+milhões de triângulos no CI (`erethea_dense_geometry.yml`): de perto, 43.008
+primitivas em vez de 1.048.576 e quadro de ~190 ms para ~37 ms no lavapipe.
+Limites: os pedaços usam as configurações de importação padrão (as por malha
+do diálogo avançado ficam com o nome da malha original); de longe a divisão
+desenha um pouco mais (o LOD mais simples de cada pedaço). Próximos passos,
+se o teste final pedir: seleção na placa (compute e desenho indireto),
+hierarquia contínua de LOD e streaming do disco (itens 1 a 3 acima).
 
 ### 9. Lançamento
 

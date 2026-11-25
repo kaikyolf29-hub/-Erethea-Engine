@@ -225,6 +225,45 @@ velocidade numa placa de verdade (RTX) fica para o teste final.
 erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
 ```
 
+## Geometria densa
+
+Para modelos de milhões de triângulos sem LOD feito à mão (castelos, vilas,
+cenário escaneado), pedido de "geometria virtual" da Fornalha. O código fica
+em `modules/erethea_dense_geometry/` e age na importação:
+
+- Com `rendering/erethea/dense_geometry/cluster_triangles` (configuração do
+  projeto, padrão 0 = desligado) ou a opção de importação
+  `erethea/dense_geometry/cluster_triangles` de cada cena, toda malha com pelo
+  menos o dobro desse número de triângulos é dividida em pedaços de
+  triângulos vizinhos (no máximo esse número em cada um), antes de a Godot
+  gerar os LODs. Cada pedaço vira uma instância própria.
+- Assim a Godot corta cada pedaço sozinho (fora da tela ou escondido não
+  desenha) e escolhe o LOD de cada um pela distância dele: o que está perto
+  fica com todo o detalhe, o que está longe fica simples. A Godot prende as
+  bordas abertas quando simplifica, então os pedaços não racham na emenda.
+- Ficam inteiras: malhas com esqueleto, com formas (blend shapes) e as que
+  não são só de triângulos. 65536 serve bem para cenário denso.
+- Depois de mudar a configuração, reimporte as cenas.
+
+Teste (`erethea/tests/dense_geometry/test_dense_geometry.py`, também no CI):
+gera uma paisagem de 2.097.152 triângulos, importa com e sem a divisão e
+desenha no lavapipe. Com a divisão, ela vira 32 instâncias e, de perto, a
+placa desenha 43.008 primitivas em vez de 1.048.576 (o quadro caiu de
+cerca de 190 ms para 37 ms no lavapipe, que desenha na CPU). De longe, a
+divisão desenha um pouco mais (32.768 contra 8.192 primitivas, o LOD mais
+simples de cada pedaço), ainda pouco. A imagem de teste usa fundo vermelho
+para mostrar rachaduras; não apareceu nenhuma.
+
+```sh
+python erethea/tests/dense_geometry/test_dense_geometry.py bin/erethea.linuxbsd.editor.x86_64
+```
+
+Ainda não feito (do plano): seleção por pedaço na própria placa (compute e
+desenho indireto), hierarquia contínua de LOD entre pedaços (estilo Nanite) e
+streaming das páginas de pedaços do disco. O que já existe resolve o "pronto
+quando" da Fase 5 (um modelo de milhões de polígonos roda sem LOD feito à
+mão); a medida numa placa de verdade fica para o teste final.
+
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por
