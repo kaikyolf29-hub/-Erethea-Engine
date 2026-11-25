@@ -69,6 +69,7 @@ novas da Godot sem reescrever nada.
 | Painel de IA do editor (Ignis, Claude pela API, servidor OpenAI, Claude Code) | `modules/erethea_assistant/` |
 | Terreno nativo (clipmap, 32 materiais, detiling, triplanar, colisão) | `modules/erethea_terrain/` |
 | Prévia do asset para a Fornalha (`--erethea-preview=`, LibGodot) | `modules/erethea_preview/` |
+| Materiais do glTF que a Godot ignora (coat, anisotropia, sheen, IOR) | `modules/erethea_gltf/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
 | CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`, `erethea_terrain.yml`) |

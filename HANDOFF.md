@@ -536,6 +536,18 @@ O que o projeto já mudou fica. Uma configuração nova da Erethea para projetos
 novos entra nessa função e chega sozinha aos projetos da Fornalha. Não precisa
 de pedido para a Fornalha.
 
+**Materiais do glTF que a Godot ignora (PR de 25/11, em cima do anterior).** O
+importador glTF da Godot descarta `KHR_materials_clearcoat`, `_anisotropy`,
+`_sheen`, `_ior` e `_specular`, e a Fornalha usa coat na córnea
+(`fc_humano.py`) e anisotropia e sheen no cabelo (`fc_cabelo.py`). O módulo
+`modules/erethea_gltf/` (uma `GLTFDocumentExtension`) leva cada um para a
+propriedade mais próxima do `StandardMaterial3D`, com
+`rendering/erethea/gltf/import_material_extensions` (desligada na Godot, ligada
+em projeto novo e nos da Fornalha pela lista de configurações iniciais). Detalhe
+encontrado no lavapipe: coat 1,0 com rugosidade do coat perto de 0 perde o
+brilho (o pico estoura em meia precisão); a conversão não passa de 0,05 para
+baixo. Ver README, "Materiais do glTF que a Godot ignora". Vale propor à Godot.
+
 ## Como compilar e testar
 
 ```sh

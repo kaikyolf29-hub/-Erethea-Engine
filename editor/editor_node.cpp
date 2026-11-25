@@ -8554,6 +8554,9 @@ HashMap<String, Variant> EditorNode::erethea_get_initial_settings() {
 	settings["rendering/erethea/stream_3d_textures"] = true;
 	// Skin light doesn't bleed between surfaces at different depths.
 	settings["rendering/erethea/subsurface_scattering/follow_surface"] = 0.03;
+	// glTF material extensions that Godot skips: the coat, anisotropy and sheen
+	// of Blender's Principled BSDF (modules/erethea_gltf).
+	settings["rendering/erethea/gltf/import_material_extensions"] = true;
 	return settings;
 }
 
