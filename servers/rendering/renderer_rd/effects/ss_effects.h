@@ -199,6 +199,7 @@ private:
 	RSE::SubSurfaceScatteringQuality sss_quality = RSE::SUB_SURFACE_SCATTERING_QUALITY_MEDIUM;
 	float sss_scale = 0.05;
 	float sss_depth_scale = 0.01;
+	float sss_follow_surface = 0.0; // Erethea
 
 	/* SS Downsampler */
 
@@ -561,7 +562,8 @@ private:
 		float scale;
 
 		float depth_scale;
-		uint32_t pad[3];
+		float follow_surface; // Erethea: See rendering/erethea/subsurface_scattering/follow_surface.
+		uint32_t pad[2];
 	};
 
 	struct SubSurfaceScattering {

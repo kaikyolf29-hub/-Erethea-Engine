@@ -219,6 +219,25 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
+      # Subsurface scattering that follows the surface
+      # (rendering/erethea/subsurface_scattering/follow_surface): the light of a
+      # skin must not bleed onto another one behind it, and does with Godot's
+      # filter (erethea/tests/sss_scene).
+      - name: Check the subsurface scattering of the skin
+        if: always() && hashFiles('captures/erethea/results.json') != ''
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          mkdir -p captures/skin
+          xvfb-run -a -s "-screen 0 1280x720x24" "$ERETHEA" --path erethea/tests/sss_scene \
+            --audio-driver Dummy --fixed-fps 30 -- --expect=clean --out="$PWD/captures/skin/follow_surface.png" 2>&1 | tee sss_clean.log
+          grep -q "ERETHEA_SSS_OK" sss_clean.log
+          cp -r erethea/tests/sss_scene "$RUNNER_TEMP/sss_godot_filter"
+          printf '[rendering]\n\nerethea/subsurface_scattering/follow_surface=0.0\n' > "$RUNNER_TEMP/sss_godot_filter/override.cfg"
+          xvfb-run -a -s "-screen 0 1280x720x24" "$ERETHEA" --path "$RUNNER_TEMP/sss_godot_filter" \
+            --audio-driver Dummy --fixed-fps 30 -- --expect=bleed --out="$PWD/captures/skin/godot_filter.png" 2>&1 | tee sss_bleed.log
+          grep -q "ERETHEA_SSS_OK" sss_bleed.log
+
       # The ray traced shadow of a mesh with a skeleton follows its pose: an arm
       # of two bones, straight and then bent (erethea/tests/raytracing).
       - name: Check the ray traced shadows of a skinned mesh
