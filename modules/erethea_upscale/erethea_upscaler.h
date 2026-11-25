@@ -41,7 +41,9 @@
 // Picks the temporal upscaler that runs where Godot would run FSR 2.2, from
 // the project setting rendering/erethea/temporal_upscaler. Every upscaler
 // falls back to FSR 2.2 where it can't run, so projects behave the same on
-// every computer, just with a different upscaler.
+// every computer, just with a different upscaler. With "Automatic", the
+// upscaler comes from the graphics card: DLSS on NVIDIA, XeSS on Intel, AMD
+// FSR on the others and where those can't run.
 class EretheaUpscaler : public RendererRD::TemporalUpscaler {
 public:
 	enum Mode {
@@ -49,6 +51,7 @@ public:
 		MODE_AMD_FSR,
 		MODE_XESS,
 		MODE_DLSS,
+		MODE_AUTOMATIC,
 		MODE_MAX,
 	};
 
@@ -62,14 +65,26 @@ private:
 	XessUpscaler xess;
 	DlssUpscaler dlss;
 
+	// The upscalers that "Automatic" tries, in order, on this graphics card.
+	// Only used on the rendering thread.
+	Vector<int> automatic_order;
+
 	static void _update_from_project_settings();
 	static void _finish_on_render_thread();
+
+	bool _upscale_with(Mode p_mode, const Ref<RenderSceneBuffersRD> &p_render_buffers, RenderDataRD *p_render_data, double p_time_step);
+	// Frees what the other upscalers kept for these render buffers.
+	void _release_except(Mode p_mode, const Ref<RenderSceneBuffersRD> &p_render_buffers);
 
 public:
 	static EretheaUpscaler *get_singleton() { return singleton; }
 
 	static void register_project_settings();
 	static Mode get_project_mode();
+
+	// The upscalers that "Automatic" tries on a graphics card of this vendor
+	// (as RenderingDevice::get_device_vendor_name() gives it), best first.
+	static Vector<int> get_automatic_order(const String &p_vendor);
 
 	// Prepares the rendering driver for the project's upscaler, before the
 	// rendering device is created.
