@@ -290,6 +290,40 @@ Pedido para a Fornalha (o Kaiky cola no chat dela):
 Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). (A configuração que faz a pele não vazar entre superfícies a Erethea já põe sozinha no project.godot quando abre o projeto.) Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
 ```
 
+## Materiais do glTF que a Godot ignora
+
+O Blender exporta para o glTF, a partir do Principled BSDF, extensões de
+material que o importador da Godot descarta. A Fornalha usa algumas delas: o
+*coat* faz a córnea dos olhos (`fc_humano.py`: coat 1,0, rugosidade 0,02, IOR
+1,376) e o cabelo tem anisotropia 0,75 e *sheen* 0,2 (`fc_cabelo.py`). Na
+Godot, esses olhos chegavam sem o brilho da córnea e o cabelo sem o brilho
+esticado. Com `rendering/erethea/gltf/import_material_extensions` ligada, a
+importação (no editor e em jogo, pelo `GLTFDocument`) leva cada uma para a
+propriedade mais próxima do `StandardMaterial3D`:
+
+| Extensão do glTF | Vira na Godot | Diferença |
+| --- | --- | --- |
+| `KHR_materials_clearcoat` | *Clearcoat* (força e rugosidade) | O coat da Godot vai de alfa 0,001 a 0,1: não fica mais áspero que ~0,32 do glTF, e a Erethea não passa de 0,05 para baixo (abaixo de ~0,03 o pico do brilho estoura em meia precisão e some) |
+| `KHR_materials_anisotropy` | *Anisotropy* | A rotação vira um *flowmap* de um pixel |
+| `KHR_materials_sheen` | *Rim* (o "veludo" da Godot) | A largura vem da rugosidade do material, não da do sheen; sheen colorido liga o *rim tint* |
+| `KHR_materials_ior` e `KHR_materials_specular` | *Specular* | A Godot não tem specular colorido: média dos canais |
+
+Texturas: a do coat entra quando uma textura só tem o coat (vermelho) e a
+rugosidade dele (verde), que é como a Godot lê; as outras texturas dessas
+extensões e o mapa de normais do coat ficam de fora, com um aviso na
+importação. Desligada (o padrão nos projetos da Godot), a importação fica igual
+à da Godot. Projetos novos da Erethea e os da Fornalha começam com ela ligada.
+Mudar a configuração vale para a próxima importação: reimporte as cenas.
+
+O código fica em `modules/erethea_gltf/` (uma `GLTFDocumentExtension`, sem
+mexer no núcleo), um bom candidato a ser proposto para a Godot.
+
+**Teste.** `[Modules][EretheaGLTF]` importa um glTF com os materiais como o
+Blender exporta os da Fornalha (olho, cabelo, pele), desligado e ligado, e
+confere cada propriedade. Conferido no lavapipe numa cena com céu: o olho
+ganha o reflexo nítido do céu e o brilho da córnea, e o cabelo, o brilho
+esticado.
+
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por
