@@ -32,6 +32,8 @@
 
 #include "scene/resources/compositor.h"
 
+class Node;
+
 // Ray traced shadow of the sun (the first directional light), for the
 // Forward+ renderer on graphics cards with ray tracing (ray queries). After
 // the depth pre-pass, rays go from the surface seen in each pixel towards the
@@ -54,12 +56,36 @@ class EretheaRayTracedShadows : public CompositorEffect {
 	void _render(int p_effect_callback_type, const RenderData *p_render_data);
 	static void _free_render_resources();
 
+	static void _add_to_node(Node *p_node);
+	static void _add_to_tree(Node *p_node);
+
 protected:
 	static void _bind_methods();
 	void _validate_property(PropertyInfo &p_property) const;
 
 public:
 	static constexpr int MAX_SAMPLES = 16;
+
+	// The project setting that adds this effect to the running scenes, so the
+	// sun casts ray traced shadows without changing them.
+	static constexpr const char *SUN_SHADOWS_SETTING = "rendering/erethea/ray_tracing/sun_shadows";
+	enum SunShadowsMode {
+		SUN_SHADOWS_DISABLED,
+		// With the "Automatic" quality preset, on graphics cards for which it
+		// picks "Cinematic" (discrete, with ray tracing).
+		SUN_SHADOWS_AUTOMATIC,
+		// On every graphics card with ray tracing.
+		SUN_SHADOWS_ENABLED,
+	};
+
+	static void register_project_settings();
+	// Whether the setting adds the effect, for a graphics card that supports it
+	// or not, and with the quality preset that "Automatic" picked.
+	static bool is_added_to_scenes(int p_setting, bool p_supported, bool p_automatic_cinematic_quality);
+	// Adds the effect to the compositors of the running project's
+	// WorldEnvironment nodes (creating one where there is none) and to the
+	// cameras' own compositors, when the project setting asks for it.
+	static void add_to_running_scenes();
 
 	void set_max_distance(float p_distance);
 	float get_max_distance() const;
