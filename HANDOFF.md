@@ -409,7 +409,15 @@ comparado na cena de referência:
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
-5. **Materiais em camadas** (terra, sujeira, molhado), pele com subsuperfície
+5. **Pele: feito o que faltava (PR da pele, 25/11)**. A Godot já tem o perfil
+   por canal (modo pele) e o mapa de espessura (transmitância com textura); a
+   Erethea somou `rendering/erethea/subsurface_scattering/follow_surface`
+   (0 = filtro da Godot): o filtro deixa de vazar luz entre peles em
+   profundidades diferentes (Jimenez, "follow surface"; trechos `// Erethea:`
+   no `subsurface_scattering.glsl`, `ss_effects.*` e `rendering_server.cpp`).
+   Teste `erethea/tests/sss_scene` nos dois sentidos no CI. O pedido para a
+   Fornalha (ligar no projeto e usar a transmitância) está no README, "Pele".
+   **Materiais em camadas** (terra, sujeira, molhado), pele com subsuperfície
    melhor (perfil de espalhamento por canal, mapa de espessura e sombra de
    contato), cabelo (incluindo **fio a fio**: fitas viradas para a câmera ou
    curvas, alfa por hash e brilho anisotrópico, para a Fornalha mandar o
