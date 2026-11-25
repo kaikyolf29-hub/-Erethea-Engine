@@ -372,6 +372,100 @@ def build_checks(mcp, project):
     )
 
 
+TERRAIN_FILES = ["res://World/terreno.res", "res://World/terreno_materiais.res"]
+
+
+def run_game(editor, project, log, timeout):
+    """Runs the game without a window and returns what test_walk.gd reports."""
+    code, output = run([editor, "--headless", "--path", str(project), "--script", "res://test_walk.gd"], log, timeout)
+    line = next((line for line in output.splitlines() if line.startswith("ERETHEA_WALK ")), None)
+    check(line is not None, f"the game runs (exit code {code})")
+    walk = json.loads(line.split(" ", 1)[1])
+    print(f"    {walk}")
+    return walk
+
+
+def terrain_checks(editor, project, out, port, timeout):
+    """terrain_from_blockout: the ground of the blockout becomes a terrain."""
+    print("With the terrain from the blockout")
+    settings = project / "project.godot"
+    text = settings.read_text(encoding="utf-8")
+    check("[editor]\n" in text, "the project settings have an editor section")
+    settings.write_text(
+        text.replace("[editor]\n", "[editor]\n\nerethea_fornalha/terrain_from_blockout=true\n", 1), encoding="utf-8"
+    )
+    with editor_session(editor, project, out / "editor_terrain.log", port, timeout) as mcp:
+        print("First build with the terrain")
+        report = mcp.data("build_fornalha_scenes")
+        found = results(report)
+        check(report["ok"], "nothing failed")
+        check(
+            found.get(TERRAIN_FILES[0]) == "created" and found.get(TERRAIN_FILES[1]) == "created",
+            "the terrain and its materials are created",
+        )
+        check(found["res://World/mundo.tscn"] == "updated", "the world is built again with the terrain")
+        check(
+            all(found[scene] == "unchanged" for scene in SCENES if scene not in ("res://World/mundo.tscn",)),
+            "the other scenes don't change",
+        )
+        check(all((project / file.replace("res://", "")).is_file() for file in TERRAIN_FILES), "the files are there")
+        world = (project / "World/mundo.tscn").read_text(encoding="utf-8")
+        check('type="EretheaTerrain3D"' in world and '[node name="Terreno"' in world, "the world has the Terreno node")
+        check(
+            f'path="{TERRAIN_FILES[0]}"' in world and f'path="{TERRAIN_FILES[1]}"' in world,
+            "with the data and the materials as files",
+        )
+        check(
+            '[node name="chao" parent="Blockout"' in world and "visible = false" in world,
+            "the ground of the blockout is hidden",
+        )
+        check(
+            'parent="Blockout/chao"' in world and "collision_layer = 0" in world,
+            "and its collision is off",
+        )
+        check('parent="Blockout/vila_casa"' not in world, "the houses of the blockout are as they were")
+
+        print("Second build with the terrain")
+        found = results(mcp.data("build_fornalha_scenes"))
+        check(
+            all(found[file] == "unchanged" for file in SCENES[:-1] + TERRAIN_FILES),
+            "nothing changes, the terrain neither",
+        )
+
+    print("The game with the terrain")
+    walk = run_game(editor, project, out / "game_terrain.log", timeout)
+    terrain = walk.get("terrain")
+    check(terrain is not None, "the world has the terrain")
+    check(terrain["class"] == "EretheaTerrain3D" and terrain["resolution"] == [161, 161], "of the blockout's ground, 1 m apart")
+    check(terrain["materials"], "with its materials")
+    check(not terrain["ground_visible"] and terrain["ground_layers"] == [0], "and the ground of the blockout is gone")
+    check(terrain["house_layers"] == [1], "but the houses still collide")
+    check(abs(terrain["height_under_player"]) < 0.01, "the terrain is as high as the ground was")
+    check(
+        walk["walked_m"] > 2.0 and walk["on_floor"] and not walk["fell"],
+        f"the player walks on the terrain ({walk['walked_m']:.1f} m)",
+    )
+
+    print("A terrain changed by hand")
+    code, output = run(
+        [editor, "--headless", "--path", str(project), "--script", "res://touch_terrain.gd"],
+        out / "touch_terrain.log",
+        timeout,
+    )
+    check("ERETHEA_TOUCHED 0" in output, f"the terrain is saved with a change (exit code {code})")
+    with editor_session(editor, project, out / "editor_terrain_kept.log", port, timeout) as mcp:
+        found = results(mcp.data("build_fornalha_scenes"))
+        check(found[TERRAIN_FILES[0]] == "kept", "the terrain changed by hand is kept")
+        check(found[TERRAIN_FILES[1]] == "unchanged", "and its materials, which weren't, are not touched")
+        report = mcp.data("build_fornalha_scenes", {"force": True})
+        found = results(report)
+        check(found[TERRAIN_FILES[0]] == "replaced", "a forced build replaces it")
+        backup = project / report.get("backup_folder", "res://missing").replace("res://", "") / "World/terreno.res"
+        check(backup.is_file(), f"and keeps a copy in {report.get('backup_folder')}")
+        found = results(mcp.data("build_fornalha_scenes"))
+        check(all(found[file] == "unchanged" for file in SCENES[:-1] + TERRAIN_FILES), "then nothing changes")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("editor")
@@ -464,6 +558,8 @@ def main():
                 ),
                 "and the import files are left as they were",
             )
+
+        terrain_checks(editor, project, out, args.port, args.timeout)
 
     except Failure as failure:
         print(f"\nFAILED: {failure}\nLogs in {out}")

@@ -42,7 +42,9 @@ namespace EretheaFornalhaTerrain {
 
 Heights sample_heights(const Vector<Vector3> &p_triangles, real_t p_spacing) {
 	Heights result;
-	ERR_FAIL_COND_V(p_triangles.size() < 3 || p_triangles.size() % 3 != 0, result);
+	if (p_triangles.size() < 3 || p_triangles.size() % 3 != 0) {
+		return result;
+	}
 
 	Vector2 low(Math::INF, Math::INF);
 	Vector2 high(-Math::INF, -Math::INF);
@@ -258,7 +260,7 @@ Color get_layer_color(Layer p_layer, const Color &p_ground) {
 	}
 }
 
-Ref<Texture2DArray> make_textures(const Color &p_ground) {
+Vector<Ref<Image>> make_layer_images(const Color &p_ground) {
 	constexpr int SIZE = 64;
 	Vector<Ref<Image>> images;
 	for (int layer = 0; layer < LAYER_COUNT; layer++) {
@@ -280,9 +282,13 @@ Ref<Texture2DArray> make_textures(const Color &p_ground) {
 		image->generate_mipmaps();
 		images.push_back(image);
 	}
+	return images;
+}
+
+Ref<Texture2DArray> make_textures(const Color &p_ground) {
 	Ref<Texture2DArray> textures;
 	textures.instantiate();
-	ERR_FAIL_COND_V(textures->create_from_images(images) != OK, Ref<Texture2DArray>());
+	ERR_FAIL_COND_V(textures->create_from_images(make_layer_images(p_ground)) != OK, Ref<Texture2DArray>());
 	return textures;
 }
 

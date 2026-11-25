@@ -32,6 +32,7 @@
 
 #include "erethea_fornalha_import.h"
 
+#include "core/io/image.h"
 #include "core/math/color.h"
 #include "core/math/vector2.h"
 #include "core/math/vector2i.h"
@@ -124,6 +125,8 @@ void paint_materials(const Ref<EretheaTerrainData> &p_data, const Vector2 &p_ori
 // (RGB) and the height (A) of a texture array, from the color of the blockout's
 // ground. Mipmaps included.
 Ref<Texture2DArray> make_textures(const Color &p_ground);
+// The images of its layers.
+Vector<Ref<Image>> make_layer_images(const Color &p_ground);
 // The color of a material, from the color of the blockout's ground.
 Color get_layer_color(Layer p_layer, const Color &p_ground);
 

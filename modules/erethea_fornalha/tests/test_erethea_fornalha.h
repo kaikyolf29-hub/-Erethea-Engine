@@ -779,7 +779,7 @@ TEST_CASE("[Modules][EretheaFornalha] The materials of the terrain are plain col
 	CHECK(textures->has_mipmaps());
 	// The grass layer has the color of the ground, to within the noise; its alpha
 	// is a height between 0 and 1.
-	const Vector<Ref<Image>> images = textures->get_data();
+	const Vector<Ref<Image>> images = make_layer_images(ground);
 	REQUIRE(images.size() == LAYER_COUNT);
 	Color mean;
 	for (int y = 0; y < 64; y++) {
@@ -795,8 +795,7 @@ TEST_CASE("[Modules][EretheaFornalha] The materials of the terrain are plain col
 	CHECK(mean.g == doctest::Approx(ground.g).epsilon(0.1));
 	CHECK(mean.b == doctest::Approx(ground.b).epsilon(0.1));
 	// Made again, the same: building the scenes again must not change them.
-	const Vector<Ref<Image>> again = make_textures(ground)->get_data();
-	CHECK(again[LAYER_STONE]->get_data() == images[LAYER_STONE]->get_data());
+	CHECK(make_layer_images(ground)[LAYER_STONE]->get_data() == images[LAYER_STONE]->get_data());
 }
 
 TEST_CASE("[Modules][EretheaFornalha] Finding the ground of the blockout") {
