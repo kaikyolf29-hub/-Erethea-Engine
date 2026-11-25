@@ -118,6 +118,29 @@ Ainda não testado nas placas de referência: a escolha do Automático (a RX 580
 deve cair em Balanced, e a RTX 4060 Ti ou 5060 Ti em Cinematic) e o FPS de
 cada preset.
 
+### Escolha por placa
+
+Com o preset `Automatic`, a Erethea escolhe pela placa de quem joga, no PC
+dele (no jogo exportado também):
+
+| Placa | Preset | Sombras do sol | Upscaler (com `Temporal Upscaler` = `Automatic`) |
+| --- | --- | --- | --- |
+| Integrada, sem placa ou Compatibility | Low | Mapa de sombra | — |
+| Dedicada sem ray tracing (RX 580) | Balanced | Mapa de sombra | AMD FSR (FSR 3.1) |
+| Dedicada com ray tracing, AMD | Cinematic | Ray tracing + mapa de sombra | AMD FSR (FSR 4 nas que suportam) |
+| Dedicada com ray tracing, NVIDIA (RTX) | Cinematic | Ray tracing + mapa de sombra | DLSS (com os arquivos da NVIDIA), senão AMD FSR |
+| Dedicada com ray tracing, Intel (Arc) | Cinematic | Ray tracing + mapa de sombra | XeSS, senão AMD FSR |
+
+Projetos novos criados na Erethea já começam com o preset e o upscaler em
+`Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
+(`Disabled`, `Automatic`, que é o padrão e segue o preset, ou `Enabled`, em
+toda placa com ray tracing) e `rendering/erethea/temporal_upscaler` com um
+upscaler fixo. Projetos da Godot ficam com o preset `Disabled`, então nada
+muda neles. As sombras por ray tracing entram no `Compositor` de cada
+`WorldEnvironment` (criado se não houver) e das câmeras que têm um próprio; uma
+cena sem `WorldEnvironment` nem compositor de câmera não as recebe. O path
+tracing da NVIDIA, quando entrar, vai para a linha das RTX.
+
 ## Pós-processamento
 
 O código fica em `modules/erethea_post/`. Tudo começa desligado.
@@ -259,6 +282,10 @@ Erethea avisa e usa o FSR 2.2. Sem os arquivos, em outro
 sistema, com OpenGL ou em XR, também volta para o FSR 2.2 com um aviso. Os arquivos da AMD usam o runtime do Visual C++
 2015-2022, que quase todo PC com jogos já tem; sem ele, também volta para o
 FSR 2.2.
+
+Com `Temporal Upscaler` = `Automatic`, a Erethea escolhe pelo fabricante da
+placa, com o jogo rodando: DLSS na NVIDIA e XeSS na Intel quando podem rodar, e
+AMD FSR nas outras e quando aqueles não podem; onde nenhum roda, o FSR 2.2.
 
 Para ver na cena de referência, acrescente `--upscaler=amd_fsr` (ou `fsr2`)
 depois do `--`; ela renderiza a 67% e reconstrói na resolução da janela.

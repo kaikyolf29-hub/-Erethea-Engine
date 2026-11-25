@@ -292,6 +292,28 @@ comparado na cena de referência:
    suporte, SDFGI e lightmaps sem ray tracing (RX 580). O dev pode travar a
    escolha no projeto; o jogo exportado faz a mesma escolha no PC de quem joga.
    Estenda o preset "Automatic" de `modules/erethea_quality/`.
+
+   **Feito (PR da escolha por placa, 25/11)**, sem mexer no núcleo:
+   - `rendering/erethea/temporal_upscaler` ganhou `Automatic` (valor 4):
+     DLSS na NVIDIA e XeSS na Intel quando podem rodar, AMD FSR nas outras e
+     quando aqueles não podem, FSR 2.2 onde nenhum roda. A cada quadro usa o
+     primeiro que consegue e solta os outros
+     (`EretheaUpscaler::get_automatic_order`, testado por fabricante).
+   - `rendering/erethea/ray_tracing/sun_shadows` (`Disabled`, `Automatic` =
+     padrão, `Enabled`): põe o `EretheaRayTracedShadows` no `Compositor` de
+     cada `WorldEnvironment` (criado se não houver) e das câmeras com
+     compositor próprio, só no jogo rodando. `Automatic` só liga quando o
+     preset de qualidade é `Automatic` e escolhe `Cinematic` (placa dedicada
+     com ray tracing); projetos da Godot (preset `Disabled`) não mudam.
+     Teste: `erethea/tests/raytracing/auto_project` no CI (lavapipe); provado
+     que falha com a configuração desligada.
+   - Projetos novos da Erethea começam com o upscaler `Automatic` (além do
+     preset `Automatic` que já tinham).
+   - Falta: o path tracing da NVIDIA (item 3) entra na linha das RTX quando
+     existir; a prova na RX 580 e na RTX é do teste final. VRAM não entrou
+     na escolha (o preset já separa integrada de dedicada); se o teste final
+     mostrar placa dedicada fraca sofrendo no Cinematic, use
+     `RenderingDevice::get_memory_usage`/limites do driver para descer um nível.
 2. **Ray tracing da Godot**: a 4.7 trouxe a base de ray tracing no
    `RenderingDevice` (só a "tubulação"). Montar as estruturas de aceleração da
    cena e fazer, nesta ordem, sombras suaves, reflexos e iluminação global por

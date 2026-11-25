@@ -53,7 +53,7 @@ TEST_CASE("[Modules][EretheaUpscale] Modes stay in range and FSR 2.2 is left to 
 	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_FSR2);
 
 	upscaler.set_mode(EretheaUpscaler::Mode(100));
-	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_DLSS);
+	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_AUTOMATIC);
 	upscaler.set_mode(EretheaUpscaler::MODE_AMD_FSR);
 	CHECK(upscaler.get_mode() == EretheaUpscaler::MODE_AMD_FSR);
 	upscaler.set_mode(EretheaUpscaler::Mode(-1));
@@ -61,6 +61,27 @@ TEST_CASE("[Modules][EretheaUpscale] Modes stay in range and FSR 2.2 is left to 
 
 	// With FSR 2.2 the module doesn't upscale, so the renderer runs its own.
 	CHECK_FALSE(upscaler.upscale(Ref<RenderSceneBuffersRD>(), nullptr, 1.0 / 60.0));
+}
+
+TEST_CASE("[Modules][EretheaUpscale] Automatic picks the upscaler of the graphics card's vendor") {
+	// DLSS on NVIDIA and XeSS on Intel, then AMD FSR where those can't run.
+	const Vector<int> nvidia = EretheaUpscaler::get_automatic_order("NVIDIA");
+	REQUIRE(nvidia.size() == 2);
+	CHECK(nvidia[0] == EretheaUpscaler::MODE_DLSS);
+	CHECK(nvidia[1] == EretheaUpscaler::MODE_AMD_FSR);
+
+	const Vector<int> intel = EretheaUpscaler::get_automatic_order("Intel");
+	REQUIRE(intel.size() == 2);
+	CHECK(intel[0] == EretheaUpscaler::MODE_XESS);
+	CHECK(intel[1] == EretheaUpscaler::MODE_AMD_FSR);
+
+	// AMD FSR on AMD and on everything else.
+	const String others[] = { "AMD", "Microsoft", "Unknown", "" };
+	for (const String &vendor : others) {
+		const Vector<int> order = EretheaUpscaler::get_automatic_order(vendor);
+		REQUIRE(order.size() == 1);
+		CHECK(order[0] == EretheaUpscaler::MODE_AMD_FSR);
+	}
 }
 
 TEST_CASE("[Modules][EretheaUpscale] AMD FSR runtime") {
