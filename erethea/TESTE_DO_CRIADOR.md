@@ -1,10 +1,10 @@
 # Teste do criador (Kaiky, no PC)
 
 O CI prova o que dá para provar sem placa de vídeo: lavapipe no Linux e WARP no
-Windows desenham na CPU. Este roteiro é o que só pode set provado no seu PC, com
+Windows desenham na CPU. Este roteiro é o que só pode ser provado no seu PC, com
 as placas de referência (a RX 580 8 GB, sem ray tracing, e a RTX 4060 Ti ou
 5060 Ti de 16 GB) e com a Fornalha 3D de verdade. Cada item diz o que fazer e
-o que tem que acontecer. Anote o que falhar, com uma photo ou um vídeo curto, e
+o que tem que acontecer. Anote o que falhar, com uma foto ou um vídeo curto, e
 o que pareceu lento ou feio: isso volta como tarefa para o Claude.
 
 Para cada placa, faça os passos 1 a 9 e o 11. O passo 10 (teste conjunto com a
@@ -12,7 +12,7 @@ Fornalha) basta numa placa, de preferência a RTX.
 
 ## 1. Instalador e abertura
 
-1. Baixe `erethea-setup-x86_64.exe` do release no GitHub e install (sem
+1. Baixe `erethea-setup-x86_64.exe` do release no GitHub e instale (sem
    assinatura por enquanto: o Windows mostra o aviso do SmartScreen; "Mais
    informações" → "Executar assim mesmo").
 2. Abra a Erethea pelo menu Iniciar. Tem que abrir o gerenciador de projetos
@@ -23,7 +23,7 @@ Fornalha) basta numa placa, de preferência a RTX.
 ## 2. Projeto da Godot
 
 1. Abra um projeto que você já tenha da Godot 4.x (ou um exemplo da Godot).
-2. Ele tem que abrir sem error, rodar com F5 e ficar igual à Godot.
+2. Ele tem que abrir sem erro, rodar com F5 e ficar igual à Godot.
 
 ## 3. Projeto novo e escolha pela placa
 
@@ -43,7 +43,7 @@ Fornalha) basta numa placa, de preferência a RTX.
    0,67.
 2. RTX: com os arquivos do DLSS da NVIDIA ao lado do executável (veja
    "DLSS" no `erethea/README.md`) e o driver Direct3D 12, o automático usa o
-   DLSS; sem else, o AMD FSR.
+   DLSS; sem eles, o AMD FSR.
 3. RX 580: o automático usa o AMD FSR (FSR 3.1).
 4. Ande pela cena: a imagem tem que ficar nítida, sem rastros fortes.
 
@@ -54,8 +54,8 @@ Fornalha) basta numa placa, de preferência a RTX.
 2. As sombras do sol ficam no mesmo lugar das do mapa de sombra, com bordas
    suaves longe do que as projeta e firmes onde encostam.
 3. Anote o FPS com e sem `--rt=shadows`.
-4. Na RX 580, o mesmo commando avisa uma vez que não há ray tracing e desenha
-   com o mapa de sombra, sem error.
+4. Na RX 580, o mesmo comando avisa uma vez que não há ray tracing e desenha
+   com o mapa de sombra, sem erro.
 
 ## 6. Sombra de contato e pele (as duas placas)
 
@@ -91,7 +91,7 @@ Fornalha) basta numa placa, de preferência a RTX.
 
 ## 10. Teste conjunto com a Fornalha 3D
 
-1. Install a Fornalha 3D de desktop e aponte para a Erethea (ela acha em
+1. Instale a Fornalha 3D de desktop e aponte para a Erethea (ela acha em
    `%LOCALAPPDATA%\Erethea`).
 2. Peça por um prompt um jogo curto: um personagem que anda e ataca, um
    cenário com vila e floresta, um inimigo, efeitos, música e dublagem.
