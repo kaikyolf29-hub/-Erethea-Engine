@@ -13,3 +13,4 @@ window/size/viewport_height=180
 [rendering]
 
 erethea/ray_tracing/sun_shadows=2
+erethea/contact_shadows/sun=2

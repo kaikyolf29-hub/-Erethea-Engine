@@ -30,6 +30,9 @@
 
 #include "erethea_contact_shadows.h"
 
+#include "erethea_scene_effects.h"
+
+#include "core/config/project_settings.h"
 #include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
 #include "servers/rendering/rendering_server.h"
@@ -94,6 +97,39 @@ const StringName &mask_texture_name() {
 
 } // namespace
 #endif // RD_ENABLED
+
+void EretheaContactShadows::register_project_settings() {
+	GLOBAL_DEF(PropertyInfo(Variant::INT, SUN_SETTING, PROPERTY_HINT_ENUM, "Disabled,Automatic,Enabled"), SUN_AUTOMATIC);
+}
+
+bool EretheaContactShadows::is_added_to_scenes(int p_setting, bool p_forward_plus, int p_automatic_quality_preset) {
+	if (!p_forward_plus) {
+		return false;
+	}
+	switch (p_setting) {
+		case SUN_ENABLED:
+			return true;
+		case SUN_AUTOMATIC:
+			// Not on integrated graphics ("Low"), where it would cost too much.
+			return p_automatic_quality_preset == EretheaSceneEffects::QUALITY_BALANCED || p_automatic_quality_preset == EretheaSceneEffects::QUALITY_CINEMATIC;
+		default:
+			return false;
+	}
+}
+
+void EretheaContactShadows::add_to_running_scenes() {
+	const int setting = GLOBAL_GET(SUN_SETTING);
+	if (setting == SUN_DISABLED) {
+		return;
+	}
+	RenderingServer *rs = RenderingServer::get_singleton();
+	const bool forward_plus = rs != nullptr && rs->get_current_rendering_method() == "forward_plus";
+	if (!is_added_to_scenes(setting, forward_plus, EretheaSceneEffects::get_automatic_quality_preset())) {
+		return;
+	}
+	print_verbose("Erethea: contact shadows of the sun added to the scenes (rendering/erethea/contact_shadows/sun).");
+	EretheaSceneEffects::add_to_running_scenes(get_class_static());
+}
 
 void EretheaContactShadows::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_length", "length"), &EretheaContactShadows::set_length);

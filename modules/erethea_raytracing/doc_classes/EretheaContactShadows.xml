@@ -5,7 +5,7 @@
 	</brief_description>
 	<description>
 		After the depth pre-pass, a short ray goes from the surface seen in each pixel towards the first [DirectionalLight3D] with energy, and the depth buffer tells if something covers it. These are the small, sharp shadows where things touch (feet on the ground, a cup on a table) that the light's shadow map misses. The renderer combines them with the light's shadow map, keeping the darker of the two.
-		Add it to a [Compositor] on the [WorldEnvironment] or the [Camera3D]. It needs the Forward+ renderer; with the others, it does nothing. Where [EretheaRayTracedShadows] runs, it does nothing either, since the ray traced shadows already have the contact shadows, more precisely.
+		Add it to a [Compositor] on the [WorldEnvironment] or the [Camera3D], or let [member ProjectSettings.rendering/erethea/contact_shadows/sun] add it to the running scenes. It needs the Forward+ renderer; with the others, it does nothing. Where [EretheaRayTracedShadows] runs, it does nothing either, since the ray traced shadows already have the contact shadows, more precisely.
 		[b]Note:[/b] It only knows what the camera sees: something hidden behind something else casts no contact shadow, and each surface is taken to be [member thickness] thick.
 	</description>
 	<tutorials>

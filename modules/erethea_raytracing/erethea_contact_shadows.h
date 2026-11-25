@@ -57,6 +57,25 @@ protected:
 public:
 	static constexpr int MAX_STEPS = 64;
 
+	// The project setting that adds this effect to the running scenes.
+	static constexpr const char *SUN_SETTING = "rendering/erethea/contact_shadows/sun";
+	enum SunMode {
+		SUN_DISABLED,
+		// With the "Automatic" quality preset, on graphics cards for which it
+		// picks "Balanced" or "Cinematic" (discrete ones). Where the ray traced
+		// shadows run, the effect does nothing.
+		SUN_AUTOMATIC,
+		// With the Forward+ renderer, on every graphics card.
+		SUN_ENABLED,
+	};
+
+	static void register_project_settings();
+	// Whether the setting adds the effect, with the Forward+ renderer or not,
+	// and with the quality preset that "Automatic" picked (-1 for none).
+	static bool is_added_to_scenes(int p_setting, bool p_forward_plus, int p_automatic_quality_preset);
+	// Adds the effect to the running scenes when the project setting asks for it.
+	static void add_to_running_scenes();
+
 	void set_length(float p_length);
 	float get_length() const;
 	void set_thickness(float p_thickness);

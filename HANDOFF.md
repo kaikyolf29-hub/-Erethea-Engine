@@ -419,9 +419,19 @@ comparado na cena de referência:
    `erethea/tests/raytracing/contact_scene` (no CI). Achados no caminho: no
    GLSL, `params.length` num bloco uniforme é lido como o método `.length()`
    (dê outro nome); e o efeito só pede a máscara depois de ter a pipeline,
-   senão uma máscara nunca escrita escurece a cena inteira. Falta: cascatas
-   melhores; ligar a sombra de contato sozinha nas placas sem ray tracing
-   (como a escolha por placa faz com o ray tracing).
+   senão uma máscara nunca escrita escurece a cena inteira.
+   **Ligada sozinha pela placa (PR seguinte, 25/11):**
+   `rendering/erethea/contact_shadows/sun` (`Disabled`, `Automatic` = padrão,
+   `Enabled`), como a `sun_shadows` do ray tracing: `Automatic` liga com o
+   preset `Automatic` em placa dedicada (`Balanced` ou `Cinematic`; na RTX ela
+   se cala onde o ray tracing roda), não na integrada. O código que põe um
+   efeito nas cenas em execução virou `EretheaSceneEffects`
+   (`erethea_scene_effects.*`), usado pelos dois. Achado: um sinal só aceita a
+   mesma função uma vez, mesmo com outros argumentos no `bind`; por isso há uma
+   conexão só ao `node_added`, que percorre a lista de efeitos (o teste
+   `auto_project`, que agora confere os dois efeitos, pegou isso numa câmera
+   criada depois). Falta: cascatas melhores; a prova de custo na RX 580 é do
+   teste final.
 5. **Pele: feito o que faltava (PR da pele, 25/11)**. A Godot já tem o perfil
    por canal (modo pele) e o mapa de espessura (transmitância com textura); a
    Erethea somou `rendering/erethea/subsurface_scattering/follow_surface`

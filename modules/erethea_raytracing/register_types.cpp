@@ -40,6 +40,7 @@
 void initialize_erethea_raytracing_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_CORE) {
 		EretheaRayTracedShadows::register_project_settings();
+		EretheaContactShadows::register_project_settings();
 	}
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		GDREGISTER_CLASS(EretheaRayTracedShadows);
@@ -49,6 +50,7 @@ void initialize_erethea_raytracing_module(ModuleInitializationLevel p_level) {
 		if (!Engine::get_singleton()->is_editor_hint()) {
 			// Deferred, so the scene tree exists.
 			callable_mp_static(&EretheaRayTracedShadows::add_to_running_scenes).call_deferred();
+			callable_mp_static(&EretheaContactShadows::add_to_running_scenes).call_deferred();
 		}
 	}
 }

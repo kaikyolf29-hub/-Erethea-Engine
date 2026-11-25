@@ -126,7 +126,7 @@ dele (no jogo exportado também):
 | Placa | Preset | Sombras do sol | Upscaler (com `Temporal Upscaler` = `Automatic`) |
 | --- | --- | --- | --- |
 | Integrada, sem placa ou Compatibility | Low | Mapa de sombra | — |
-| Dedicada sem ray tracing (RX 580) | Balanced | Mapa de sombra | AMD FSR (FSR 3.1) |
+| Dedicada sem ray tracing (RX 580) | Balanced | Mapa de sombra + sombra de contato | AMD FSR (FSR 3.1) |
 | Dedicada com ray tracing, AMD | Cinematic | Ray tracing + mapa de sombra | AMD FSR (FSR 4 nas que suportam) |
 | Dedicada com ray tracing, NVIDIA (RTX) | Cinematic | Ray tracing + mapa de sombra | DLSS (com os arquivos da NVIDIA), senão AMD FSR |
 | Dedicada com ray tracing, Intel (Arc) | Cinematic | Ray tracing + mapa de sombra | XeSS, senão AMD FSR |
@@ -134,7 +134,8 @@ dele (no jogo exportado também):
 Projetos novos criados na Erethea já começam com o preset e o upscaler em
 `Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
 (`Disabled`, `Automatic`, que é o padrão e segue o preset, ou `Enabled`, em
-toda placa com ray tracing) e `rendering/erethea/temporal_upscaler` com um
+toda placa com ray tracing), `rendering/erethea/contact_shadows/sun` (as mesmas
+opções; `Enabled` em toda placa com o Forward+) e `rendering/erethea/temporal_upscaler` com um
 upscaler fixo. Projetos da Godot ficam com o preset `Disabled`, então nada
 muda neles. As sombras por ray tracing entram no `Compositor` de cada
 `WorldEnvironment` (criado se não houver) e das câmeras que têm um próprio; uma
@@ -260,6 +261,15 @@ diz quão grossa a Erethea supõe cada superfície. Onde o
 `EretheaRayTracedShadows` roda, ela não faz nada: as sombras por ray tracing já
 têm o contato, com exatidão. Teste: `erethea/tests/raytracing/contact_scene`
 (imprime `ERETHEA_CONTACT_SHADOWS_OK`; o CI roda no lavapipe).
+
+**Ligada sozinha pela placa.** `rendering/erethea/contact_shadows/sun`
+(`Disabled`, `Automatic`, que é o padrão, ou `Enabled`) põe a sombra de contato
+nas cenas do jogo rodando, como `rendering/erethea/ray_tracing/sun_shadows` faz
+com as sombras por ray tracing: `Automatic` liga quando o preset de qualidade é
+`Automatic` e a placa é dedicada (`Balanced` ou `Cinematic`), então a RX 580
+ganha o contato que o ray tracing daria; na integrada, não (custo). Projetos da
+Godot (preset `Disabled`) não mudam. O teste `erethea/tests/raytracing/auto_project`
+confere as duas configurações juntas.
 
 ```sh
 erethea --path erethea/tests/raytracing/contact_scene --fixed-fps 30 -- --out="$PWD/capturas/contato.png"

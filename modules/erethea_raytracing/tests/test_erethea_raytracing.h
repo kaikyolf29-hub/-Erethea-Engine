@@ -32,6 +32,7 @@
 
 #include "../erethea_contact_shadows.h"
 #include "../erethea_ray_traced_shadows.h"
+#include "../erethea_scene_effects.h"
 
 #include "core/config/project_settings.h"
 #include "tests/test_macros.h"
@@ -115,6 +116,30 @@ TEST_CASE("[Modules][EretheaRayTracing] Ray traced sun shadows added to the scen
 	SUBCASE("The project can lock it") {
 		CHECK_FALSE(EretheaRayTracedShadows::is_added_to_scenes(EretheaRayTracedShadows::SUN_SHADOWS_DISABLED, true, true));
 		CHECK(EretheaRayTracedShadows::is_added_to_scenes(EretheaRayTracedShadows::SUN_SHADOWS_ENABLED, true, false));
+	}
+}
+
+TEST_CASE("[Modules][EretheaRayTracing] Contact shadows added by the project setting") {
+	using CS = EretheaContactShadows;
+	SUBCASE("Only with Forward+") {
+		for (int mode = CS::SUN_DISABLED; mode <= CS::SUN_ENABLED; mode++) {
+			CHECK_FALSE(CS::is_added_to_scenes(mode, false, EretheaSceneEffects::QUALITY_BALANCED));
+		}
+	}
+
+	SUBCASE("Automatic follows the Automatic quality preset, on discrete graphics cards") {
+		// Projects from Godot keep the quality preset off, so nothing changes.
+		CHECK_FALSE(CS::is_added_to_scenes(CS::SUN_AUTOMATIC, true, EretheaSceneEffects::QUALITY_UNKNOWN));
+		CHECK_FALSE(CS::is_added_to_scenes(CS::SUN_AUTOMATIC, true, EretheaSceneEffects::QUALITY_LOW));
+		// The RX 580.
+		CHECK(CS::is_added_to_scenes(CS::SUN_AUTOMATIC, true, EretheaSceneEffects::QUALITY_BALANCED));
+		// With ray tracing, the effect steps aside where the ray traced shadows run.
+		CHECK(CS::is_added_to_scenes(CS::SUN_AUTOMATIC, true, EretheaSceneEffects::QUALITY_CINEMATIC));
+	}
+
+	SUBCASE("The project can lock it") {
+		CHECK_FALSE(CS::is_added_to_scenes(CS::SUN_DISABLED, true, EretheaSceneEffects::QUALITY_BALANCED));
+		CHECK(CS::is_added_to_scenes(CS::SUN_ENABLED, true, EretheaSceneEffects::QUALITY_UNKNOWN));
 	}
 }
 
