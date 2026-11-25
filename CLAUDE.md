@@ -73,7 +73,7 @@ novas da Godot sem reescrever nada.
 | Materiais do glTF que a Godot ignora (coat, anisotropia, sheen, IOR) | `modules/erethea_gltf/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
-| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`, `erethea_terrain.yml`, `erethea_hair_strands.yml`) |
+| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`, `erethea_terrain.yml`, `erethea_hair_strands.yml`, `erethea_raytracing_fallback.yml`) |
 
 ## Compilar e testar
 
