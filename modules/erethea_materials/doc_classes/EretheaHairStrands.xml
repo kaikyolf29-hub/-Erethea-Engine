@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaHairStrands" inherits="MeshInstance3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Hair drawn strand by strand, from a mesh of lines.
+	</brief_description>
+	<description>
+		Draws hair from a mesh whose surfaces are lines ([constant Mesh.PRIMITIVE_LINES] or [constant Mesh.PRIMITIVE_LINE_STRIP]), such as the loose edges that Blender exports to glTF. Each strand is a chain of connected segments: a segment that starts where the previous one ended continues its strand, and any other segment starts a new strand. Surfaces that are not lines are ignored.
+		The strands are turned into ribbons, two vertices per point, that a built-in shader opens towards the camera, tapering to the tip. Transparency uses alpha hash, so there is no sorting problem, and the shine has two anisotropic highlights (Kajiya-Kay). Bones and weights of the source vertices are copied, so the hair follows a [Skeleton3D]: make this node a child of the skeleton (or set [member MeshInstance3D.skeleton]) like any [MeshInstance3D]. The [member MeshInstance3D.mesh] is made from [member source_mesh] and is not saved with the scene.
+		To use a shader of your own, set [member GeometryInstance3D.material_override]. The ribbons carry the strand direction in the tangent, the side ([code]-1[/code] or [code]1[/code]) and the position from root to tip in [code]UV[/code], and a random value per strand and the strand length in [code]UV2[/code].
+		[b]Note:[/b] The strands must be in order, root to tip. A segment drawn backwards in the middle of a strand starts a new strand.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_source_strand_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the number of strands found in [member source_mesh], whatever the value of [member strand_fraction].
+			</description>
+		</method>
+		<method name="get_strand_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the number of strands that are drawn.
+			</description>
+		</method>
+		<method name="rebuild">
+			<return type="void" />
+			<description>
+				Makes the ribbons from [member source_mesh] now. This is done by itself, at the end of the frame, when [member source_mesh], [member strand_fraction] or [member width] change.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="backlight" type="float" setter="set_backlight" getter="get_backlight" default="0.4">
+			How much light goes through the hair, seen against the light, as a fraction of the hair color.
+		</member>
+		<member name="color_root" type="Color" setter="set_color_root" getter="get_color_root" default="Color(0.075, 0.045, 0.03, 1)">
+			Color of the hair at the root. The color goes from this to [member color_tip] along each strand, and varies a little from strand to strand.
+		</member>
+		<member name="color_tip" type="Color" setter="set_color_tip" getter="get_color_tip" default="Color(0.2, 0.12, 0.08, 1)">
+			Color of the hair at the tip.
+		</member>
+		<member name="roughness" type="float" setter="set_roughness" getter="get_roughness" default="0.45">
+			Roughness of the hair, as in [member BaseMaterial3D.roughness].
+		</member>
+		<member name="source_mesh" type="Mesh" setter="set_source_mesh" getter="get_source_mesh">
+			The mesh of lines with the strands, for example the mesh imported from a glTF file with loose edges. It can have bones and weights, which are copied to the ribbons.
+		</member>
+		<member name="specular_primary" type="float" setter="set_specular_primary" getter="get_specular_primary" default="0.06">
+			Strength of the narrow, white highlight.
+		</member>
+		<member name="specular_secondary" type="float" setter="set_specular_secondary" getter="get_specular_secondary" default="0.1">
+			Strength of the wide highlight, tinted by the hair color.
+		</member>
+		<member name="specular_shift_primary" type="float" setter="set_specular_shift_primary" getter="get_specular_shift_primary" default="-0.08">
+			Moves the narrow highlight along the strand. Positive values move it towards the tip.
+		</member>
+		<member name="specular_shift_secondary" type="float" setter="set_specular_shift_secondary" getter="get_specular_shift_secondary" default="0.12">
+			Moves the wide highlight along the strand.
+		</member>
+		<member name="strand_fraction" type="float" setter="set_strand_fraction" getter="get_strand_fraction" default="1.0">
+			Fraction of the strands that are drawn, spread evenly over the hair. Use it as a level of detail: [code]0.5[/code] draws every other strand. The width is not compensated.
+		</member>
+		<member name="tip_width" type="float" setter="set_tip_width" getter="get_tip_width" default="0.25">
+			Width of the strand at the tip, as a fraction of [member width].
+		</member>
+		<member name="width" type="float" setter="set_width" getter="get_width" default="0.0015">
+			Width of the strand at the root, in meters. The AABB used for culling includes half of it.
+		</member>
+	</members>
+</class>

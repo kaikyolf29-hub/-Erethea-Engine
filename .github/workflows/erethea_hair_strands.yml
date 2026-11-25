@@ -1,0 +1,52 @@
+name: 🔥 Erethea hair strands
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Draws hair made of lines (erethea/tests/hair_strands) with EretheaHairStrands
+# (modules/erethea_materials) on the CPU, with Mesa's lavapipe Vulkan driver:
+# a few hundred strands weighted to a one-bone skeleton, before and after the
+# bone turns. The test checks that hair pixels show up over the head, that they
+# follow the pose and that drawing a fraction of the strands draws less, and
+# prints ERETHEA_HAIR_OK. The captures are uploaded as an artifact.
+
+jobs:
+  hair-strands-linux:
+    runs-on: ubuntu-24.04
+    name: Hair strands on Linux
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the lavapipe Vulkan driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Draw the hair
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          chmod +x bin/erethea.*
+          ERETHEA="$PWD/bin/erethea.linuxbsd.editor.x86_64.mono"
+          cp -r erethea/tests/hair_strands "$RUNNER_TEMP/hair_strands"
+          xvfb-run -a -s "-screen 0 1280x720x24" "$ERETHEA" --path "$RUNNER_TEMP/hair_strands" \
+            --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/hair_strands/hair.png" 2>&1 | tee hair.log
+          grep -q ERETHEA_HAIR_OK hair.log
+
+      - name: Upload captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-hair-strands
+          path: |
+            hair_strands
+            hair.log
+          retention-days: 14

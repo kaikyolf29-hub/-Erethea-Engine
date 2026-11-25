@@ -67,12 +67,13 @@ novas da Godot sem reescrever nada.
 | Validações antes de exportar (polígonos, texturas, escala, recibos) | `modules/erethea_export_checks/` |
 | Ponte com a Fornalha (cenas montadas pelo `game.project.json`, elo ao vivo) | `modules/erethea_fornalha/` |
 | Painel de IA do editor (Ignis, Claude pela API, servidor OpenAI, Claude Code) | `modules/erethea_assistant/` |
+| Materiais e shaders próprios (cabelo fio a fio) | `modules/erethea_materials/` |
 | Terreno nativo (clipmap, 32 materiais, detiling, triplanar, colisão) | `modules/erethea_terrain/` |
 | Prévia do asset para a Fornalha (`--erethea-preview=`, LibGodot) | `modules/erethea_preview/` |
 | Materiais do glTF que a Godot ignora (coat, anisotropia, sheen, IOR) | `modules/erethea_gltf/` |
 | Editor | `editor/` |
 | Marca, instalador, testes da Erethea | `erethea/` |
-| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`, `erethea_terrain.yml`) |
+| CI | `.github/workflows/` (`runner.yml`, `erethea_installer.yml`, `erethea_reference_scene.yml`, `erethea_mcp.yml`, `erethea_agent_test.yml`, `erethea_export_checks.yml`, `erethea_fornalha_import.yml`, `erethea_assistant.yml`, `erethea_preview.yml`, `erethea_terrain.yml`, `erethea_hair_strands.yml`) |
 
 ## Compilar e testar
 
