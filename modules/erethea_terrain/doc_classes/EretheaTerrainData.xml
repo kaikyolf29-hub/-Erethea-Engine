@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EretheaTerrainData" inherits="Resource" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		The height map and the material map of an [EretheaTerrain3D].
+	</brief_description>
+	<description>
+		An [EretheaTerrainData] holds what an [EretheaTerrain3D] draws: a grid of heights, and for each vertex of the grid which materials the ground is made of.
+		The terrain is centered on the origin of its node. Vertex [code](x, z)[/code] of the maps is at [code]((x - (width - 1) / 2) * vertex_spacing, height, (z - (depth - 1) / 2) * vertex_spacing)[/code]. This is also how [HeightMapShape3D] lays out its heights, so the collision of the terrain matches what is drawn.
+		The height map is an [Image] in [constant Image.FORMAT_RF], one float of height in meters per vertex. The control map is an [Image] in [constant Image.FORMAT_RGBA8] of the same size, with, per vertex: [b]R[/b] is the index of the base material (0 to 31), [b]G[/b] is the index of the overlay material (0 to 31), [b]B[/b] is the weight of the overlay over the base (0 is all base, 255 is all overlay), and [b]A[/b] is reserved and kept at 255. By default every vertex is base material 0.
+		The data saves and loads as any resource, as [code].res[/code] or [code].tres[/code].
+		[codeblock]
+		var data = EretheaTerrainData.new()
+		data.create(Vector2(256, 256), 1.0)
+		data.set_vertex_height(Vector2i(128, 128), 12.0)
+		data.set_control(Vector2i(128, 128), 0, 3, 0.5)
+		data.notify_maps_changed()
+		print(data.get_height(0.0, 0.0)) # 12.0
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="create">
+			<return type="void" />
+			<param index="0" name="size" type="Vector2" />
+			<param index="1" name="vertex_spacing" type="float" default="1.0" />
+			<param index="2" name="height" type="float" default="0.0" />
+			<description>
+				Replaces the maps with new ones that cover [param size] meters (x and z) with [param vertex_spacing] meters between the vertices. All the heights are [param height], and all the vertices are material 0. The number of vertices per side is [code]size / vertex_spacing + 1[/code], rounded, between 2 and 8192.
+			</description>
+		</method>
+		<method name="get_control_base" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="vertex" type="Vector2i" />
+			<description>
+				Returns the index of the base material (0 to 31) of [param vertex].
+			</description>
+		</method>
+		<method name="get_control_blend" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="vertex" type="Vector2i" />
+			<description>
+				Returns the weight of the overlay material over the base material of [param vertex], from 0 to 1. The map keeps it in 8 bits.
+			</description>
+		</method>
+		<method name="get_control_overlay" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="vertex" type="Vector2i" />
+			<description>
+				Returns the index of the overlay material (0 to 31) of [param vertex].
+			</description>
+		</method>
+		<method name="get_height" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="x" type="float" />
+			<param index="1" name="z" type="float" />
+			<description>
+				Returns the height at the point ([param x], [param z]), in meters from the origin of the terrain, interpolated between the 4 nearest vertices (bilinear). Returns [constant @GDScript.NAN] outside of the terrain.
+				The drawn surface and the collision are made of triangles, so between the vertices they can differ a little from this value.
+			</description>
+		</method>
+		<method name="get_height_range" qualifiers="const">
+			<return type="Vector2" />
+			<description>
+				Returns the lowest ([code]x[/code]) and the highest ([code]y[/code]) heights of the map. It is updated by [method notify_maps_changed], and when the maps are replaced.
+			</description>
+		</method>
+		<method name="get_normal" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="x" type="float" />
+			<param index="1" name="z" type="float" />
+			<description>
+				Returns the normal of the surface at the point ([param x], [param z]), from the heights one vertex spacing around it. At the edge of the terrain it uses the heights on the side that exists. Outside of the terrain it returns the normal of the nearest edge.
+			</description>
+		</method>
+		<method name="get_resolution" qualifiers="const">
+			<return type="Vector2i" />
+			<description>
+				Returns the number of vertices of the maps in x and z.
+			</description>
+		</method>
+		<method name="get_vertex_height" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="vertex" type="Vector2i" />
+			<description>
+				Returns the height of [param vertex], in meters.
+			</description>
+		</method>
+		<method name="get_vertex_position" qualifiers="const">
+			<return type="Vector2" />
+			<param index="0" name="vertex" type="Vector2i" />
+			<description>
+				Returns the x and z position of [param vertex], in meters from the origin of the terrain.
+			</description>
+		</method>
+		<method name="is_inside" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="x" type="float" />
+			<param index="1" name="z" type="float" />
+			<description>
+				Returns [code]true[/code] if the point ([param x], [param z]) is inside of the terrain, edges included.
+			</description>
+		</method>
+		<method name="notify_maps_changed">
+			<return type="void" />
+			<description>
+				Call it after changing the maps vertex by vertex with [method set_vertex_height] or [method set_control]. It updates [method get_height_range] and emits [signal Resource.changed], which makes the [EretheaTerrain3D] that uses this data draw it again and rebuild its collision.
+			</description>
+		</method>
+		<method name="set_control">
+			<return type="void" />
+			<param index="0" name="vertex" type="Vector2i" />
+			<param index="1" name="base" type="int" />
+			<param index="2" name="overlay" type="int" />
+			<param index="3" name="blend" type="float" />
+			<description>
+				Sets the materials of [param vertex]: [param base] and [param overlay] are indices from 0 to 31, and [param blend] is the weight of the overlay over the base, from 0 to 1. Values outside of these ranges are clamped. It doesn't emit [signal Resource.changed], call [method notify_maps_changed] when done.
+			</description>
+		</method>
+		<method name="set_vertex_height">
+			<return type="void" />
+			<param index="0" name="vertex" type="Vector2i" />
+			<param index="1" name="height" type="float" />
+			<description>
+				Sets the height of [param vertex], in meters. It doesn't emit [signal Resource.changed], call [method notify_maps_changed] when done.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="control_map" type="Image" setter="set_control_map" getter="get_control_map">
+			The material map, in [constant Image.FORMAT_RGBA8], with the same size as [member height_map]. See the description of the class for what each channel holds. Other formats are converted.
+		</member>
+		<member name="height_map" type="Image" setter="set_height_map" getter="get_height_map">
+			The height map, in [constant Image.FORMAT_RF], one float of height in meters per vertex, from 2x2 to 8192x8192 vertices. Other formats are converted. Setting a map of another size than the current one makes a new control map with all vertices as material 0.
+		</member>
+		<member name="size" type="Vector2" setter="set_size" getter="get_size">
+			The size of the terrain in meters, in x and z: [code](resolution - 1) * vertex_spacing[/code]. Setting it changes the number of vertices, keeping the heights and materials that fit, from the first vertex on. It is not saved, the maps are.
+		</member>
+		<member name="vertex_spacing" type="float" setter="set_vertex_spacing" getter="get_vertex_spacing" default="1.0">
+			The distance in meters between two vertices of the maps. It is also the spacing of the finest level of the clipmap that draws the terrain.
+		</member>
+	</members>
+	<constants>
+		<constant name="MAX_MATERIALS" value="32">
+			The number of materials that the control map can address.
+		</constant>
+	</constants>
+</class>
