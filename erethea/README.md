@@ -225,6 +225,35 @@ velocidade numa placa de verdade (RTX) fica para o teste final.
 erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
 ```
 
+## Pele
+
+A pele usa a subsuperfície da Godot (Forward+), com três partes:
+
+- **Perfil por canal**: no material (`StandardMaterial3D`), *Subsurf Scatter*
+  ligado com *Skin Mode*. A Godot espalha o vermelho mais longe que o verde e
+  o azul, com o perfil da pele de Jimenez.
+- **Mapa de espessura**: *Transmittance* ligado, com a textura de espessura
+  (mais clara onde a pele é fina, como as orelhas e as narinas), a cor da luz
+  que atravessa, a profundidade e o reforço.
+- **Seguir a superfície (Erethea)**: a configuração do projeto
+  `rendering/erethea/subsurface_scattering/follow_surface` (em metros; 0,03
+  serve à pele humana). Sem ela, o filtro da Godot deixa a luz de uma pele
+  vazar para outra numa profundidade diferente (a mão na frente do rosto, o
+  nariz sobre a bochecha), com um halo claro na borda. Com ela, as amostras
+  mais longe em profundidade que essa distância não espalham luz no pixel. O
+  padrão é 0, que é o filtro da Godot; vale ao abrir o projeto.
+
+Teste: `erethea/tests/sss_scene` (uma pele iluminada na frente de outra, no
+escuro, a 1 m). Com a configuração do projeto (5 cm), a luz não vaza; com
+`--expect=bleed` e a configuração em 0 (por um `override.cfg`), vaza. O CI
+roda os dois. Imprime `ERETHEA_SSS_OK`.
+
+Pedido para a Fornalha (o Kaiky cola no chat dela):
+
+```text
+Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). No project.godot dos jogos, ponha rendering/erethea/subsurface_scattering/follow_surface=0.03 na seção [rendering] (a Godot ignora). Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
+```
+
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
 A Godot tem o FSR 2.2 próprio. A Erethea pode trocá-lo pelo **AMD FSR**, por
