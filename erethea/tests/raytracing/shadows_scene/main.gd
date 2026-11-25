@@ -113,6 +113,8 @@ func _make_arm() -> Skeleton3D:
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var arm := MeshInstance3D.new()
 	arm.mesh = mesh
+	# The skeleton path is empty by default.
+	arm.skeleton = NodePath("..")
 	sk.add_child(arm)
 	return sk
 
