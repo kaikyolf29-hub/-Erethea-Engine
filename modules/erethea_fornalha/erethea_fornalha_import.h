@@ -201,6 +201,9 @@ public:
 	// How far an area's sound reaches from its center: half the way to the
 	// nearest other area, between 12 and 80 m.
 	static real_t get_area_radius(const EretheaFornalhaProject &p_project, int p_area);
+	// How far from the camera the sun casts shadows in the world: across it,
+	// from Godot's 100 m to 300 m, so that the four cascades keep their detail.
+	static real_t get_sun_shadow_distance(const EretheaFornalhaProject &p_project);
 	// Adds the reverb buses that the areas use, and that the project doesn't
 	// have yet, to its audio bus layout, and saves it. Returns the layout's
 	// file when it changed.

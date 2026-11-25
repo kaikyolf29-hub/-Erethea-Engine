@@ -409,6 +409,13 @@ comparado na cena de referência:
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
+   **Cascatas (PR do sol do mundo, 25/11):** no `World/mundo.tscn` que a
+   Erethea monta para a Fornalha, o sol mistura as cascatas
+   (`blend_splits`, sem a emenda visível) e alcança o mundo inteiro
+   (`get_sun_shadow_distance`: o dobro da borda de área mais longe, de 100 a
+   300 m). Ficou de fora o PCSS (`light_angular_distance`): custo alto na
+   RX 580 sem prova; se o teste final pedir sombra mais suave sem ray tracing,
+   ligue pelo preset `Cinematic` só.
 5. **Pele: feito o que faltava (PR da pele, 25/11)**. A Godot já tem o perfil
    por canal (modo pele) e o mapa de espessura (transmitância com textura); a
    Erethea somou `rendering/erethea/subsurface_scattering/follow_surface`

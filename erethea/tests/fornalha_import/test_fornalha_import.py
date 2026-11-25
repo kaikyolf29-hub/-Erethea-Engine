@@ -301,6 +301,7 @@ def build_checks(mcp, project):
     )
     world = (project / "World/mundo.tscn").read_text(encoding="utf-8")
     check('path="res://World/blockout.glb"' in world, "the world uses the blockout's file")
+    check("directional_shadow_blend_splits = true" in world, "the sun's cascades blend into each other")
     check(
         'path="res://World/areas/vila.tscn"' in world and 'path="res://World/areas/floresta.tscn"' in world,
         "the world has its areas",

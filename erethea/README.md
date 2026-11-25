@@ -683,6 +683,14 @@ fica como está, e o relatório diz isso. Montar com *force* (ou o botão
 `res://.erethea/backup/`. Uma cena aberta no editor com mudanças não salvas
 nunca é trocada.
 
+**O sol do mundo.** O `World/mundo.tscn` tem o sol com sombra, as cascatas se
+misturando umas nas outras em vez de mostrar uma emenda
+(`directional_shadow_blend_splits`) e o alcance da sombra pelo tamanho do
+mundo: o dobro da borda de área mais longe do centro, entre os 100 m da Godot e
+300 m (mais que isso tira detalhe das quatro cascatas). Sem PCSS (sombra mais
+suave pelo tamanho do sol), que custa caro na RX 580 sem prova; na RTX, as
+sombras por ray tracing já dão isso.
+
 **Animações em loop.** O glTF não tem como dizer que uma animação é em loop,
 então as animações de andar da Forja chegavam na Godot tocando uma vez só. Em
 projetos da Fornalha, a importação deixa em loop as animações com os nomes de
