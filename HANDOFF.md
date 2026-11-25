@@ -409,6 +409,15 @@ comparado na cena de referência:
    manter até a NVIDIA levar isso para a Godot (o que diminui quando ela
    levar). O lavapipe tem pipeline de ray tracing, então o CI consegue provar
    que o path tracer desenha.
+   Tentado em 25/11 (`git cherry-pick` dos três commits sobre o `main`, depois
+   de `git fetch --depth=5 https://github.com/NVIDIA-RTX/godot nvidia-pt-dlss`):
+   o "Miscellaneous" é quase todo a infraestrutura de CI da NVIDIA (ações do
+   GitHub copiadas em `.github/actions/changed-files/`, com 2 MB de
+   JavaScript, workflows próprios) e o SDK Aftermath (`drivers/aftermath/`), e
+   já conflita no CI (a base dela é um pouco mais antiga que a nossa nos
+   arquivos `.github`). Na integração, deixe de fora o `.github` e o
+   Aftermath, traga só o `thirdparty/streamline/` e o path tracer, e resolva
+   os arquivos de renderização com os trechos `// Erethea:`.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
 5. **Materiais em camadas** (terra, sujeira, molhado), pele com subsuperfície
    melhor (perfil de espalhamento por canal, mapa de espessura e sombra de
