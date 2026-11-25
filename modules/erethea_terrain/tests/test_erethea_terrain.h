@@ -31,6 +31,7 @@
 #pragma once
 
 #include "../erethea_terrain_3d.h"
+#include "../erethea_terrain_brush.h"
 #include "../erethea_terrain_clipmap.h"
 #include "../erethea_terrain_data.h"
 
@@ -187,6 +188,257 @@ TEST_CASE("[Modules][EretheaTerrain] Collision heights follow the height map") {
 	CHECK(heights[5 * 3 + 4] == doctest::Approx(34));
 }
 
+// A flat terrain of 32 x 32 m, 1 m between the vertices (33 x 33 vertices),
+// with a copy of its heights and materials to compare with.
+static Ref<EretheaTerrainData> make_flat(real_t p_height = 5.0) {
+	Ref<EretheaTerrainData> data;
+	data.instantiate();
+	data->create(Vector2(32, 32), 1.0, p_height);
+	return data;
+}
+
+static bool maps_equal(const Ref<EretheaTerrainData> &p_a, const Ref<EretheaTerrainData> &p_b) {
+	return p_a->get_height_map()->get_data() == p_b->get_height_map()->get_data() && p_a->get_control_map()->get_data() == p_b->get_control_map()->get_data();
+}
+
+TEST_CASE("[Modules][EretheaTerrain] Brush falloff goes from 1 at the center to 0 at the radius") {
+	using namespace EretheaTerrainBrush;
+	CHECK(get_falloff(0, 4) == doctest::Approx(1));
+	CHECK(get_falloff(4, 4) == doctest::Approx(0));
+	CHECK(get_falloff(9, 4) == doctest::Approx(0));
+	CHECK(get_falloff(2, 4) == doctest::Approx(0.5));
+	CHECK(get_falloff(1, 4) > get_falloff(3, 4));
+	CHECK(get_falloff(1, 0) == doctest::Approx(0));
+}
+
+TEST_CASE("[Modules][EretheaTerrain] A dab rect is the vertices around it, inside the maps") {
+	using namespace EretheaTerrainBrush;
+	Ref<EretheaTerrainData> data = make_flat();
+	// The vertex (16, 16) is at the origin.
+	CHECK(get_dab_rect(data, Vector2(0, 0), 3) == Rect2i(13, 13, 7, 7));
+	// Cut at the edge of the maps.
+	CHECK(get_dab_rect(data, Vector2(-16, -16), 3) == Rect2i(0, 0, 4, 4));
+	CHECK(get_dab_rect(data, Vector2(16, 16), 3) == Rect2i(29, 29, 4, 4));
+	// Outside of the terrain: empty.
+	CHECK(get_dab_rect(data, Vector2(100, 0), 3).size.x <= 0);
+}
+
+TEST_CASE("[Modules][EretheaTerrain] A raise dab changes only what is inside the radius") {
+	using namespace EretheaTerrainBrush;
+	Ref<EretheaTerrainData> data = make_flat();
+	Ref<EretheaTerrainData> original = make_flat();
+
+	Settings settings;
+	settings.tool = TOOL_RAISE;
+	settings.radius = 4;
+	settings.strength = 1;
+	const Rect2i rect = apply_dab(data, settings, Vector2(0, 0));
+	CHECK(rect == Rect2i(12, 12, 9, 9));
+
+	for (int z = 0; z < 33; z++) {
+		for (int x = 0; x < 33; x++) {
+			const Vector2i vertex(x, z);
+			const real_t distance = data->get_vertex_position(vertex).length();
+			const real_t change = data->get_vertex_height(vertex) - original->get_vertex_height(vertex);
+			if (distance >= 4) {
+				CHECK(change == doctest::Approx(0));
+			}
+		}
+	}
+	// 1 m at the center, less around it, never below 0.
+	CHECK(data->get_vertex_height(Vector2i(16, 16)) == doctest::Approx(6));
+	CHECK(data->get_vertex_height(Vector2i(18, 16)) == doctest::Approx(5.5));
+	CHECK(data->get_vertex_height(Vector2i(17, 16)) > data->get_vertex_height(Vector2i(18, 16)));
+	CHECK(data->get_vertex_height(Vector2i(20, 16)) == doctest::Approx(5));
+	CHECK(data->get_vertex_height(Vector2i(12, 12)) == doctest::Approx(5));
+
+	// And lower takes it back.
+	settings.tool = TOOL_LOWER;
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	CHECK(maps_equal(data, original));
+}
+
+TEST_CASE("[Modules][EretheaTerrain] Smooth and flatten move the heights toward their goals") {
+	using namespace EretheaTerrainBrush;
+	Ref<EretheaTerrainData> data = make_flat(0.0);
+	data->set_vertex_height(Vector2i(16, 16), 9);
+	data->notify_maps_changed();
+
+	Settings settings;
+	settings.tool = TOOL_SMOOTH;
+	settings.radius = 6;
+	settings.strength = 1;
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	// The peak was the only one above 0, so it comes down to the average of its
+	// 3x3 vertices, and its neighbors go up to the average of theirs.
+	CHECK(data->get_vertex_height(Vector2i(16, 16)) == doctest::Approx(1.0));
+	CHECK(data->get_vertex_height(Vector2i(17, 16)) > 0.1);
+	CHECK(data->get_vertex_height(Vector2i(17, 16)) < 1.0);
+	// Outside the radius it stays flat.
+	CHECK(data->get_vertex_height(Vector2i(25, 16)) == doctest::Approx(0));
+
+	settings.tool = TOOL_FLATTEN;
+	settings.target_height = 3;
+	settings.strength = 1;
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	CHECK(data->get_vertex_height(Vector2i(16, 16)) == doctest::Approx(3));
+	CHECK(data->get_vertex_height(Vector2i(25, 16)) == doctest::Approx(0));
+}
+
+TEST_CASE("[Modules][EretheaTerrain] Paint brushes set the materials and the weight") {
+	using namespace EretheaTerrainBrush;
+	Ref<EretheaTerrainData> data = make_flat();
+	const Vector2i center(16, 16);
+
+	Settings settings;
+	settings.radius = 4;
+	settings.strength = 1;
+	settings.material = 7;
+	settings.tool = TOOL_PAINT_BASE;
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	CHECK(data->get_control_base(center) == 7);
+	CHECK(data->get_control_base(Vector2i(17, 16)) == 7);
+	CHECK(data->get_control_base(Vector2i(20, 16)) == 0);
+	// The overlay is untouched.
+	CHECK(data->get_control_overlay(center) == 0);
+	CHECK(data->get_control_blend(center) == doctest::Approx(0));
+
+	settings.material = 12;
+	settings.strength = 0.4;
+	settings.tool = TOOL_PAINT_OVERLAY;
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	CHECK(data->get_control_overlay(center) == 12);
+	CHECK(data->get_control_blend(center) == doctest::Approx(0.4).epsilon(0.01));
+	CHECK(data->get_control_base(center) == 7);
+	// A second dab with the same material adds up, to at most 1.
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	CHECK(data->get_control_blend(center) == doctest::Approx(1).epsilon(0.01));
+
+	// Another overlay material starts its weight again.
+	settings.material = 3;
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	CHECK(data->get_control_overlay(center) == 3);
+	CHECK(data->get_control_blend(center) == doctest::Approx(0.4).epsilon(0.01));
+
+	settings.tool = TOOL_ERASE_OVERLAY;
+	settings.strength = 1;
+	(void)apply_dab(data, settings, Vector2(0, 0));
+	CHECK(data->get_control_blend(center) == doctest::Approx(0));
+	CHECK(data->get_control_base(center) == 7);
+}
+
+TEST_CASE("[Modules][EretheaTerrain] A stroke undoes and redoes exactly what it changed") {
+	using namespace EretheaTerrainBrush;
+	Ref<EretheaTerrainData> data = make_flat();
+	data->set_vertex_height(Vector2i(3, 3), 11);
+	data->set_control(Vector2i(20, 8), 4, 5, 0.5);
+	data->notify_maps_changed();
+	Ref<EretheaTerrainData> original = make_flat();
+	original->set_vertex_height(Vector2i(3, 3), 11);
+	original->set_control(Vector2i(20, 8), 4, 5, 0.5);
+	original->notify_maps_changed();
+
+	Settings settings;
+	settings.tool = TOOL_RAISE;
+	settings.radius = 3;
+	settings.strength = 1;
+
+	Stroke stroke;
+	stroke.begin(data);
+	CHECK(stroke.is_active());
+	// A drag to the right: the changed area grows with each dab.
+	for (int i = 0; i < 8; i++) {
+		stroke.dab(settings, Vector2(-8 + i * 2, 0));
+	}
+	Stroke::Result result;
+	REQUIRE(stroke.end(result));
+	CHECK_FALSE(stroke.is_active());
+	CHECK_FALSE(maps_equal(data, original));
+
+	// The stroke only kept the part that the dabs reach: 3 m around the line
+	// from x = -8 to 6, at z = 0, which is 21 by 7 vertices.
+	CHECK(result.rect == Rect2i(5, 13, 21, 7));
+	Ref<Image> kept = result.before["height"];
+	CHECK(kept->get_size() == Vector2i(21, 7));
+
+	// Nothing outside of the area changed, and not the vertices that were already modified.
+	for (int z = 0; z < 33; z++) {
+		for (int x = 0; x < 33; x++) {
+			if (!result.rect.has_point(Vector2i(x, z))) {
+				CHECK(data->get_vertex_height(Vector2i(x, z)) == doctest::Approx(original->get_vertex_height(Vector2i(x, z))));
+			}
+		}
+	}
+	CHECK(data->get_control_overlay(Vector2i(20, 8)) == 5);
+	CHECK(data->get_vertex_height(Vector2i(3, 3)) == doctest::Approx(11));
+
+	// The undo step puts the maps back as they were, and the redo step as they ended.
+	const Vector<uint8_t> sculpted = data->get_height_map()->get_data();
+	data->set_region(result.rect, result.before);
+	CHECK(maps_equal(data, original));
+	data->set_region(result.rect, result.after);
+	CHECK(data->get_height_map()->get_data() == sculpted);
+	data->set_region(result.rect, result.before);
+	CHECK(maps_equal(data, original));
+
+	// The height range is the real one again after the undo.
+	CHECK(data->get_height_range().is_equal_approx(Vector2(5, 11)));
+}
+
+TEST_CASE("[Modules][EretheaTerrain] A stroke outside of the terrain changes nothing") {
+	using namespace EretheaTerrainBrush;
+	Ref<EretheaTerrainData> data = make_flat();
+	Settings settings;
+	Stroke stroke;
+	stroke.begin(data);
+	stroke.dab(settings, Vector2(500, 500));
+	Stroke::Result result;
+	CHECK_FALSE(stroke.end(result));
+	CHECK(maps_equal(data, make_flat()));
+}
+
+TEST_CASE("[Modules][EretheaTerrain] Regions are copies that fit back") {
+	Ref<EretheaTerrainData> data = make_ramp();
+	Dictionary region = data->get_region(Rect2i(1, 1, 3, 2));
+	Ref<Image> heights = region["height"];
+	REQUIRE(heights.is_valid());
+	CHECK(heights->get_size() == Vector2i(3, 2));
+	CHECK(heights->get_pixel(0, 0).r == doctest::Approx(11));
+	// A copy: changing the data doesn't change it.
+	data->set_vertex_height(Vector2i(1, 1), 100);
+	CHECK(heights->get_pixel(0, 0).r == doctest::Approx(11));
+	data->set_region(Rect2i(1, 1, 3, 2), region);
+	CHECK(data->get_vertex_height(Vector2i(1, 1)) == doctest::Approx(11));
+	// Cut at the edge of the maps.
+	Ref<Image> cut = data->get_region(Rect2i(3, 2, 10, 10))["height"];
+	CHECK(cut->get_size() == Vector2i(2, 2));
+}
+
+TEST_CASE("[Modules][EretheaTerrain] A ray finds where it enters the ground") {
+	using namespace EretheaTerrainBrush;
+	Ref<EretheaTerrainData> data = make_ramp();
+	Vector3 hit;
+	// Straight down, on a vertex and between two.
+	REQUIRE(raycast(data, Vector3(0, 100, -1), Vector3(0, -1, 0), 500, hit));
+	CHECK(hit.x == doctest::Approx(0));
+	CHECK(hit.z == doctest::Approx(-1));
+	CHECK(hit.y == doctest::Approx(data->get_height(0, -1)));
+	REQUIRE(raycast(data, Vector3(1.3, 100, 0.7), Vector3(0, -1, 0), 500, hit));
+	CHECK(hit.y == doctest::Approx(data->get_height(1.3, 0.7)).epsilon(0.001));
+	// Slanted, from a camera: the point is on the surface, and on the ray.
+	const Vector3 origin(-20, 80, 2.5);
+	const Vector3 direction = (Vector3(1, data->get_height(1, 0), 0) - origin).normalized();
+	REQUIRE(raycast(data, origin, direction, 500, hit));
+	CHECK(hit.y == doctest::Approx(data->get_height(hit.x, hit.z)).epsilon(0.001));
+	CHECK(((hit - origin).normalized()).is_equal_approx(direction));
+	// Misses: beside the terrain, pointing up, too short, or from under the ground.
+	CHECK_FALSE(raycast(data, Vector3(50, 100, 0), Vector3(0, -1, 0), 500, hit));
+	CHECK_FALSE(raycast(data, Vector3(0, 100, 0), Vector3(0, 1, 0), 500, hit));
+	CHECK_FALSE(raycast(data, Vector3(0, 100, 0), Vector3(0, -1, 0), 50, hit));
+	CHECK_FALSE(raycast(data, Vector3(0, -50, 0), Vector3(0, -1, 0), 500, hit));
+}
+
 TEST_CASE("[Modules][EretheaTerrain] Clipmap levels double their spacing") {
 	using namespace EretheaTerrainClipmap;
 	CHECK(get_level_spacing(0.5, 0) == doctest::Approx(0.5));
@@ -272,6 +524,24 @@ TEST_CASE("[Modules][EretheaTerrain] Clipmap mesh has the grid and the skirt") {
 		}
 	}
 	CHECK(skirt_vertices == 4 * 9);
+
+	// The odd vertices of the edge, and their skirt, say which way their line goes.
+	int along_x = 0;
+	int along_z = 0;
+	for (int i = 0; i < mesh.vertices.size(); i++) {
+		if (mesh.uvs[i].y == 1) {
+			along_x++;
+			CHECK(Math::abs(Math::abs(mesh.vertices[i].z) - 8) < 0.0001);
+		} else if (mesh.uvs[i].y == 2) {
+			along_z++;
+			CHECK(Math::abs(Math::abs(mesh.vertices[i].x) - 8) < 0.0001);
+		} else {
+			CHECK(mesh.uvs[i].y == 0);
+		}
+	}
+	// 4 odd vertices on each of the 2 edges, with the skirt copy of each.
+	CHECK(along_x == 2 * 4 * 2);
+	CHECK(along_z == 2 * 4 * 2);
 	for (int i = 0; i < mesh.indices.size(); i++) {
 		CHECK(mesh.indices[i] >= 0);
 		CHECK(mesh.indices[i] < mesh.vertices.size());

@@ -565,6 +565,11 @@
 /modules/erethea_mcp/**/*.py                  @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_mcp/**/SCsub                 @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_mcp/tests/                   @kaikyolf29-hub @godotengine/tests
+/modules/erethea_materials/                    @kaikyolf29-hub @godotengine/rendering
+/modules/erethea_materials/**/*.py            @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_materials/**/SCsub           @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_materials/doc_classes/       @kaikyolf29-hub @godotengine/documentation
+/modules/erethea_materials/tests/             @kaikyolf29-hub @godotengine/tests
 /modules/erethea_export_checks/               @kaikyolf29-hub @godotengine/editor
 /modules/erethea_export_checks/**/*.py        @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_export_checks/**/SCsub       @kaikyolf29-hub @godotengine/buildsystem
@@ -586,6 +591,7 @@
 /modules/erethea_terrain/**/*.py               @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_terrain/**/SCsub              @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_terrain/doc_classes/          @kaikyolf29-hub @godotengine/documentation
+/modules/erethea_terrain/editor/                @kaikyolf29-hub @godotengine/editor
 /modules/erethea_terrain/tests/                @kaikyolf29-hub @godotengine/tests
 /modules/erethea_preview/                      @kaikyolf29-hub @godotengine/rendering @godotengine/editor
 /modules/erethea_preview/**/*.py               @kaikyolf29-hub @godotengine/buildsystem

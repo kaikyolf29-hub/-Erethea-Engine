@@ -18,6 +18,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/fornalha_link/` | Teste do elo ao vivo com a Fornalha, com uma Fornalha de mentira |
 | `tests/preview/` | Teste de ponta a ponta da prévia para a Fornalha (arquivos glTF gerados pelo teste) |
 | `tests/libgodot/` | Programa em C que embute a engine pela LibGodot e teste da prévia embutida |
+| `tests/hair_strands/` | Cabelo fio a fio sobre uma esfera com um osso girando, e o teste de captura |
 
 ## Atualizar a Godot
 
@@ -491,6 +492,100 @@ Erethea carrega o Streamline, que ele responde que a placa não tem DLSS, que a
 Erethea volta para o FSR 2.2 com a mesma imagem e que fecha sem erro; os
 arquivos da NVIDIA não vão para o artefato. **Não testado na placa:** o DLSS
 reconstruindo de fato, a qualidade e o custo em FPS na RTX 4060 Ti/5060 Ti.
+
+## Cabelo fio a fio
+
+`EretheaHairStrands` (módulo `modules/erethea_materials/`) desenha o penteado
+fio a fio, em vez de cards, no nível Máximo da Fornalha. A Fornalha gera os
+fios (`fc_cabelo.py`, no Blender); a Erethea só os **desenha**. Quem não usa a
+classe não muda em nada.
+
+**Como os fios chegam.** Como linhas: no Blender, cada fio é uma sequência de
+arestas soltas (*loose edges*, sem faces), e o exportador glTF as grava como
+primitivas `LINES`. O importador da Godot cria uma superfície
+`Mesh.PRIMITIVE_LINES` com índices (`LINE_STRIP` também serve, com ou sem
+índices). Os vértices podem ter ossos e pesos (o cabelo preso à cabeça) e UV
+(a Erethea não precisa dele). Um fio é uma cadeia de segmentos ligados: o
+segmento que começa onde o anterior terminou continua o fio; quando não
+começa, começa outro fio. Por isso as arestas de cada fio têm de vir na ordem
+(raiz → ponta), e fios que dividem um vértice não se ligam.
+
+**O que a classe faz.** `EretheaHairStrands` herda de `MeshInstance3D`, então
+`skeleton`, `skin`, `layers`, sombras e o resto são os do `MeshInstance3D`
+(aponte `skeleton` para o `Skeleton3D` da cabeça; nesta base o caminho vem
+vazio). Ao receber `source_mesh`, ela monta a malha de fitas: para cada ponto
+do fio, dois vértices na mesma posição, com a direção do fio no `TANGENT`, o
+lado (-1/+1) e a posição raiz→ponta (por comprimento) no `UV`, e um valor
+aleatório por fio e o comprimento do fio no `UV2`. Ossos e pesos são copiados
+do vértice de origem, então o skinning da Godot (que transforma `VERTEX`,
+`NORMAL` e `TANGENT`) leva as fitas junto com a pose. No shader (embutido no
+módulo, sem arquivo para editar), a fita abre para os lados no espaço de
+vista, perpendicular ao fio e à direção da câmera, afinando até a ponta; a
+transparência é *alpha hash* (sem erro de ordem, e funciona no Compatibility);
+o brilho tem duas faixas anisotrópicas (Kajiya-Kay), com deslocamento
+diferente em cada fio, mais a raiz mais escura e a luz atravessando contra a
+luz. A AABB inclui a metade da largura.
+
+```gdscript
+var hair := EretheaHairStrands.new()
+hair.source_mesh = hair_mesh_instance.mesh   # a malha de linhas importada do .glb
+hair.width = 0.0015                          # largura na raiz, em metros
+hair.tip_width = 0.25                        # largura na ponta, como fração da da raiz
+hair.strand_fraction = 0.5                   # LOD: desenha metade dos fios, espalhados
+hair.color_root = Color(0.05, 0.03, 0.02)
+hair.color_tip = Color(0.2, 0.12, 0.08)
+skeleton.add_child(hair)
+hair.skeleton = NodePath("..")               # o Skeleton3D da cabeça
+```
+
+Propriedades: `source_mesh`, `strand_fraction` (0 a 1), `width`, `tip_width`,
+`color_root`, `color_tip`, `roughness`, `specular_primary`,
+`specular_secondary`, `specular_shift_primary`, `specular_shift_secondary`,
+`backlight`. A malha de fitas é refeita (no fim do quadro) quando mudam
+`source_mesh`, `strand_fraction` ou `width`; as demais só atualizam o
+material. `get_strand_count()` diz quantos fios estão desenhados. Para usar
+um shader seu, ponha um `material_override`.
+
+**Teste.** `erethea/tests/hair_strands/` gera algumas centenas de fios sobre
+uma esfera, com um `Skeleton3D` de um osso, desenha o cabelo, gira o osso em
+90° e desenha de novo; confere que há pixels de cabelo sobre a cabeça, que eles
+mudam de lugar com o giro e que `strand_fraction` menor desenha menos, e
+imprime `ERETHEA_HAIR_OK`. O CI (`erethea_hair_strands.yml`) roda a cena no
+lavapipe e sobe as capturas. Rodando à mão:
+
+```sh
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 1280x720x24" \
+  bin/erethea.linuxbsd.editor.x86_64 --path erethea/tests/hair_strands --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/hair.png"
+```
+
+**O que falta.**
+
+- **Não testado** numa placa de verdade (RX 580, RTX 4060 Ti/5060 Ti) nem com
+  fios da Fornalha de verdade: o teste usa fios de mentira, desenhados no
+  lavapipe. O custo em quadros de dezenas de milhares de fios só se mede na
+  placa.
+- Nos renderizadores Mobile e Compatibility o shader é o mesmo (a Godot
+  trata o alpha hash neles), mas só o Forward+ foi desenhado em teste.
+- A Fornalha ainda não exporta as arestas soltas (veja o pedido abaixo).
+- Sombras próprias do cabelo (sombra entre os fios) e o LOD por distância
+  (hoje o `strand_fraction` é manual) ficam para depois.
+- Fios com uma aresta virada (`b → a` no meio da cadeia) não são ligados.
+
+**Pedido para a Fornalha** (cole no chat dela):
+
+> Erethea Engine: o cabelo fio a fio nativo está pronto (classe
+> `EretheaHairStrands`). Em vez de cards no nível Máximo, exporte o penteado
+> como **arestas soltas**: uma malha sem faces, onde cada fio é uma cadeia de
+> arestas (ponto 0 → ponto 1, ponto 1 → ponto 2, ... na ordem da raiz para a
+> ponta). Sem faces e sem vértices soltos, para o glTF gravar primitivas
+> `LINES`. Prenda os vértices à cabeça com o grupo de vértices e o modificador
+> Armature (como a `malha_de_fios` já faz, peso 1,0 no osso `head`); a UV é
+> opcional. Chame a malha `<id>_hair_strands` (para a Erethea achar) e ponha a
+> largura do fio em metros no nome do material, como hoje (`_cabelo_fios_70` =
+> 0,7 mm). A Erethea não precisa dos cards nesse nível. No Godot, monte um
+> `EretheaHairStrands` com `source_mesh = <a malha importada>`, `width`
+> da largura do material e `skeleton = NodePath("..")` sob o `Skeleton3D` do
+> personagem.
 
 ## Streaming de texturas
 
@@ -1033,17 +1128,54 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 
   bin/erethea.linuxbsd.editor.x86_64 --path erethea/tests/terrain --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/terrain.png"
 ```
 
+**Pintar no editor.** Selecione um `EretheaTerrain3D` na cena: aparece uma
+barra na parte de cima do editor 3D, com o botão **Terrain**, o pincel, o
+**Radius**, o **Strength** e o **Material**. Ligue o botão **Terrain** e
+arraste com o botão esquerdo do mouse sobre o terreno (com o botão desligado, o
+clique seleciona como sempre). O ponto sob o mouse vem de um raio lançado no
+mapa de altura do próprio `data`. Cada arrastada é um passo do desfazer
+(`Ctrl+Z`), que guarda só a região que mudou, e marca o recurso como
+modificado para ele ser salvo.
+
+| Pincel | O que faz (um toque, `f` = 1 no centro e 0 na borda do raio) |
+| --- | --- |
+| Raise / Lower | Sobe ou desce `Strength × f` metros |
+| Smooth | Aproxima a altura da média dos 3×3 vértices em volta, `Strength × f` do caminho |
+| Flatten | Aproxima a altura da altura de onde a arrastada começou, `Strength × f` do caminho |
+| Paint Base Material | Põe o material base `Material` em todos os vértices que o pincel alcança (não usa o `Strength`) |
+| Paint Overlay Material | Põe o material de cima `Material` e soma `Strength × f` ao peso dele (se o vértice tinha outro material de cima, o peso recomeça) |
+| Erase Overlay | Tira `Strength × f` do peso do material de cima |
+
+Há um toque a cada um quarto do raio de arrastada, para a força não depender de
+quão rápido o mouse anda. As funções dos pincéis não dependem do editor
+(`modules/erethea_terrain/erethea_terrain_brush.*`) e os testes de unidade as
+cobrem: um toque só muda o que está dentro do raio, e o desfazer devolve os
+mapas iguais.
+
+**Emendas do clipmap.** Os vértices das bordas de fora de um nível que ficam
+entre dois vértices do nível mais grosso (os de posição ímpar) ficam na altura
+da reta entre esses dois, como o nível de fora a desenha, então não há frestas.
+O teste da cena pinta o fundo de magenta (cor que o terreno não tem) e exige
+zero pixels dessa cor abaixo do topo do terreno em cada coluna da captura;
+antes da correção ele achava 29 pixels.
+
 **O que ainda falta.**
 
-- Pintura no editor (esculpir a altura e pintar os materiais), com desfazer: parte 2.
 - Importar o blockout da Fornalha como terreno: parte 3.
 - Provar numa placa de verdade (RX 580 e RTX 4060 Ti/5060 Ti): os testes rodam
   no lavapipe, na CPU, e dizem se desenha e colide, não quão rápido.
+- A pintura foi compilada e o editor abre com o plugin, mas não foi usada com
+  o mouse de verdade: o desenho do pincel (um anel na tela) não existe ainda, e
+  cada toque refaz a textura e a colisão do terreno inteiro, o que pesa em
+  mapas muito grandes (atualização parcial fica para depois).
+- Pintar a altura não mexe na lista de materiais: as camadas (`Texture2DArray`)
+  continuam vindo do Inspetor.
 - A mistura usa o material do vértice mais perto e interpola só o peso; a
   borda entre dois pares de materiais diferentes é recortada na resolução do
   mapa de controle.
-- O editor ainda não foi aberto com o nó: o seguimento da câmera do editor
-  (`EditorInterface.get_editor_viewport_3d()`) não foi testado.
+- O seguimento da câmera do editor (`EditorInterface.get_editor_viewport_3d()`)
+  ainda não foi testado com o editor aberto numa janela.
+
 ## Prévia para a Fornalha
 
 A Fornalha pode mostrar o asset que gerou **já com o renderizador da Erethea**,
