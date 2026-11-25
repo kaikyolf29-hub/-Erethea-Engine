@@ -924,17 +924,54 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 
   bin/erethea.linuxbsd.editor.x86_64 --path erethea/tests/terrain --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/terrain.png"
 ```
 
+**Pintar no editor.** Selecione um `EretheaTerrain3D` na cena: aparece uma
+barra na parte de cima do editor 3D, com o botão **Terrain**, o pincel, o
+**Radius**, o **Strength** e o **Material**. Ligue o botão **Terrain** e
+arraste com o botão esquerdo do mouse sobre o terreno (com o botão desligado, o
+clique seleciona como sempre). O ponto sob o mouse vem de um raio lançado no
+mapa de altura do próprio `data`. Cada arrastada é um passo do desfazer
+(`Ctrl+Z`), que guarda só a região que mudou, e marca o recurso como
+modificado para ele ser salvo.
+
+| Pincel | O que faz (um toque, `f` = 1 no centro e 0 na borda do raio) |
+| --- | --- |
+| Raise / Lower | Sobe ou desce `Strength × f` metros |
+| Smooth | Aproxima a altura da média dos 3×3 vértices em volta, `Strength × f` do caminho |
+| Flatten | Aproxima a altura da altura de onde a arrastada começou, `Strength × f` do caminho |
+| Paint Base Material | Põe o material base `Material` em todos os vértices que o pincel alcança (não usa o `Strength`) |
+| Paint Overlay Material | Põe o material de cima `Material` e soma `Strength × f` ao peso dele (se o vértice tinha outro material de cima, o peso recomeça) |
+| Erase Overlay | Tira `Strength × f` do peso do material de cima |
+
+Há um toque a cada um quarto do raio de arrastada, para a força não depender de
+quão rápido o mouse anda. As funções dos pincéis não dependem do editor
+(`modules/erethea_terrain/erethea_terrain_brush.*`) e os testes de unidade as
+cobrem: um toque só muda o que está dentro do raio, e o desfazer devolve os
+mapas iguais.
+
+**Emendas do clipmap.** Os vértices das bordas de fora de um nível que ficam
+entre dois vértices do nível mais grosso (os de posição ímpar) ficam na altura
+da reta entre esses dois, como o nível de fora a desenha, então não há frestas.
+O teste da cena pinta o fundo de magenta (cor que o terreno não tem) e exige
+zero pixels dessa cor abaixo do topo do terreno em cada coluna da captura;
+antes da correção ele achava 29 pixels.
+
 **O que ainda falta.**
 
-- Pintura no editor (esculpir a altura e pintar os materiais), com desfazer: parte 2.
 - Importar o blockout da Fornalha como terreno: parte 3.
 - Provar numa placa de verdade (RX 580 e RTX 4060 Ti/5060 Ti): os testes rodam
   no lavapipe, na CPU, e dizem se desenha e colide, não quão rápido.
+- A pintura foi compilada e o editor abre com o plugin, mas não foi usada com
+  o mouse de verdade: o desenho do pincel (um anel na tela) não existe ainda, e
+  cada toque refaz a textura e a colisão do terreno inteiro, o que pesa em
+  mapas muito grandes (atualização parcial fica para depois).
+- Pintar a altura não mexe na lista de materiais: as camadas (`Texture2DArray`)
+  continuam vindo do Inspetor.
 - A mistura usa o material do vértice mais perto e interpola só o peso; a
   borda entre dois pares de materiais diferentes é recortada na resolução do
   mapa de controle.
-- O editor ainda não foi aberto com o nó: o seguimento da câmera do editor
-  (`EditorInterface.get_editor_viewport_3d()`) não foi testado.
+- O seguimento da câmera do editor (`EditorInterface.get_editor_viewport_3d()`)
+  ainda não foi testado com o editor aberto numa janela.
+
 ## Prévia para a Fornalha
 
 A Fornalha pode mostrar o asset que gerou **já com o renderizador da Erethea**,

@@ -54,16 +54,16 @@ EretheaTerrainBrush::Settings EretheaTerrainEditorPlugin::_get_settings() const 
 
 bool EretheaTerrainEditorPlugin::_raycast_mouse(Camera3D *p_camera, const Vector2 &p_position, Vector3 &r_hit) const {
 	ERR_FAIL_NULL_V(terrain, false);
-	Ref<EretheaTerrainData> data = terrain->get_data();
-	if (data.is_null() || data->get_height_map().is_null()) {
+	Ref<EretheaTerrainData> terrain_data = terrain->get_data();
+	if (terrain_data.is_null() || terrain_data->get_height_map().is_null()) {
 		return false;
 	}
 	const Transform3D to_local = terrain->get_global_transform().affine_inverse();
 	const Vector3 origin = to_local.xform(p_camera->project_ray_origin(p_position));
 	const Vector3 direction = to_local.basis.xform(p_camera->project_ray_normal(p_position)).normalized();
 	// Far enough to cross the whole terrain from where the camera is.
-	const real_t max_distance = origin.length() + data->get_size().length();
-	return raycast(data, origin, direction, max_distance, r_hit);
+	const real_t max_distance = origin.length() + terrain_data->get_size().length();
+	return raycast(terrain_data, origin, direction, max_distance, r_hit);
 }
 
 void EretheaTerrainEditorPlugin::_start_stroke(const Vector3 &p_hit) {
@@ -79,20 +79,20 @@ void EretheaTerrainEditorPlugin::_end_stroke() {
 	if (!stroke.is_active()) {
 		return;
 	}
-	Ref<EretheaTerrainData> data = terrain ? terrain->get_data() : Ref<EretheaTerrainData>();
+	Ref<EretheaTerrainData> terrain_data = terrain ? terrain->get_data() : Ref<EretheaTerrainData>();
 	EretheaTerrainBrush::Stroke::Result result;
-	if (!stroke.end(result) || data.is_null()) {
+	if (!stroke.end(result) || terrain_data.is_null()) {
 		return;
 	}
 	// The dabs are already in the data: the do step only has to be there for redo.
 	const bool painting = stroke_settings.tool >= TOOL_PAINT_BASE;
 	EditorUndoRedoManager *undo_redo = get_undo_redo();
 	undo_redo->create_action(painting ? TTR("Paint Terrain") : TTR("Sculpt Terrain"), UndoRedo::MERGE_DISABLE, terrain);
-	undo_redo->add_do_method(data.ptr(), "set_region", result.rect, result.after);
-	undo_redo->add_undo_method(data.ptr(), "set_region", result.rect, result.before);
+	undo_redo->add_do_method(terrain_data.ptr(), "set_region", result.rect, result.after);
+	undo_redo->add_undo_method(terrain_data.ptr(), "set_region", result.rect, result.before);
 	undo_redo->commit_action(false);
 	// The terrain and its data have to be saved with the new heights and materials.
-	data->set_edited(true);
+	terrain_data->set_edited(true);
 }
 
 void EretheaTerrainEditorPlugin::_terrain_toggled(bool p_pressed) {
