@@ -40,29 +40,23 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
   LibGodot (o 0xE0464645 era o fail fast do CoreMessaging, corrigido em
   `winrt_utils.cpp` e `libgodot_windows.cpp`, vale propor à Godot), #34
   sombras do sol por ray tracing, #35 sombras dos personagens com esqueleto,
-  #36 escolha por placa, #38 e #42 terreno partes 1 e 2, #39 pele que segue a
+  #36 escolha por placa, #37 e #45 sombra de contato (ligada sozinha pela
+  placa), #38, #42 e #50 terreno partes 1 a 3, #39 pele que segue a
   superfície, #40 cabelo fio a fio, #43 projetos da Fornalha com as
   configurações da Erethea, #44 materiais do glTF que a Godot ignora, #46
-  cascatas do sol no mundo da Fornalha.
-- **PRs abertos** (todos meus, revisados; merge um por vez, com o CI inteiro
-  verde e conferindo conflito com o `main` antes; se conflitar, junte o
-  `main`, valide o `doc/classes/ProjectSettings.xml` com
+  cascatas do sol no mundo da Fornalha, #47 texturas dos modelos da Fornalha
+  comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
+  janela.
+- **PRs abertos** (merge um por vez, com o CI inteiro verde e conferindo
+  conflito com o `main` antes; se conflitar, junte o `main`, valide o
+  `doc/classes/ProjectSettings.xml` com
   `python3 -c "import xml.dom.minidom;xml.dom.minidom.parse('doc/classes/ProjectSettings.xml')"`
   e rode os testes):
-  - **#45** sombra de contato ligada pela placa, com o **#37** (sombra de
-    contato) dentro: o merge do #45 leva o #37 junto;
-  - **#41** geometria densa (Fase 5);
-  - **#47** texturas dos modelos da Fornalha comprimidas em VRAM;
-  - **#48** teste da cena de referência sem ray tracing no WARP (fecha o
-    "pronto quando" da Fase 4; é a primeira vez que o workflow roda);
-  - **#49** ProcDump no teste da janela (diagnóstico do 0xC0000409);
+  - **#41** geometria densa (Fase 5), com o `main` juntado de novo em 25/11
+    (o CI anterior estava todo verde);
   - este PR (roteiro do teste do criador e estado).
-- **Sessão Sonnet em paralelo**: **terreno parte 3** (o chão do blockout da
-  Fornalha vira `EretheaTerrain3D`, com
-  `editor/erethea_fornalha/terrain_from_blockout`, desligada por padrão),
-  branch `claude/erethea-terrain-3`, sessão `session_01HcbRc8WwtwvEZcG9bY37gs`.
-  Se a conta mudar, ela some: quem continua termina o PR. A sessão do cabelo
-  acabou (o #40 entrou).
+- **Sessões Sonnet**: nenhuma rodando. As duas de 25/11 terminaram (cabelo
+  no #40; terreno nos #38, #42 e #50).
 - **Decisões de 25/11**: o path tracing da NVIDIA e, com ele, reflexos e GI
   por ray tracing ficam para depois do lançamento (item 3 e o fim do item 2 da
   Fase 4); os itens 7 (vegetação) e 8 (retarget) seguem com prioridade baixa
@@ -79,8 +73,8 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
     então o experimento 2 (fechar o editor reaberto antes da parte gráfica)
     não resolveu; a suspeita passa ao instalador (o Restart Manager do
     `/CLOSEAPPLICATIONS`). Detalhes em "Falhas conhecidas do CI".
-- **Próximos passos até o lançamento**: merges acima; revisar e fazer merge do
-  terreno parte 3; achar a causa do 0xC0000409 quando o ProcDump pegar;
+- **Próximos passos até o lançamento**: merge do #41 e deste PR; achar a
+  causa do 0xC0000409 quando o ProcDump pegar;
   depois o item 9 da Fase 4 ("Lançamento"): o Kaiky confere o nome no INPI e o
   domínio, decide a assinatura (dá para lançar sem ela, com o aviso do
   Windows) e o número da versão (proposta: `v1.0.0`); rodar o workflow
@@ -142,7 +136,7 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). Falta só a assinatura (no lançamento) |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
 | 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Pronta (25/11): MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24), bloco de som (#25, #29; a boca é da Fornalha) e prévia com LibGodot (#31). A prova com a Fornalha de verdade é do teste final |
-| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Quase pronta: raios de luz (#32), sombras do sol por ray tracing (#34) e dos personagens com esqueleto (#35), escolha por placa (#36), terreno (#38, #42), pele (#39), cabelo fio a fio (#40), materiais do glTF (#44) e cascatas (#46) no `main`; sombra de contato (#37, #45) e o teste sem ray tracing no WARP (#48) em PR; terreno parte 3 com a sessão Sonnet. A prova na RTX e na RX 580 é do teste final |
+| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Pronta no CI (25/11): com ray tracing no lavapipe (sombras do sol e dos personagens com esqueleto, #34 e #35) e sem ele no WARP, igual à sem a opção (#48). No `main` também: raios de luz (#32), escolha por placa (#36), sombra de contato (#37, #45), terreno (#38, #42, #50), pele (#39), cabelo fio a fio (#40), materiais do glTF (#44) e cascatas (#46). Depois do lançamento: path tracing da NVIDIA, reflexos e GI por ray tracing. A prova na RTX e na RX 580 é do teste final |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Primeira versão em PR (#41): divisão em pedaços na importação, com LOD e corte por pedaço (2 milhões de triângulos, 24× menos primitivas de perto); falta a prova na placa |
 
 ## O que fazer agora (na ordem)
