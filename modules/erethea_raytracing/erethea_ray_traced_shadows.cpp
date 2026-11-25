@@ -70,13 +70,37 @@ struct PushConstant {
 };
 static_assert(sizeof(PushConstant) <= 128, "Push constants are limited to 128 bytes.");
 
-// The bottom level acceleration structure of a mesh, with the copies of its
-// positions and indices that it was built from.
+// A triangle surface of a mesh, with the copies of its positions (in the rest
+// pose, as 32-bit floats) and indices that the acceleration structures read.
+struct SurfaceGeometry {
+	int surface = 0;
+	RID vertex_buffer;
+	RID index_buffer;
+	uint32_t vertex_count = 0;
+	uint32_t index_count = 0;
+};
+
+// The bottom level acceleration structure of a mesh.
 struct MeshBLAS {
 	RID blas;
-	LocalVector<RID> buffers;
+	LocalVector<SurfaceGeometry> surfaces;
 	int surface_count = 0;
 	AABB aabb;
+	uint64_t last_used_frame = 0;
+};
+
+// The bottom level acceleration structure of a mesh instance whose vertices
+// move (a skeleton or blend shapes): built from copies of the vertices that
+// the renderer deformed, and again in each frame they change. It reads the
+// index buffers of its mesh's MeshBLAS.
+struct DeformedBLAS {
+	RID mesh;
+	RID blas;
+	// Per surface of the mesh's MeshBLAS: the copy of the deformed positions
+	// and their stride, or RID() and 0 where the rest pose is used.
+	LocalVector<RID> positions;
+	LocalVector<uint32_t> strides;
+	uint64_t built_change = 0;
 	uint64_t last_used_frame = 0;
 };
 
@@ -95,6 +119,8 @@ struct RenderResources {
 	RID pipeline;
 
 	HashMap<RID, MeshBLAS> meshes;
+	// By mesh instance.
+	HashMap<RID, DeformedBLAS> deformed;
 	HashMap<RID, MultiMeshTransforms> multimeshes;
 	RID tlas;
 	uint32_t tlas_capacity = 0;
@@ -122,16 +148,46 @@ constexpr uint64_t UNUSED_MESH_FRAMES = 600;
 // its number of instances changes.
 constexpr uint64_t MULTIMESH_REFRESH_FRAMES = 60;
 
-void free_mesh(MeshBLAS &p_mesh) {
+void free_deformed(DeformedBLAS &p_deformed) {
 	RD *rd = RD::get_singleton();
+	// The structure first: the rendering device frees what depends on a buffer
+	// along with it.
+	if (p_deformed.blas.is_valid()) {
+		rd->free_rid(p_deformed.blas);
+	}
+	for (const RID &buffer : p_deformed.positions) {
+		if (buffer.is_valid()) {
+			rd->free_rid(buffer);
+		}
+	}
+	p_deformed.blas = RID();
+	p_deformed.positions.clear();
+	p_deformed.strides.clear();
+}
+
+void free_mesh(RID p_mesh_rid, MeshBLAS &p_mesh) {
+	RD *rd = RD::get_singleton();
+	// The deformed structures of this mesh read its index buffers.
+	LocalVector<RID> deformed;
+	for (KeyValue<RID, DeformedBLAS> &E : render_resources->deformed) {
+		if (E.value.mesh == p_mesh_rid) {
+			free_deformed(E.value);
+			deformed.push_back(E.key);
+		}
+	}
+	for (const RID &mesh_instance : deformed) {
+		render_resources->deformed.erase(mesh_instance);
+	}
+
 	if (p_mesh.blas.is_valid()) {
 		rd->free_rid(p_mesh.blas);
 	}
-	for (const RID &buffer : p_mesh.buffers) {
-		rd->free_rid(buffer);
+	for (const SurfaceGeometry &surface : p_mesh.surfaces) {
+		rd->free_rid(surface.vertex_buffer);
+		rd->free_rid(surface.index_buffer);
 	}
 	p_mesh.blas = RID();
-	p_mesh.buffers.clear();
+	p_mesh.surfaces.clear();
 }
 
 // The acceleration structure of a static mesh, built the first time and when
@@ -152,7 +208,7 @@ RID get_mesh_blas(RID p_mesh, uint64_t p_frame) {
 	if (mesh == nullptr) {
 		mesh = &render_resources->meshes.insert(p_mesh, MeshBLAS())->value;
 	} else {
-		free_mesh(*mesh);
+		free_mesh(p_mesh, *mesh);
 	}
 	mesh->surface_count = surface_count;
 	mesh->aabb = aabb;
@@ -195,8 +251,13 @@ RID get_mesh_blas(RID p_mesh, uint64_t p_frame) {
 
 		const RID vertex_buffer = rd->vertex_buffer_create(positions.size() * sizeof(float), Span<uint8_t>((uint8_t *)positions.ptr(), positions.size() * sizeof(float)), RD::BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT);
 		const RID index_buffer = rd->index_buffer_create(index_count, RD::INDEX_BUFFER_FORMAT_UINT32, Span<uint8_t>((uint8_t *)triangle_indices.ptr(), triangle_indices.size() * sizeof(uint32_t)), false, RD::BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT);
-		mesh->buffers.push_back(vertex_buffer);
-		mesh->buffers.push_back(index_buffer);
+		SurfaceGeometry surface_geometry;
+		surface_geometry.surface = surface;
+		surface_geometry.vertex_buffer = vertex_buffer;
+		surface_geometry.index_buffer = index_buffer;
+		surface_geometry.vertex_count = vertex_count;
+		surface_geometry.index_count = index_count;
+		mesh->surfaces.push_back(surface_geometry);
 
 		RD::AccelerationStructureGeometry geometry;
 		geometry.flags = RD::ACCELERATION_STRUCTURE_GEOMETRY_OPAQUE_BIT;
@@ -212,10 +273,124 @@ RID get_mesh_blas(RID p_mesh, uint64_t p_frame) {
 	if (!geometries.is_empty()) {
 		mesh->blas = rd->blas_create(geometries, RD::ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT);
 		if (mesh->blas.is_valid() && rd->blas_build(mesh->blas) != OK) {
-			free_mesh(*mesh);
+			free_mesh(p_mesh, *mesh);
 		}
 	}
 	return mesh->blas;
+}
+
+bool same_strides(const LocalVector<uint32_t> &p_a, const LocalVector<uint32_t> &p_b) {
+	if (p_a.size() != p_b.size()) {
+		return false;
+	}
+	for (uint32_t i = 0; i < p_a.size(); i++) {
+		if (p_a[i] != p_b[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// The acceleration structure of a mesh instance with a skeleton or blend
+// shapes, in the pose that the renderer drew this frame: its deformed
+// positions are copied on the graphics card and the structure is built again,
+// only in the frames they changed. Falls back to the rest pose of the mesh.
+RID get_deformed_blas(RID p_mesh_instance, RID p_mesh, uint64_t p_frame) {
+	const RID mesh_blas = get_mesh_blas(p_mesh, p_frame);
+	MeshBLAS *mesh = mesh_blas.is_valid() ? render_resources->meshes.getptr(p_mesh) : nullptr;
+	if (mesh == nullptr) {
+		return RID();
+	}
+	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
+
+	// Where the renderer left the deformed vertices of each surface.
+	const uint32_t surface_count = mesh->surfaces.size();
+	LocalVector<RID> sources;
+	LocalVector<uint32_t> strides;
+	sources.resize(surface_count);
+	strides.resize(surface_count);
+	uint64_t last_change = 0;
+	bool deformed = false;
+	for (uint32_t i = 0; i < surface_count; i++) {
+		uint32_t vertex_count = 0;
+		uint32_t stride = 0;
+		uint64_t change = 0;
+		const RID source = mesh_storage->erethea_mesh_instance_get_surface_vertices(p_mesh_instance, mesh->surfaces[i].surface, vertex_count, stride, change);
+		if (source.is_valid() && vertex_count == mesh->surfaces[i].vertex_count) {
+			sources[i] = source;
+			strides[i] = stride;
+			last_change = MAX(last_change, change);
+			deformed = true;
+		} else {
+			sources[i] = RID();
+			strides[i] = 0;
+		}
+	}
+	if (!deformed) {
+		return mesh_blas;
+	}
+
+	RD *rd = RD::get_singleton();
+	DeformedBLAS *instance = render_resources->deformed.getptr(p_mesh_instance);
+	if (instance != nullptr && (instance->mesh != p_mesh || !same_strides(instance->strides, strides))) {
+		free_deformed(*instance);
+		render_resources->deformed.erase(p_mesh_instance);
+		instance = nullptr;
+	}
+	if (instance == nullptr) {
+		instance = &render_resources->deformed.insert(p_mesh_instance, DeformedBLAS())->value;
+		instance->mesh = p_mesh;
+		instance->strides = strides;
+		instance->positions.resize(surface_count);
+
+		LocalVector<RD::AccelerationStructureGeometry> geometries;
+		for (uint32_t i = 0; i < surface_count; i++) {
+			const SurfaceGeometry &surface = mesh->surfaces[i];
+			RD::AccelerationStructureGeometry geometry;
+			geometry.flags = RD::ACCELERATION_STRUCTURE_GEOMETRY_OPAQUE_BIT;
+			geometry.vertex_count = surface.vertex_count;
+			geometry.vertex_format = RD::DATA_FORMAT_R32G32B32_SFLOAT;
+			geometry.index_buffer = surface.index_buffer;
+			geometry.index_count = surface.index_count;
+			if (sources[i].is_valid()) {
+				instance->positions[i] = rd->vertex_buffer_create(surface.vertex_count * strides[i], Span<uint8_t>(), RD::BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT);
+				geometry.vertex_buffer = instance->positions[i];
+				geometry.vertex_stride = strides[i];
+			} else {
+				instance->positions[i] = RID();
+				geometry.vertex_buffer = surface.vertex_buffer;
+				geometry.vertex_stride = sizeof(float) * 3;
+			}
+			if (geometry.vertex_buffer.is_null()) {
+				free_deformed(*instance);
+				render_resources->deformed.erase(p_mesh_instance);
+				return mesh_blas;
+			}
+			geometries.push_back(geometry);
+		}
+		instance->blas = rd->blas_create(geometries, RD::ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT);
+		if (instance->blas.is_null()) {
+			free_deformed(*instance);
+			render_resources->deformed.erase(p_mesh_instance);
+			return mesh_blas;
+		}
+	}
+	instance->last_used_frame = p_frame;
+
+	if (instance->built_change != last_change) {
+		for (uint32_t i = 0; i < surface_count; i++) {
+			if (sources[i].is_valid()) {
+				rd->buffer_copy(sources[i], instance->positions[i], 0, 0, mesh->surfaces[i].vertex_count * strides[i]);
+			}
+		}
+		if (rd->blas_build(instance->blas) != OK) {
+			free_deformed(*instance);
+			render_resources->deformed.erase(p_mesh_instance);
+			return mesh_blas;
+		}
+		instance->built_change = last_change;
+	}
+	return instance->blas;
 }
 
 // The transforms of the visible instances of a 3D MultiMesh.
@@ -258,10 +433,21 @@ void free_unused_meshes(uint64_t p_frame) {
 		return;
 	}
 	render_resources->last_cleanup_frame = p_frame;
+	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
+	LocalVector<RID> unused_deformed;
+	for (KeyValue<RID, DeformedBLAS> &E : render_resources->deformed) {
+		if (p_frame - E.value.last_used_frame > UNUSED_MESH_FRAMES || !mesh_storage->owns_mesh_instance(E.key)) {
+			free_deformed(E.value);
+			unused_deformed.push_back(E.key);
+		}
+	}
+	for (const RID &mesh_instance : unused_deformed) {
+		render_resources->deformed.erase(mesh_instance);
+	}
 	LocalVector<RID> unused;
 	for (KeyValue<RID, MeshBLAS> &E : render_resources->meshes) {
-		if (p_frame - E.value.last_used_frame > UNUSED_MESH_FRAMES || !RendererRD::MeshStorage::get_singleton()->owns_mesh(E.key)) {
-			free_mesh(E.value);
+		if (p_frame - E.value.last_used_frame > UNUSED_MESH_FRAMES || !mesh_storage->owns_mesh(E.key)) {
+			free_mesh(E.key, E.value);
 			unused.push_back(E.key);
 		}
 	}
@@ -270,7 +456,7 @@ void free_unused_meshes(uint64_t p_frame) {
 	}
 	LocalVector<RID> unused_multimeshes;
 	for (const KeyValue<RID, MultiMeshTransforms> &E : render_resources->multimeshes) {
-		if (p_frame - E.value.refreshed_frame > UNUSED_MESH_FRAMES || !RendererRD::MeshStorage::get_singleton()->owns_multimesh(E.key)) {
+		if (p_frame - E.value.refreshed_frame > UNUSED_MESH_FRAMES || !mesh_storage->owns_multimesh(E.key)) {
 			unused_multimeshes.push_back(E.key);
 		}
 	}
@@ -444,8 +630,8 @@ void EretheaRayTracedShadows::_render(int p_effect_callback_type, const RenderDa
 	}
 	const RID mask = rb->get_texture(context_name(), mask_texture_name());
 
-	// The acceleration structure of the scene: one instance per static mesh
-	// around the camera.
+	// The acceleration structure of the scene: one instance per mesh around
+	// the camera.
 	const uint64_t frame = RSG::rasterizer->get_frame_number();
 	LocalVector<RD::AccelerationStructureInstance> &instances = render_resources->instances;
 	instances.clear();
@@ -461,16 +647,18 @@ void EretheaRayTracedShadows::_render(int p_effect_callback_type, const RenderDa
 
 		for (uint64_t i = 0; i < geometry->size(); i++) {
 			const RenderGeometryInstanceBase *instance = static_cast<const RenderGeometryInstanceBase *>((*geometry)[i]);
-			if (instance == nullptr || instance->data == nullptr || instance->data->skeleton.is_valid()) {
+			if (instance == nullptr || instance->data == nullptr) {
 				continue;
 			}
 			if (instance->data->base_type == RSE::INSTANCE_MESH) {
-				as_instance.blas = get_mesh_blas(instance->data->base, frame);
+				// A mesh with a skeleton or blend shapes has its own mesh
+				// instance, where the renderer leaves the vertices it draws.
+				as_instance.blas = instance->mesh_instance.is_valid() ? get_deformed_blas(instance->mesh_instance, instance->data->base, frame) : get_mesh_blas(instance->data->base, frame);
 				if (as_instance.blas.is_valid()) {
 					as_instance.transform = instance->transform;
 					instances.push_back(as_instance);
 				}
-			} else if (instance->data->base_type == RSE::INSTANCE_MULTIMESH) {
+			} else if (instance->data->base_type == RSE::INSTANCE_MULTIMESH && instance->data->skeleton.is_null()) {
 				// Each instance of a MultiMesh (trees, grass, rocks) shares the
 				// structure of its mesh. Only those near the camera go in.
 				const RID multimesh = instance->data->base;
@@ -555,7 +743,7 @@ void EretheaRayTracedShadows::_free_render_resources() {
 	if (render_resources != nullptr) {
 		RD *rd = RD::get_singleton();
 		for (KeyValue<RID, MeshBLAS> &E : render_resources->meshes) {
-			free_mesh(E.value);
+			free_mesh(E.key, E.value);
 		}
 		render_resources->meshes.clear();
 		render_resources->multimeshes.clear();

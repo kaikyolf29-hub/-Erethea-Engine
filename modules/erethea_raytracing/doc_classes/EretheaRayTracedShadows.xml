@@ -6,7 +6,7 @@
 	<description>
 		After the depth pre-pass, rays go from the surface seen in each pixel towards the first [DirectionalLight3D] with energy, against the geometry within [member max_distance] of the camera, visible or not, so that what is off screen still casts shadows. The renderer applies the result to that light, instead of its shadow map or together with it (turn off [member Light3D.shadow_enabled] on the light to skip the shadow map). With [member light_size], the shadows are soft away from what casts them and sharp where they touch it, as with the real sun.
 		Add it to a [Compositor] on the [WorldEnvironment] or the [Camera3D]. It needs the Forward+ renderer and a graphics card with ray queries (see [method is_supported]); otherwise it does nothing and the shadow map stays.
-		[b]Note:[/b] [MeshInstance3D] without a skeleton and [MultiMeshInstance3D] cast ray traced shadows; skinned meshes and particles don't yet. The instances of a MultiMesh are read again once a second, so a MultiMesh that moves its instances every frame has its shadows a little behind. Alpha-tested materials (such as leaves) cast the shadow of their whole surfaces.
+		[b]Note:[/b] [MeshInstance3D] and [MultiMeshInstance3D] cast ray traced shadows, meshes with a skeleton or blend shapes in the pose they are drawn with (their acceleration structures are built again in the frames their vertices change); particles don't yet. The instances of a MultiMesh are read again once a second, so a MultiMesh that moves its instances every frame has its shadows a little behind. Alpha-tested materials (such as leaves) cast the shadow of their whole surfaces.
 	</description>
 	<tutorials>
 	</tutorials>

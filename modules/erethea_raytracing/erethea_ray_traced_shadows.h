@@ -40,9 +40,9 @@
 // it. With the light's angular size, the shadows are soft where they are far
 // from what casts them, and sharp where they touch it.
 //
-// Meshes and MultiMeshes cast ray traced shadows; skinned meshes and
-// particles don't yet. On cards without ray tracing, it does nothing and the
-// shadow map stays.
+// Meshes (also with a skeleton or blend shapes, in the pose drawn) and
+// MultiMeshes cast ray traced shadows; particles don't yet. On cards without
+// ray tracing, it does nothing and the shadow map stays.
 class EretheaRayTracedShadows : public CompositorEffect {
 	GDCLASS(EretheaRayTracedShadows, CompositorEffect);
 

@@ -131,8 +131,8 @@ dele (no jogo exportado também):
 | Dedicada com ray tracing, NVIDIA (RTX) | Cinematic | Ray tracing + mapa de sombra | DLSS (com os arquivos da NVIDIA), senão AMD FSR |
 | Dedicada com ray tracing, Intel (Arc) | Cinematic | Ray tracing + mapa de sombra | XeSS, senão AMD FSR |
 
-Projetos novos criados na Erethea já começam com o preset e o upscaler em
-`Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
+Projetos novos criados na Erethea e os projetos da Fornalha (na primeira vez
+que abrem no editor) já começam com o preset e o upscaler em `Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
 (`Disabled`, `Automatic`, que é o padrão e segue o preset, ou `Enabled`, em
 toda placa com ray tracing), `rendering/erethea/contact_shadows/sun` (as mesmas
 opções; `Enabled` em toda placa com o Forward+) e `rendering/erethea/temporal_upscaler` com um
@@ -234,10 +234,12 @@ sombra; desligue *Shadow* na luz para não calcular os dois. Com `light_size`
 sombra fica firme onde encosta no chão e suave longe dele, como a do sol de
 verdade. Com TAA ou FSR, o ruído das bordas some em poucos quadros.
 
-Fazem sombra as malhas comuns (`MeshInstance3D` sem esqueleto) e as
-`MultiMeshInstance3D` (árvores, grama, pedras); personagens com esqueleto e
-partículas ainda não. Materiais com transparência por recorte (folhas) fazem a
-sombra da superfície inteira.
+Fazem sombra as malhas (`MeshInstance3D`), as `MultiMeshInstance3D` (árvores,
+grama, pedras) e os personagens com esqueleto ou formas (blend shapes), na pose
+em que aparecem no quadro: as posições que o esqueleto deformou são copiadas na
+placa e a estrutura do personagem é refeita só nos quadros em que a pose muda
+(parado, não custa nada). Partículas ainda não fazem sombra. Materiais com
+transparência por recorte (folhas) fazem a sombra da superfície inteira.
 
 Para ver na cena de referência, acrescente `--rt=shadows` depois do `--` (troca
 o mapa de sombra do sol pelas sombras por ray tracing). O lavapipe do Linux
@@ -247,6 +249,16 @@ velocidade numa placa de verdade (RTX) fica para o teste final.
 
 ```sh
 erethea --path erethea/tests/reference_scene --fixed-fps 30 -- --rt=shadows --capture="$PWD/capturas/rt"
+```
+
+A sombra de quem tem esqueleto tem um teste próprio, que o CI também roda: um
+braço de dois ossos sobre o chão, só com as sombras por ray tracing. Com o braço
+reto, a sombra da ponta tem que cair num ponto do chão; com o osso de cima
+dobrado, esse ponto fica claro e a sombra cai em outro. Imprime
+`ERETHEA_RT_SKINNED_OK`.
+
+```sh
+erethea --path erethea/tests/raytracing/shadows_scene --fixed-fps 30 -- --skinned-check --out="$PWD/capturas/braco.png"
 ```
 
 **Sombra de contato (`EretheaContactShadows`).** Também um `CompositorEffect`,
@@ -291,7 +303,8 @@ A pele usa a subsuperfície da Godot (Forward+), com três partes:
   vazar para outra numa profundidade diferente (a mão na frente do rosto, o
   nariz sobre a bochecha), com um halo claro na borda. Com ela, as amostras
   mais longe em profundidade que essa distância não espalham luz no pixel. O
-  padrão é 0, que é o filtro da Godot; vale ao abrir o projeto.
+  padrão é 0, que é o filtro da Godot; vale ao abrir o projeto. Projetos novos
+  da Erethea e os da Fornalha começam com 0,03.
 
 Teste: `erethea/tests/sss_scene` (uma pele iluminada na frente de outra, no
 escuro, a 1 m). Com a configuração do projeto (5 cm), a luz não vaza; com
@@ -301,8 +314,42 @@ roda os dois. Imprime `ERETHEA_SSS_OK`.
 Pedido para a Fornalha (o Kaiky cola no chat dela):
 
 ```text
-Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). No project.godot dos jogos, ponha rendering/erethea/subsurface_scattering/follow_surface=0.03 na seção [rendering] (a Godot ignora). Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
+Pele na Erethea: nos materiais de pele, ligue Subsurf Scatter com Skin Mode e Transmittance com o mapa de espessura (claro onde a pele é fina: orelhas, narinas, pálpebras). (A configuração que faz a pele não vazar entre superfícies a Erethea já põe sozinha no project.godot quando abre o projeto.) Para a sombra de contato, acrescente um EretheaContactShadows ao Compositor do WorldEnvironment quando o jogo rodar na Erethea (crie pelo nome com ClassDB, como o IK).
 ```
+
+## Materiais do glTF que a Godot ignora
+
+O Blender exporta para o glTF, a partir do Principled BSDF, extensões de
+material que o importador da Godot descarta. A Fornalha usa algumas delas: o
+*coat* faz a córnea dos olhos (`fc_humano.py`: coat 1,0, rugosidade 0,02, IOR
+1,376) e o cabelo tem anisotropia 0,75 e *sheen* 0,2 (`fc_cabelo.py`). Na
+Godot, esses olhos chegavam sem o brilho da córnea e o cabelo sem o brilho
+esticado. Com `rendering/erethea/gltf/import_material_extensions` ligada, a
+importação (no editor e em jogo, pelo `GLTFDocument`) leva cada uma para a
+propriedade mais próxima do `StandardMaterial3D`:
+
+| Extensão do glTF | Vira na Godot | Diferença |
+| --- | --- | --- |
+| `KHR_materials_clearcoat` | *Clearcoat* (força e rugosidade) | O coat da Godot vai de alfa 0,001 a 0,1: não fica mais áspero que ~0,32 do glTF, e a Erethea não passa de 0,05 para baixo (abaixo de ~0,03 o pico do brilho estoura em meia precisão e some) |
+| `KHR_materials_anisotropy` | *Anisotropy* | A rotação vira um *flowmap* de um pixel |
+| `KHR_materials_sheen` | *Rim* (o "veludo" da Godot) | A largura vem da rugosidade do material, não da do sheen; sheen colorido liga o *rim tint* |
+| `KHR_materials_ior` e `KHR_materials_specular` | *Specular* | A Godot não tem specular colorido: média dos canais |
+
+Texturas: a do coat entra quando uma textura só tem o coat (vermelho) e a
+rugosidade dele (verde), que é como a Godot lê; as outras texturas dessas
+extensões e o mapa de normais do coat ficam de fora, com um aviso na
+importação. Desligada (o padrão nos projetos da Godot), a importação fica igual
+à da Godot. Projetos novos da Erethea e os da Fornalha começam com ela ligada.
+Mudar a configuração vale para a próxima importação: reimporte as cenas.
+
+O código fica em `modules/erethea_gltf/` (uma `GLTFDocumentExtension`, sem
+mexer no núcleo), um bom candidato a ser proposto para a Godot.
+
+**Teste.** `[Modules][EretheaGLTF]` importa um glTF com os materiais como o
+Blender exporta os da Fornalha (olho, cabelo, pele), desligado e ligado, e
+confere cada propriedade. Conferido no lavapipe numa cena com céu: o olho
+ganha o reflexo nítido do céu e o brilho da córnea, e o cabelo, o brilho
+esticado.
 
 ## Upscaling (AMD FSR 3.1 e 4, XeSS, DLSS)
 
@@ -710,12 +757,33 @@ fica como está, e o relatório diz isso. Montar com *force* (ou o botão
 `res://.erethea/backup/`. Uma cena aberta no editor com mudanças não salvas
 nunca é trocada.
 
+**O sol do mundo.** O `World/mundo.tscn` tem o sol com sombra, as cascatas se
+misturando umas nas outras em vez de mostrar uma emenda
+(`directional_shadow_blend_splits`) e o alcance da sombra pelo tamanho do
+mundo: o dobro da borda de área mais longe do centro, entre os 100 m da Godot e
+300 m (mais que isso tira detalhe das quatro cascatas). Sem PCSS (sombra mais
+suave pelo tamanho do sol), que custa caro na RX 580 sem prova; na RTX, as
+sombras por ray tracing já dão isso.
+
 **Animações em loop.** O glTF não tem como dizer que uma animação é em loop,
 então as animações de andar da Forja chegavam na Godot tocando uma vez só. Em
 projetos da Fornalha, a importação deixa em loop as animações com os nomes de
 `editor/erethea_fornalha/looping_animations` (padrão: `parado`, `andar`,
 `correr` e `correr_rapido`). O que a pessoa escolher nas configurações de
 importação da animação vale mais.
+
+**Configurações da Erethea.** A Fornalha escreve o próprio `project.godot`,
+então os projetos dela não ganhavam o que um projeto novo da Erethea ganha e
+rodavam com cara de Godot comum. Agora, quando um projeto da Fornalha abre no
+editor (também na importação sem tela, `--headless --import`), ele recebe uma
+vez cada configuração de projeto novo da Erethea: o preset de qualidade e o
+upscaler `Automatic`, o streaming das texturas 3D e a pele que não vaza entre
+superfícies (`follow_surface` = 0,03). O que o projeto já tinha mudado fica
+como está, e a lista do que ele já recebeu fica em
+`editor/erethea_fornalha/erethea_defaults_applied`: desligar uma delas depois
+vale, ela não volta. Uma configuração que uma Erethea futura acrescentar aos
+projetos novos chega na próxima vez que o projeto abrir. A lista está em
+`EditorNode::erethea_get_initial_settings()` (`editor/editor_node.cpp`).
 
 **Como montar.**
 
@@ -733,7 +801,9 @@ monta as cenas, confere que a segunda montagem não muda nada, que a
 `principal.tscn` que a Erethea não fez fica até montar com *force* (e que a
 cópia vai para o backup) e que uma área mudada à mão fica. Depois roda o jogo
 sem janela: o herói anda mais de 2 m no chão tocando `andar` em loop, e cada
-lobo está na cena da sua área. O CI roda no Linux e no Windows.
+lobo está na cena da sua área. Também confere que a importação deu ao projeto
+as configurações da Erethea e manteve a que ele tinha escolhido. O CI roda no
+Linux e no Windows.
 
 ```sh
 python erethea/tests/fornalha_import/test_fornalha_import.py bin/erethea.linuxbsd.editor.x86_64
