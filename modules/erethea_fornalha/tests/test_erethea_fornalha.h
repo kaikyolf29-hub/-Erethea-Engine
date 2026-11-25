@@ -33,18 +33,25 @@
 #include "../editor/erethea_fornalha_link.h"
 #include "../editor/erethea_fornalha_plugin.h"
 #include "../erethea_fornalha_import.h"
+#include "../erethea_fornalha_terrain.h"
 
 #include "core/config/project_settings.h"
 #include "core/io/config_file.h"
 #include "editor/editor_node.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
+#include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/physics/character_body_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
 #include "scene/3d/physics/spring_arm_3d.h"
 #include "scene/animation/animation_player.h"
 #include "scene/resources/3d/capsule_shape_3d.h"
+#include "scene/resources/3d/primitive_meshes.h"
+#include "scene/resources/image_texture.h"
+#include "scene/resources/material.h"
+#include "scene/resources/mesh.h"
 #include "scene/resources/packed_scene.h"
+#include "modules/erethea_terrain/erethea_terrain_data.h"
 #include "tests/test_macros.h"
 
 namespace TestEretheaFornalha {
@@ -541,6 +548,304 @@ TEST_CASE("[Modules][EretheaFornalha] How the music changes") {
 	report.music_clips.push_back("vila");
 	const Dictionary dictionary = report.to_dictionary();
 	CHECK(PackedStringArray(dictionary["music_clips"]) == PackedStringArray({ "combate", "vila" }));
+}
+
+// Two triangles that make a quad over [0, w] x [0, d] in x and z, with the
+// height that p_height gives at each corner.
+static void _add_quad(Vector<Vector3> &r_triangles, real_t p_x0, real_t p_z0, real_t p_x1, real_t p_z1, real_t p_y00, real_t p_y10, real_t p_y01, real_t p_y11) {
+	const Vector3 a(p_x0, p_y00, p_z0);
+	const Vector3 b(p_x1, p_y10, p_z0);
+	const Vector3 c(p_x0, p_y01, p_z1);
+	const Vector3 d(p_x1, p_y11, p_z1);
+	for (const Vector3 &vertex : { a, b, c, b, d, c }) {
+		r_triangles.push_back(vertex);
+	}
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Terrain heights come from the ground seen from above") {
+	using namespace EretheaFornalhaTerrain;
+	// A ramp of 10 by 6 meters that goes up half a meter per meter in x.
+	Vector<Vector3> ramp;
+	_add_quad(ramp, 0, 0, 10, 6, 0, 5, 0, 5);
+	Heights heights = sample_heights(ramp);
+	REQUIRE(heights.is_valid());
+	CHECK(heights.resolution == Vector2i(11, 7));
+	CHECK(heights.spacing == doctest::Approx(1.0));
+	CHECK(heights.center.is_equal_approx(Vector2(5, 3)));
+	CHECK(heights.uncovered == 0);
+	for (int z = 0; z < 7; z++) {
+		for (int x = 0; x < 11; x++) {
+			CHECK(heights.heights[z * 11 + x] == doctest::Approx(x * 0.5).epsilon(0.001));
+		}
+	}
+
+	// The terrain's data has those heights, centered where the ground is.
+	Ref<EretheaTerrainData> data = make_data(heights);
+	REQUIRE(data.is_valid());
+	CHECK(data->get_resolution() == Vector2i(11, 7));
+	CHECK(data->get_size().is_equal_approx(Vector2(10, 6)));
+	CHECK(data->get_height(-5 + 4, 0) == doctest::Approx(2.0));
+	CHECK(data->get_height(5, 3) == doctest::Approx(5.0));
+
+	// A box: the top counts, not the bottom or the sides.
+	Vector<Vector3> box;
+	_add_quad(box, -4, -4, 4, 4, 2, 2, 2, 2);
+	_add_quad(box, -4, -4, 4, 4, 0, 0, 0, 0);
+	// A wall, which has no area seen from above.
+	for (const Vector3 &vertex : { Vector3(-4, 0, 4), Vector3(4, 0, 4), Vector3(4, 2, 4), Vector3(-4, 0, 4), Vector3(4, 2, 4), Vector3(-4, 2, 4) }) {
+		box.push_back(vertex);
+	}
+	heights = sample_heights(box);
+	REQUIRE(heights.is_valid());
+	CHECK(heights.resolution == Vector2i(9, 9));
+	for (const real_t height : heights.heights) {
+		CHECK(height == doctest::Approx(2.0));
+	}
+
+	// Where nothing is above a vertex, it takes what its neighbors have.
+	Vector<Vector3> half;
+	half.push_back(Vector3(0, 3, 0));
+	half.push_back(Vector3(8, 3, 0));
+	half.push_back(Vector3(0, 3, 8));
+	heights = sample_heights(half);
+	REQUIRE(heights.is_valid());
+	CHECK(heights.uncovered > 0);
+	CHECK(heights.uncovered < heights.heights.size() / 2);
+	for (const real_t height : heights.heights) {
+		CHECK(height == doctest::Approx(3.0));
+	}
+}
+
+TEST_CASE("[Modules][EretheaFornalha] A big ground gets a wider spacing") {
+	using namespace EretheaFornalhaTerrain;
+	Vector<Vector3> big;
+	_add_quad(big, -3000, -3000, 3000, 3000, 1, 1, 1, 1);
+	const Heights heights = sample_heights(big);
+	REQUIRE(heights.is_valid());
+	CHECK(heights.resolution.x <= MAX_RESOLUTION);
+	CHECK(heights.resolution.y <= MAX_RESOLUTION);
+	CHECK(heights.spacing > 1.0);
+	// And it still reaches the far edge.
+	CHECK((heights.resolution.x - 1) * heights.spacing >= 6000.0 - 0.01);
+	// Nothing to sample from nothing.
+	CHECK_FALSE(sample_heights(Vector<Vector3>()).is_valid());
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Each area has the ground of its type") {
+	using namespace EretheaFornalhaTerrain;
+	CHECK(get_area_layer("vila") == LAYER_DIRT);
+	CHECK(get_area_layer("arena") == LAYER_SAND);
+	for (const char *type : { "masmorra", "caverna", "salao", "ruinas", "montanha" }) {
+		CHECK(get_area_layer(type) == LAYER_STONE);
+	}
+	CHECK(get_area_layer("floresta") == LAYER_GRASS);
+	CHECK(get_area_layer("Vila") == LAYER_DIRT);
+	CHECK(get_area_layer("") == LAYER_GRASS);
+	CHECK(get_area_layer("algo novo") == LAYER_GRASS);
+
+	CHECK(get_stone_weight(0) == doctest::Approx(0));
+	CHECK(get_stone_weight(STONE_FROM_SLOPE) == doctest::Approx(0));
+	CHECK(get_stone_weight(STONE_FULL_SLOPE) == doctest::Approx(1));
+	CHECK(get_stone_weight(80) == doctest::Approx(1));
+	CHECK(get_stone_weight(37.5) == doctest::Approx(0.5));
+
+	// Each area paints as far as 70% of the reach of its sounds.
+	EretheaFornalhaProject project;
+	EretheaFornalhaArea village;
+	village.id = "vila";
+	village.type = "vila";
+	village.center = Vector3(0, 0, 0);
+	EretheaFornalhaArea forest;
+	forest.id = "floresta";
+	forest.type = "floresta";
+	forest.center = Vector3(0, 0, -40);
+	project.areas.push_back(village);
+	project.areas.push_back(forest);
+	const Vector<PaintArea> areas = get_paint_areas(project);
+	REQUIRE(areas.size() == 2);
+	CHECK(areas[0].layer == LAYER_DIRT);
+	CHECK(areas[1].layer == LAYER_GRASS);
+	CHECK(areas[0].center.is_equal_approx(Vector2(0, 0)));
+	CHECK(areas[1].center.is_equal_approx(Vector2(0, -40)));
+	CHECK(areas[0].radius == doctest::Approx(EretheaFornalhaImport::get_area_radius(project, 0) * 0.7));
+	CHECK(areas[0].radius == doctest::Approx(14.0));
+}
+
+// A flat terrain of 40 by 40 meters at 1 m, which the blockout puts at p_origin.
+static Ref<EretheaTerrainData> _make_flat_ground() {
+	Ref<EretheaTerrainData> data;
+	data.instantiate();
+	data->create(Vector2(40, 40), 1.0, 0.0);
+	return data;
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Painting the materials of the terrain") {
+	using namespace EretheaFornalhaTerrain;
+	Ref<EretheaTerrainData> data = _make_flat_ground();
+	// The vertex (20, 20) is the middle: x and z are 0 there.
+	const Vector2i middle(20, 20);
+
+	// Flat and in no area: grass, with nothing on it.
+	paint_materials(data, Vector2(), Vector<PaintArea>());
+	for (int z = 0; z < 41; z += 8) {
+		for (int x = 0; x < 41; x += 8) {
+			CHECK(data->get_control_base(Vector2i(x, z)) == LAYER_GRASS);
+			CHECK(data->get_control_blend(Vector2i(x, z)) == doctest::Approx(0));
+		}
+	}
+
+	// In a village: dirt inside, a blend into grass at its edge, grass past it.
+	Vector<PaintArea> areas;
+	areas.push_back({ Vector2(0, 0), 10.0, LAYER_DIRT });
+	paint_materials(data, Vector2(), areas);
+	CHECK(data->get_control_base(middle) == LAYER_DIRT);
+	CHECK(data->get_control_blend(middle) == doctest::Approx(0));
+	CHECK(data->get_control_base(Vector2i(25, 20)) == LAYER_DIRT); // 5 m from the center
+	CHECK(data->get_control_blend(Vector2i(25, 20)) == doctest::Approx(0));
+	// 9 m from the center: 90% of the way out, in the blend.
+	CHECK(data->get_control_base(Vector2i(29, 20)) == LAYER_DIRT);
+	CHECK(data->get_control_overlay(Vector2i(29, 20)) == LAYER_GRASS);
+	CHECK(data->get_control_blend(Vector2i(29, 20)) > 0.3);
+	CHECK(data->get_control_blend(Vector2i(29, 20)) < 1.0);
+	// Further out the blend grows, and past the radius it is grass.
+	CHECK(data->get_control_blend(Vector2i(29, 20)) > data->get_control_blend(Vector2i(28, 20)));
+	CHECK(data->get_control_base(Vector2i(32, 20)) == LAYER_GRASS);
+	CHECK(data->get_control_blend(Vector2i(32, 20)) == doctest::Approx(0));
+
+	// The area is where it is in the blockout, and the terrain is where it is: an
+	// area at x = 100 paints the terrain whose middle is at x = 100.
+	areas.write[0].center = Vector2(100, 0);
+	paint_materials(data, Vector2(100, 0), areas);
+	CHECK(data->get_control_base(middle) == LAYER_DIRT);
+	paint_materials(data, Vector2(0, 0), areas);
+	CHECK(data->get_control_base(middle) == LAYER_GRASS);
+
+	// Each type of area, its own ground.
+	for (const Layer layer : { LAYER_SAND, LAYER_STONE }) {
+		areas.write[0] = { Vector2(0, 0), 10.0, layer };
+		paint_materials(data, Vector2(), areas);
+		CHECK(data->get_control_base(middle) == layer);
+	}
+
+	// A steep slope shows stone: 60 degrees from x = 8 on, grass before it.
+	data = _make_flat_ground();
+	const real_t rise = Math::tan(Math::deg_to_rad(real_t(60)));
+	for (int z = 0; z < 41; z++) {
+		for (int x = 0; x < 41; x++) {
+			const real_t meters = real_t(x - 20);
+			data->set_vertex_height(Vector2i(x, z), meters > 8 ? (meters - 8) * rise : 0.0);
+		}
+	}
+	data->notify_maps_changed();
+	paint_materials(data, Vector2(), Vector<PaintArea>());
+	CHECK(data->get_control_base(Vector2i(2, 20)) == LAYER_GRASS);
+	CHECK(data->get_control_blend(Vector2i(2, 20)) == doctest::Approx(0));
+	CHECK(data->get_control_base(Vector2i(34, 20)) == LAYER_GRASS);
+	CHECK(data->get_control_overlay(Vector2i(34, 20)) == LAYER_STONE);
+	CHECK(data->get_control_blend(Vector2i(34, 20)) == doctest::Approx(1).epsilon(0.01));
+
+	// On a slope in a village, the slope wins over the edge of the village.
+	areas.write[0] = { Vector2(0, 0), 40.0, LAYER_DIRT };
+	paint_materials(data, Vector2(), areas);
+	CHECK(data->get_control_base(Vector2i(34, 20)) == LAYER_DIRT);
+	CHECK(data->get_control_overlay(Vector2i(34, 20)) == LAYER_STONE);
+	CHECK(data->get_control_blend(Vector2i(34, 20)) == doctest::Approx(1).epsilon(0.01));
+	// And on stone ground, a slope has nothing to add.
+	areas.write[0] = { Vector2(0, 0), 40.0, LAYER_STONE };
+	paint_materials(data, Vector2(), areas);
+	CHECK(data->get_control_base(Vector2i(34, 20)) == LAYER_STONE);
+	CHECK(data->get_control_blend(Vector2i(34, 20)) == doctest::Approx(0));
+}
+
+TEST_CASE("[Modules][EretheaFornalha] The materials of the terrain are plain colors of the ground") {
+	using namespace EretheaFornalhaTerrain;
+	const Color ground(0.3f, 0.5f, 0.2f);
+	// Grass is the color of the ground; the others are other colors from it.
+	CHECK(get_layer_color(LAYER_GRASS, ground).is_equal_approx(ground));
+	CHECK(get_layer_color(LAYER_DIRT, ground).r > get_layer_color(LAYER_DIRT, ground).b);
+	CHECK(get_layer_color(LAYER_SAND, ground).get_luminance() > ground.get_luminance());
+	CHECK(get_layer_color(LAYER_STONE, ground).get_luminance() < get_layer_color(LAYER_SAND, ground).get_luminance());
+	for (int a = 0; a < LAYER_COUNT; a++) {
+		for (int b = a + 1; b < LAYER_COUNT; b++) {
+			CHECK_FALSE(get_layer_color(Layer(a), ground).is_equal_approx(get_layer_color(Layer(b), ground)));
+		}
+	}
+
+	const Ref<Texture2DArray> textures = make_textures(ground);
+	REQUIRE(textures.is_valid());
+	CHECK(textures->get_layers() == LAYER_COUNT);
+	CHECK(textures->get_width() == 64);
+	CHECK(textures->get_height() == 64);
+	CHECK(textures->has_mipmaps());
+	// The grass layer has the color of the ground, to within the noise; its alpha
+	// is a height between 0 and 1.
+	const Vector<Ref<Image>> images = textures->get_data();
+	REQUIRE(images.size() == LAYER_COUNT);
+	Color mean;
+	for (int y = 0; y < 64; y++) {
+		for (int x = 0; x < 64; x++) {
+			const Color pixel = images[LAYER_GRASS]->get_pixel(x, y);
+			mean += pixel;
+			CHECK(pixel.a > 0.0f);
+			CHECK(pixel.a < 1.0f);
+		}
+	}
+	mean /= 64.0f * 64.0f;
+	CHECK(mean.r == doctest::Approx(ground.r).epsilon(0.1));
+	CHECK(mean.g == doctest::Approx(ground.g).epsilon(0.1));
+	CHECK(mean.b == doctest::Approx(ground.b).epsilon(0.1));
+	// Made again, the same: building the scenes again must not change them.
+	const Vector<Ref<Image>> again = make_textures(ground)->get_data();
+	CHECK(again[LAYER_STONE]->get_data() == images[LAYER_STONE]->get_data());
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Finding the ground of the blockout") {
+	using namespace EretheaFornalhaTerrain;
+	Node3D *root = memnew(Node3D);
+	root->set_name("blockout");
+	root->set_position(Vector3(10, 0, 0));
+	MeshInstance3D *house = memnew(MeshInstance3D);
+	house->set_name("vila_casa");
+	Ref<BoxMesh> house_mesh;
+	house_mesh.instantiate();
+	house->set_mesh(house_mesh);
+	root->add_child(house);
+	// The ground can be in a node of its own, as the importer makes it.
+	Node3D *holder = memnew(Node3D);
+	holder->set_position(Vector3(0, 1, 0));
+	root->add_child(holder);
+	MeshInstance3D *ground = memnew(MeshInstance3D);
+	ground->set_name("chao");
+	Ref<BoxMesh> ground_mesh;
+	ground_mesh.instantiate();
+	ground_mesh->set_size(Vector3(20, 2, 20));
+	ground->set_mesh(ground_mesh);
+	Ref<StandardMaterial3D> material;
+	material.instantiate();
+	material->set_albedo(Color(0.2f, 0.4f, 0.1f));
+	ground->set_surface_override_material(0, material);
+	holder->add_child(ground);
+
+	CHECK(find_ground(root) == ground);
+	CHECK(get_ground_color(ground).is_equal_approx(Color(0.2f, 0.4f, 0.1f)));
+
+	// Its triangles are where the world has them: the top is at 1 + 1 = 2 m, and the
+	// whole ground is 10 m to the side of the origin.
+	const Vector<Vector3> triangles = get_ground_triangles(root, ground);
+	CHECK(triangles.size() == 36);
+	const Heights heights = sample_heights(triangles);
+	REQUIRE(heights.is_valid());
+	CHECK(heights.center.is_equal_approx(Vector2(10, 0)));
+	CHECK(heights.resolution == Vector2i(21, 21));
+	for (const real_t height : heights.heights) {
+		CHECK(height == doctest::Approx(2.0));
+	}
+
+	// With no ground in it, nothing is found.
+	Node3D *empty = memnew(Node3D);
+	CHECK(find_ground(empty) == nullptr);
+	memdelete(empty);
+	memdelete(root);
 }
 
 } // namespace TestEretheaFornalha
