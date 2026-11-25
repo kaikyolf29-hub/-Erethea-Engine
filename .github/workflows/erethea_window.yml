@@ -40,7 +40,13 @@ jobs:
           New-ItemProperty -Path $key -Name DumpFolder -Value $dumps -PropertyType ExpandString -Force | Out-Null
           New-ItemProperty -Path $key -Name DumpType -Value 1 -PropertyType DWord -Force | Out-Null
           New-ItemProperty -Path $key -Name DumpCount -Value 5 -PropertyType DWord -Force | Out-Null
+          # ProcDump catches the fast fail itself, as a debugger: in the failures
+          # so far Windows logged no crash event and wrote no dump.
+          $procdump = Join-Path $env:RUNNER_TEMP "procdump"
+          Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile "$procdump.zip"
+          Expand-Archive "$procdump.zip" -DestinationPath $procdump -Force
           ./erethea/tests/window/title_bar_test.ps1 `
+            -ProcDump (Join-Path $procdump "procdump64.exe") `
             -Editor (Resolve-Path bin/erethea.windows.editor.x86_64.exe) `
             -Project (Resolve-Path erethea/tests/smoke_project) `
             -GameProject (Resolve-Path erethea/tests/window/game_project) `

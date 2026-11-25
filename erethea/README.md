@@ -128,7 +128,7 @@ dele (no jogo exportado também):
 | Placa | Preset | Sombras do sol | Upscaler (com `Temporal Upscaler` = `Automatic`) |
 | --- | --- | --- | --- |
 | Integrada, sem placa ou Compatibility | Low | Mapa de sombra | — |
-| Dedicada sem ray tracing (RX 580) | Balanced | Mapa de sombra | AMD FSR (FSR 3.1) |
+| Dedicada sem ray tracing (RX 580) | Balanced | Mapa de sombra + sombra de contato | AMD FSR (FSR 3.1) |
 | Dedicada com ray tracing, AMD | Cinematic | Ray tracing + mapa de sombra | AMD FSR (FSR 4 nas que suportam) |
 | Dedicada com ray tracing, NVIDIA (RTX) | Cinematic | Ray tracing + mapa de sombra | DLSS (com os arquivos da NVIDIA), senão AMD FSR |
 | Dedicada com ray tracing, Intel (Arc) | Cinematic | Ray tracing + mapa de sombra | XeSS, senão AMD FSR |
@@ -136,7 +136,8 @@ dele (no jogo exportado também):
 Projetos novos criados na Erethea e os projetos da Fornalha (na primeira vez
 que abrem no editor) já começam com o preset e o upscaler em `Automatic`. O dev trava a escolha no projeto: `rendering/erethea/ray_tracing/sun_shadows`
 (`Disabled`, `Automatic`, que é o padrão e segue o preset, ou `Enabled`, em
-toda placa com ray tracing) e `rendering/erethea/temporal_upscaler` com um
+toda placa com ray tracing), `rendering/erethea/contact_shadows/sun` (as mesmas
+opções; `Enabled` em toda placa com o Forward+) e `rendering/erethea/temporal_upscaler` com um
 upscaler fixo. Projetos da Godot ficam com o preset `Disabled`, então nada
 muda neles. As sombras por ray tracing entram no `Compositor` de cada
 `WorldEnvironment` (criado se não houver) e das câmeras que têm um próprio; uma
@@ -243,7 +244,10 @@ placa e a estrutura do personagem é refeita só nos quadros em que a pose muda
 transparência por recorte (folhas) fazem a sombra da superfície inteira.
 
 Para ver na cena de referência, acrescente `--rt=shadows` depois do `--` (troca
-o mapa de sombra do sol pelas sombras por ray tracing). O lavapipe do Linux
+o mapa de sombra do sol pelas sombras por ray tracing). Numa placa sem ray
+tracing, a cena avisa e desenha igual a sem a opção; o CI prova isso no WARP do
+Direct3D 12, que não tem ray tracing nesta base
+(`erethea_raytracing_fallback.yml`). O lavapipe do Linux
 (Mesa 25.2) tem ray query, então o CI prova a imagem: de dia, ela tem que mudar
 em relação à Erethea sem o efeito, e sem o efeito continua igual à Godot. A
 velocidade numa placa de verdade (RTX) fica para o teste final.
@@ -260,6 +264,32 @@ dobrado, esse ponto fica claro e a sombra cai em outro. Imprime
 
 ```sh
 erethea --path erethea/tests/raytracing/shadows_scene --fixed-fps 30 -- --skinned-check --out="$PWD/capturas/braco.png"
+```
+
+**Sombra de contato (`EretheaContactShadows`).** Também um `CompositorEffect`,
+mas sem ray tracing: roda em qualquer placa com o Forward+, inclusive a RX 580.
+Depois da passada de profundidade, sai de cada pixel um raio curto (`length`,
+50 cm por padrão) na direção do sol, e a própria imagem de profundidade diz se
+algo cobre esse raio: são as sombras pequenas e firmes onde as coisas encostam
+(pés no chão, um copo na mesa), que o mapa de sombra perde. Ela se junta ao mapa
+de sombra do sol (fica a mais escura das duas). Como só enxerga o que a câmera
+vê, uma coisa escondida atrás de outra não faz sombra de contato, e `thickness`
+diz quão grossa a Erethea supõe cada superfície. Onde o
+`EretheaRayTracedShadows` roda, ela não faz nada: as sombras por ray tracing já
+têm o contato, com exatidão. Teste: `erethea/tests/raytracing/contact_scene`
+(imprime `ERETHEA_CONTACT_SHADOWS_OK`; o CI roda no lavapipe).
+
+**Ligada sozinha pela placa.** `rendering/erethea/contact_shadows/sun`
+(`Disabled`, `Automatic`, que é o padrão, ou `Enabled`) põe a sombra de contato
+nas cenas do jogo rodando, como `rendering/erethea/ray_tracing/sun_shadows` faz
+com as sombras por ray tracing: `Automatic` liga quando o preset de qualidade é
+`Automatic` e a placa é dedicada (`Balanced` ou `Cinematic`), então a RX 580
+ganha o contato que o ray tracing daria; na integrada, não (custo). Projetos da
+Godot (preset `Disabled`) não mudam. O teste `erethea/tests/raytracing/auto_project`
+confere as duas configurações juntas.
+
+```sh
+erethea --path erethea/tests/raytracing/contact_scene --fixed-fps 30 -- --out="$PWD/capturas/contato.png"
 ```
 
 ## Pele
@@ -826,6 +856,19 @@ fica como está, e o relatório diz isso. Montar com *force* (ou o botão
 `res://.erethea/backup/`. Uma cena aberta no editor com mudanças não salvas
 nunca é trocada.
 
+**Texturas dos modelos.** A Godot só passa uma textura para a compressão de
+VRAM (e a Erethea só faz streaming dos mipmaps dela) quando a vê desenhada num
+material 3D no editor. Na importação sem tela que a Fornalha roda, e para
+modelos que nunca aparecem no viewport, as texturas extraídas dos `.glb`
+ficavam sem compressão: uma textura 4K de pele ocupa umas quatro vezes mais
+VRAM assim. Agora, ao montar as cenas, a Erethea marca como usadas em 3D as
+texturas dos personagens, dos inimigos e do mundo
+(`ResourceImporterTexture::erethea_mark_used_in_3d`, o mesmo caminho do
+desenho), e o editor as importa de novo comprimidas (e com streaming, nos
+projetos com as configurações da Erethea). O relatório da montagem lista essas
+texturas em `compressed_textures`. A textura que alguém configurou à mão para
+ficar como está não muda.
+
 **O sol do mundo.** O `World/mundo.tscn` tem o sol com sombra, as cascatas se
 misturando umas nas outras em vez de mostrar uma emenda
 (`directional_shadow_blend_splits`) e o alcance da sombra pelo tamanho do
@@ -854,6 +897,67 @@ vale, ela não volta. Uma configuração que uma Erethea futura acrescentar aos
 projetos novos chega na próxima vez que o projeto abrir. A lista está em
 `EditorNode::erethea_get_initial_settings()` (`editor/editor_node.cpp`).
 
+**Terreno a partir do blockout** (`editor/erethea_fornalha/terrain_from_blockout`,
+desligado por padrão). O chão do blockout da Fornalha (a malha `chao-col`, com
+relevo, plana nas áreas e nos caminhos) vira um `EretheaTerrain3D` (veja
+"Terreno"). Com a configuração ligada, a montagem:
+
+1. acha o chão no `World/blockout.glb` (o nó `chao`, que a importação faz do
+   `chao-col`) e tira as alturas dele numa grade de 1 m, como o ponto mais alto
+   de qualquer triângulo sobre cada vértice, o mesmo que um raio de cima para
+   baixo acharia. Num chão maior que 2048 m de lado o espaço entre os vértices
+   cresce. O que nenhum triângulo cobre (um chão com buracos) pega a altura dos
+   vizinhos, e o relatório avisa quando passa de 2%;
+2. salva o `EretheaTerrainData` em `res://World/terreno.res` (com o centro do
+   chão no metadado `erethea_center`) e quatro camadas de cor lisa com um pouco
+   de ruído, tiradas da cor do chão do blockout (a cor do material vezes a média
+   da cor por vértice), em `res://World/terreno_materiais.res`: grama, terra
+   batida, pedra e areia;
+3. pinta o mapa de controle por estas regras:
+
+   | O quê | Material |
+   | --- | --- |
+   | Fora de qualquer área, e plano | Grama (0) |
+   | Dentro de uma área de tipo `vila` (até 70% do alcance do som dela) | Terra batida (1) |
+   | `arena` | Areia (3) |
+   | `masmorra`, `caverna`, `salao`, `ruinas`, `montanha` | Pedra (2) |
+   | Outros tipos (`floresta`...) | Grama |
+   | Nos últimos 30% do raio da área | O material da área passa para grama |
+   | Inclinação a partir de 30° | Pedra por cima, só pedra a partir de 45° |
+
+   Onde a borda de uma área e uma encosta se encontram, a encosta ganha;
+4. põe no `World/mundo.tscn` o nó `Terreno` (`EretheaTerrain3D`) com esses
+   arquivos, `uv_scale` 0,25, `detiling` e `triplanar` ligados e colisão na
+   camada do mundo, e esconde o chão do blockout e desliga a colisão dele (os
+   nós `chao` e o `StaticBody3D` dele ficam como mudanças da instância do
+   blockout, que vira "filhos editáveis"). As casas, árvores e pedras do
+   blockout não mudam.
+
+**O que o dev pintou fica.** O `terreno.res` segue a mesma regra das cenas: a
+Erethea guarda como o deixou, e se ele mudou depois (pintado no editor, por
+exemplo) a montagem o mantém e o relatório diz `kept`. Montar com *force* o
+troca e guarda uma cópia em `res://.erethea/backup/`. O terreno é refeito
+quando o blockout muda e ninguém o tocou, e quando a configuração é ligada a
+montagem acontece de novo sozinha.
+
+**Teste.** O mesmo `test_fornalha_import.py` tem um passo com a configuração
+ligada: cria o terreno e os materiais, confere o `Terreno` e o chão escondido
+no `mundo.tscn`, que uma segunda montagem não muda nada, e roda o jogo sem
+janela: o terreno tem 161×161 vértices (o chão do teste tem 160 m), o chão do
+blockout está sem colisão (as casas continuam com a delas) e o herói anda 8 m
+em cima do terreno e não cai. Depois muda o terreno pelo script (como a pintura
+faz) e confere que a montagem o mantém, que a montagem forçada o troca com
+cópia e que depois nada muda. Sem o código, o passo falha: com a condição que
+põe o `Terreno` no mundo invertida, o teste acusa que o mundo não tem o
+terreno. Os testes de unidade (`--test --test-case="*EretheaFornalha*"`)
+cobrem a amostragem de um chão sintético, as regras de material e as texturas.
+
+Não foi provado: o chão de verdade da Fornalha (150×150 segmentos com cor por
+vértice) numa placa de vídeo; a cor por vértice do chão (manchas de grama seca
+e terra batida em volta dos caminhos) não passa para o terreno, que usa só as
+regras acima; nenhuma textura de foto, só cor lisa com ruído; e a pintura de
+materiais é de um material por vértice mais o de cima, como no terreno.
+
 **Como montar.**
 
 - Sozinha, quando muda o que as cenas usam, como um personagem novo da
@@ -871,7 +975,9 @@ monta as cenas, confere que a segunda montagem não muda nada, que a
 cópia vai para o backup) e que uma área mudada à mão fica. Depois roda o jogo
 sem janela: o herói anda mais de 2 m no chão tocando `andar` em loop, e cada
 lobo está na cena da sua área. Também confere que a importação deu ao projeto
-as configurações da Erethea e manteve a que ele tinha escolhido. O CI roda no
+as configurações da Erethea e manteve a que ele tinha escolhido, e que a
+textura do herói, sem compressão depois da importação sem tela, sai comprimida
+em VRAM depois da montagem. O CI roda no
 Linux e no Windows.
 
 ```sh
@@ -1123,7 +1229,7 @@ antes da correção ele achava 29 pixels.
 
 **O que ainda falta.**
 
-- Importar o blockout da Fornalha como terreno: parte 3.
+- O terreno do blockout é feito: veja "Terreno a partir do blockout", em "Cenas montadas pelo `game.project.json`". O que não foi provado está lá.
 - Provar numa placa de verdade (RX 580 e RTX 4060 Ti/5060 Ti): os testes rodam
   no lavapipe, na CPU, e dizem se desenha e colide, não quão rápido.
 - A pintura foi compilada e o editor abre com o plugin, mas não foi usada com

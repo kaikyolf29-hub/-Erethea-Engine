@@ -84,6 +84,8 @@ void EretheaTerrainEditorPlugin::_end_stroke() {
 	if (!stroke.end(result) || terrain_data.is_null()) {
 		return;
 	}
+	// The dabs only made the range of heights grow: now it is the real one.
+	terrain_data->notify_maps_changed();
 	// The dabs are already in the data: the do step only has to be there for redo.
 	const bool painting = stroke_settings.tool >= TOOL_PAINT_BASE;
 	EditorUndoRedoManager *undo_redo = get_undo_redo();

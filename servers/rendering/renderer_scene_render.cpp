@@ -627,3 +627,12 @@ void RendererSceneRender::erethea_request_ray_tracing(float p_radius) {
 bool RendererSceneRender::erethea_is_ray_tracing_requested() const {
 	return erethea_rt_radius > 0.0 && RSG::rasterizer->get_frame_number() - erethea_rt_requested_frame <= 1;
 }
+
+void RendererSceneRender::erethea_request_shadow_mask() {
+	erethea_mask_requested_frame = RSG::rasterizer->get_frame_number();
+	erethea_mask_requested = true;
+}
+
+bool RendererSceneRender::erethea_is_shadow_mask_requested() const {
+	return erethea_mask_requested && RSG::rasterizer->get_frame_number() - erethea_mask_requested_frame <= 1;
+}

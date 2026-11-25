@@ -21,7 +21,11 @@ param(
 	[Parameter(Mandatory = $true)][string]$Editor,
 	[Parameter(Mandatory = $true)][string]$Project,
 	[Parameter(Mandatory = $true)][string]$OutDir,
-	[string]$GameProject = ""
+	[string]$GameProject = "",
+	# Sysinternals ProcDump. When given, it watches the editor and writes a full
+	# dump (MiniPlus) to $OutDir/dumps if it dies of an exception, including the fast fails
+	# (0xC0000409) that the engine's crash handler never sees.
+	[string]$ProcDump = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -346,6 +350,14 @@ function Start-Engine([string[]]$arguments, [string]$name) {
 	$log = Join-Path $OutDir "$name.log"
 	$process = Start-Process -FilePath $Editor -ArgumentList $arguments -PassThru `
 		-RedirectStandardOutput $log -RedirectStandardError (Join-Path $OutDir "$name.err.log")
+	if ($ProcDump -ne "" -and $name -eq "editor") {
+		$dumps = Join-Path $OutDir "dumps"
+		New-Item -ItemType Directory -Force -Path $dumps | Out-Null
+		# -e: on an unhandled (second chance) exception, which is how a fast fail
+		# reaches a debugger. ProcDump ends with the process.
+		[void](Start-Process -FilePath $ProcDump -ArgumentList "-accepteula", "-mp", "-e", $process.Id, $dumps -PassThru -WindowStyle Hidden `
+				-RedirectStandardOutput (Join-Path $OutDir "procdump-$name.log") -RedirectStandardError (Join-Path $OutDir "procdump-$name.err.log"))
+	}
 	return $process
 }
 
@@ -502,7 +514,8 @@ Test-Buttons $pmHwnd $pm "Project manager"
 if (-not $pm.HasExited) { Stop-Process -Id $pm.Id -Force }
 
 # Editor, with a plain Godot project.
-$editorProcess = Start-Engine (@("--editor", "--path", $Project) + $renderer) "editor"
+# Verbose, so that a crash leaves in the log what the editor was doing.
+$editorProcess = Start-Engine (@("--editor", "--verbose", "--path", $Project) + $renderer) "editor"
 $projectName = (Select-String -Path (Join-Path $Project "project.godot") -Pattern '^config/name="(.*)"').Matches[0].Groups[1].Value
 $editorHwnd = Wait-EditorWindow $editorProcess $projectName 180
 Check "Editor extends to the title" (Wait-Extended $editorHwnd 120)

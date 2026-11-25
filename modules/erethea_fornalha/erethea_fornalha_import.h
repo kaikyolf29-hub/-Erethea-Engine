@@ -156,6 +156,8 @@ public:
 		// files whose import options were set for them.
 		Vector<String> music_clips;
 		Vector<String> music_imports;
+		// The textures of the models marked as used in 3D, to be compressed.
+		Vector<String> compressed_textures;
 
 		int count(Action p_action) const;
 		int count_kept() const;
@@ -174,7 +176,11 @@ public:
 	static constexpr const char *SETTING_LIVE_LINK = "editor/erethea_fornalha/live_link";
 	static constexpr const char *SETTING_AREA_ACOUSTICS = "editor/erethea_fornalha/area_acoustics";
 	static constexpr const char *SETTING_INTERACTIVE_MUSIC = "editor/erethea_fornalha/interactive_music";
+	static constexpr const char *SETTING_TERRAIN_FROM_BLOCKOUT = "editor/erethea_fornalha/terrain_from_blockout";
 	static constexpr const char *SETTING_ERETHEA_DEFAULTS_APPLIED = "editor/erethea_fornalha/erethea_defaults_applied";
+	// The terrain made from the blockout's ground, and its materials.
+	static constexpr const char *TERRAIN_DATA_FILE = "res://World/terreno.res";
+	static constexpr const char *TERRAIN_MATERIALS_FILE = "res://World/terreno_materiais.res";
 	static constexpr const char *MUSIC_FOLDER = "res://Audio/musica";
 	static constexpr const char *MUSIC_GROUP = "erethea_musica";
 
@@ -225,6 +231,13 @@ public:
 	// Does so for the .import file of each music, and asks the editor to import
 	// them again. Returns the WAV files that changed.
 	static Vector<String> prepare_music_imports(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings);
+	// The image files that the models use (the characters', the enemies' and
+	// the world's) and that the texture importer would compress on its own once
+	// they are seen in 3D. Godot only sees that when the editor draws them, so
+	// imported without a window, as the Fornalha does, they would stay
+	// uncompressed. Marks them as used in 3D, which compresses them (and lets
+	// Erethea stream their mipmaps), and returns them.
+	static Vector<String> mark_model_textures_used_in_3d(const EretheaFornalhaProject &p_project);
 
 	static Node *make_character(const EretheaFornalhaCharacter &p_character, Vector<String> &r_warnings);
 	static Node *make_area(const EretheaFornalhaProject &p_project, int p_area, Vector<String> &r_warnings);

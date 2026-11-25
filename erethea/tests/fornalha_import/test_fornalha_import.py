@@ -28,7 +28,9 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import wave
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -53,6 +55,7 @@ class Glb:
         self.meshes = []
         self.nodes = []
         self.animations = []
+        self.images = []
 
     def _accessor(self, data, component, count, kind, target=None, low=None, high=None):
         while len(self.buffer) % 4:
@@ -67,6 +70,14 @@ class Glb:
             accessor["min"], accessor["max"] = low, high
         self.accessors.append(accessor)
         return len(self.accessors) - 1
+
+    def texture(self, name, png):
+        """An image in the file, used by the boxes made after it."""
+        while len(self.buffer) % 4:
+            self.buffer.append(0)
+        self.views.append({"buffer": 0, "byteOffset": len(self.buffer), "byteLength": len(png)})
+        self.buffer += png
+        self.images.append({"name": name, "mimeType": "image/png", "bufferView": len(self.views) - 1})
 
     def box(self, name, size, center):
         """A box whose bottom is at center's height."""
@@ -85,7 +96,14 @@ class Glb:
             [max(v[i] for v in vertices) for i in range(3)],
         )
         index = self._accessor(struct.pack(f"<{len(indices)}H", *indices), 5123, len(indices), "SCALAR", 34963)
-        self.meshes.append({"primitives": [{"attributes": {"POSITION": position}, "indices": index}]})
+        primitive = {"attributes": {"POSITION": position}, "indices": index}
+        if self.images:
+            uvs = [(v[0] - cx + 0.5, v[2] - cz + 0.5) for v in vertices]
+            primitive["attributes"]["TEXCOORD_0"] = self._accessor(
+                b"".join(struct.pack("<2f", *uv) for uv in uvs), 5126, len(uvs), "VEC2", 34962
+            )
+            primitive["material"] = len(self.images) - 1
+        self.meshes.append({"primitives": [primitive]})
         self.nodes.append({"name": name, "mesh": len(self.meshes) - 1})
 
     def animation(self, name, lift):
@@ -114,6 +132,16 @@ class Glb:
         }
         if self.animations:
             document["animations"] = self.animations
+        if self.images:
+            document["images"] = self.images
+            document["textures"] = [{"source": i} for i in range(len(self.images))]
+            document["materials"] = [
+                {
+                    "name": image["name"],
+                    "pbrMetallicRoughness": {"baseColorTexture": {"index": i}, "metallicFactor": 0.0},
+                }
+                for i, image in enumerate(self.images)
+            ]
         text = json.dumps(document).encode()
         text += b" " * (-len(text) % 4)
         chunks = struct.pack("<II", len(text), 0x4E4F534A) + text
@@ -122,11 +150,29 @@ class Glb:
         path.write_bytes(struct.pack("<III", 0x46546C67, 2, 12 + len(chunks)) + chunks)
 
 
+# The texture that the import extracts from the hero's model.
+HERO_TEXTURE = "res://Characters/heroi/heroi_pele.png"
+
+
+def png(width, height, color):
+    """An RGBA PNG of one color."""
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    rows = b"".join(b"\x00" + bytes(color) * width for _ in range(height))
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
+
+
 def make_assets(project):
     # The Forja's characters: their measures next to the model, and the
-    # animations by the names the Fornalha's scripts play.
+    # animations by the names the Fornalha's scripts play. The hero has a
+    # texture, as the Forja's models do, which the build has to compress.
     for folder, name, size in (("Characters", "heroi", (0.5, 1.7, 0.3)), ("Enemies", "lobo", (0.4, 0.8, 1.0))):
         model = Glb()
+        if name == "heroi":
+            model.texture("pele", png(64, 64, (200, 150, 120, 255)))
         model.box("Corpo", size, (0.0, 0.0, 0.0))
         for animation in ("parado", "andar", "correr", "atacar"):
             model.animation(animation, 0.05)
@@ -277,6 +323,15 @@ def build_checks(mcp, project):
     check(any("arena" in warning for warning in report["warnings"]), "an area not in the blockout yet is reported")
     check(report["ok"], "nothing failed")
     check(report.get("music_clips") == ["combate", "vila"], "the report lists the music clips")
+    # The hero's texture: imported without a window, nothing drew it in 3D, so
+    # Godot left it uncompressed; the build marks it, and the editor compresses it
+    # (and, as the project has Erethea's settings, streams its mipmaps).
+    check(report.get("compressed_textures") == [HERO_TEXTURE], "the build marks the hero's texture as used in 3D")
+    texture_import = project / (HERO_TEXTURE.removeprefix("res://") + ".import")
+    deadline = time.monotonic() + 120
+    while '"vram_texture": true' not in texture_import.read_text(encoding="utf-8") and time.monotonic() < deadline:
+        time.sleep(1)
+    check('"vram_texture": true' in texture_import.read_text(encoding="utf-8"), "and the editor compresses it in VRAM")
     check(sorted(report.get("music_imports", [])) == sorted(MUSIC_FILES), "the WAV files are set to import again")
     music_import_checks(project)
     character = (project / "Characters/heroi/heroi.tscn").read_text(encoding="utf-8")
@@ -372,6 +427,103 @@ def build_checks(mcp, project):
     )
 
 
+TERRAIN_FILES = ["res://World/terreno.res", "res://World/terreno_materiais.res"]
+
+
+def run_game(editor, project, log, timeout):
+    """Runs the game without a window and returns what test_walk.gd reports."""
+    code, output = run([editor, "--headless", "--path", str(project), "--script", "res://test_walk.gd"], log, timeout)
+    line = next((line for line in output.splitlines() if line.startswith("ERETHEA_WALK ")), None)
+    check(line is not None, f"the game runs (exit code {code})")
+    walk = json.loads(line.split(" ", 1)[1])
+    print(f"    {walk}")
+    return walk
+
+
+def terrain_checks(editor, project, out, port, timeout):
+    """terrain_from_blockout: the ground of the blockout becomes a terrain."""
+    print("With the terrain from the blockout")
+    settings = project / "project.godot"
+    text = settings.read_text(encoding="utf-8")
+    check("[editor]\n" in text, "the project settings have an editor section")
+    settings.write_text(
+        text.replace("[editor]\n", "[editor]\n\nerethea_fornalha/terrain_from_blockout=true\n", 1), encoding="utf-8"
+    )
+    with editor_session(editor, project, out / "editor_terrain.log", port, timeout) as mcp:
+        print("First build with the terrain")
+        report = mcp.data("build_fornalha_scenes")
+        found = results(report)
+        check(report["ok"], "nothing failed")
+        check(
+            found.get(TERRAIN_FILES[0]) == "created" and found.get(TERRAIN_FILES[1]) == "created",
+            "the terrain and its materials are created",
+        )
+        check(found["res://World/mundo.tscn"] == "updated", "the world is built again with the terrain")
+        check(
+            all(found[scene] == "unchanged" for scene in SCENES if scene not in ("res://World/mundo.tscn",)),
+            "the other scenes don't change",
+        )
+        check(all((project / file.replace("res://", "")).is_file() for file in TERRAIN_FILES), "the files are there")
+        world = (project / "World/mundo.tscn").read_text(encoding="utf-8")
+        check('type="EretheaTerrain3D"' in world and '[node name="Terreno"' in world, "the world has the Terreno node")
+        check(
+            f'path="{TERRAIN_FILES[0]}"' in world and f'path="{TERRAIN_FILES[1]}"' in world,
+            "with the data and the materials as files",
+        )
+        check(
+            '[node name="chao" parent="Blockout"' in world and "visible = false" in world,
+            "the ground of the blockout is hidden",
+        )
+        check(
+            'parent="Blockout/chao"' in world and "collision_layer = 0" in world,
+            "and its collision is off",
+        )
+        check('parent="Blockout/vila_casa"' not in world, "the houses of the blockout are as they were")
+
+        print("Second build with the terrain")
+        found = results(mcp.data("build_fornalha_scenes"))
+        check(
+            all(found[file] == "unchanged" for file in SCENES[:-1] + TERRAIN_FILES),
+            "nothing changes, the terrain neither",
+        )
+
+    print("The game with the terrain")
+    walk = run_game(editor, project, out / "game_terrain.log", timeout)
+    terrain = walk.get("terrain")
+    check(terrain is not None, "the world has the terrain")
+    check(
+        terrain["class"] == "EretheaTerrain3D" and terrain["resolution"] == [161, 161],
+        "of the blockout's ground, 1 m apart",
+    )
+    check(terrain["materials"], "with its materials")
+    check(not terrain["ground_visible"] and terrain["ground_layers"] == [0], "and the ground of the blockout is gone")
+    check(terrain["house_layers"] == [1], "but the houses still collide")
+    check(abs(terrain["height_under_player"]) < 0.01, "the terrain is as high as the ground was")
+    check(
+        walk["walked_m"] > 2.0 and walk["on_floor"] and not walk["fell"],
+        f"the player walks on the terrain ({walk['walked_m']:.1f} m)",
+    )
+
+    print("A terrain changed by hand")
+    code, output = run(
+        [editor, "--headless", "--path", str(project), "--script", "res://touch_terrain.gd"],
+        out / "touch_terrain.log",
+        timeout,
+    )
+    check("ERETHEA_TOUCHED 0" in output, f"the terrain is saved with a change (exit code {code})")
+    with editor_session(editor, project, out / "editor_terrain_kept.log", port, timeout) as mcp:
+        found = results(mcp.data("build_fornalha_scenes"))
+        check(found[TERRAIN_FILES[0]] == "kept", "the terrain changed by hand is kept")
+        check(found[TERRAIN_FILES[1]] == "unchanged", "and its materials, which weren't, are not touched")
+        report = mcp.data("build_fornalha_scenes", {"force": True})
+        found = results(report)
+        check(found[TERRAIN_FILES[0]] == "replaced", "a forced build replaces it")
+        backup = project / report.get("backup_folder", "res://missing").replace("res://", "") / "World/terreno.res"
+        check(backup.is_file(), f"and keeps a copy in {report.get('backup_folder')}")
+        found = results(mcp.data("build_fornalha_scenes"))
+        check(all(found[file] == "unchanged" for file in SCENES[:-1] + TERRAIN_FILES), "then nothing changes")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("editor")
@@ -403,6 +555,13 @@ def main():
             "but keeps the one it had chosen",
         )
         check("erethea_fornalha/erethea_defaults_applied=PackedStringArray(" in settings, "and remembers them")
+
+        texture_import = project / (HERO_TEXTURE.removeprefix("res://") + ".import")
+        check(texture_import.exists(), "the hero's texture is extracted from the model")
+        check(
+            '"vram_texture": false' in texture_import.read_text(encoding="utf-8"),
+            "and, imported without a window, left uncompressed",
+        )
 
         print("Editor with the MCP server")
         imports = {
@@ -464,6 +623,8 @@ def main():
                 ),
                 "and the import files are left as they were",
             )
+
+        terrain_checks(editor, project, out, args.port, args.timeout)
 
     except Failure as failure:
         print(f"\nFAILED: {failure}\nLogs in {out}")

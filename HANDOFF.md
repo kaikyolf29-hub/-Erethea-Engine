@@ -296,8 +296,13 @@ Fornalha (a LibGodot abre a própria janela).
   (`drivers/vulkan/`). Não é tarefa para sessão barata e não dá para provar sem
   placa NVIDIA: faça com cuidado, desligado por padrão, e deixe a prova para o
   teste final.
-- Compressão automática na importação dos assets da Fornalha (conferir se o
-  importador da Fase 3 já liga a compressão VRAM certa).
+- ~~Compressão automática na importação dos assets da Fornalha~~ (PR das
+  texturas dos modelos, 25/11): não ligava. A Godot só comprime (e a Erethea
+  só faz streaming) quando o editor desenha a textura num material 3D, o que
+  nunca acontece na importação sem tela da Fornalha. A montagem das cenas
+  agora marca as texturas dos modelos como usadas em 3D
+  (`ResourceImporterTexture::erethea_mark_used_in_3d`, `// Erethea:`), e o
+  teste da Fornalha prova com uma textura no herói.
 
 ### 7. Fase 4 · Visual avançado
 
@@ -470,6 +475,28 @@ comparado na cena de referência:
    (`c3e6b2c0`, merge do PR #119319) num branch à parte, e só depois junte
    esse branch no `main`, resolvendo apenas os conflitos com a Erethea.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
+   **Sombra de contato: feita (PR da sombra de contato, 25/11)**, pedido nº 2
+   da Fornalha junto com a pele. `EretheaContactShadows` em
+   `modules/erethea_raytracing/`: na tela, em qualquer placa com o Forward+
+   (inclusive a RX 580), grava a mesma máscara `erethea_rt/shadow_mask` que o
+   Forward+ aplica ao sol (`min` com o mapa de sombra). No núcleo, um pedido de
+   máscara sem juntar geometria (`erethea_request_shadow_mask`, `// Erethea:`).
+   Onde o ray tracing roda, ela não faz nada. Teste:
+   `erethea/tests/raytracing/contact_scene` (no CI). Achados no caminho: no
+   GLSL, `params.length` num bloco uniforme é lido como o método `.length()`
+   (dê outro nome); e o efeito só pede a máscara depois de ter a pipeline,
+   senão uma máscara nunca escrita escurece a cena inteira.
+   **Ligada sozinha pela placa (PR seguinte, 25/11):**
+   `rendering/erethea/contact_shadows/sun` (`Disabled`, `Automatic` = padrão,
+   `Enabled`), como a `sun_shadows` do ray tracing: `Automatic` liga com o
+   preset `Automatic` em placa dedicada (`Balanced` ou `Cinematic`; na RTX ela
+   se cala onde o ray tracing roda), não na integrada. O código que põe um
+   efeito nas cenas em execução virou `EretheaSceneEffects`
+   (`erethea_scene_effects.*`), usado pelos dois. Achado: um sinal só aceita a
+   mesma função uma vez, mesmo com outros argumentos no `bind`; por isso há uma
+   conexão só ao `node_added`, que percorre a lista de efeitos (o teste
+   `auto_project`, que agora confere os dois efeitos, pegou isso numa câmera
+   criada depois). A prova de custo na RX 580 é do teste final.
    **Cascatas (PR do sol do mundo, 25/11):** no `World/mundo.tscn` que a
    Erethea monta para a Fornalha, o sol mistura as cascatas
    (`blend_splits`, sem a emenda visível) e alcança o mundo inteiro
@@ -496,7 +523,23 @@ comparado na cena de referência:
    Plano 1 (`World/blockout.glb` e as áreas do `game.project.json`): malha por
    clipmap, colisão `HeightMapShape3D`, pintura no editor. O Terrain3D (MIT)
    serve de referência; a Fornalha pede compatibilidade com ele (32 materiais,
-   detiling, triplanar).
+   detiling, triplanar). **Feito em três partes** (`modules/erethea_terrain/`,
+   seção "Terreno" do README): parte 1 (PR #38) o nó `EretheaTerrain3D` e o
+   recurso `EretheaTerrainData`; parte 2 (PR #42) pintura no editor e emendas do
+   clipmap; **parte 3** o chão do blockout vira terreno
+   (`editor/erethea_fornalha/terrain_from_blockout`, desligado por padrão, em
+   `modules/erethea_fornalha/erethea_fornalha_terrain.*`): amostra as alturas do
+   `chao-col` numa grade de 1 m, salva `World/terreno.res` e
+   `World/terreno_materiais.res` (quatro camadas de cor lisa tiradas da cor do
+   chão), pinta o mapa de controle por inclinação e tipo de área (vila: terra,
+   arena: areia, masmorra/caverna/salão/ruínas/montanha: pedra), põe o nó
+   `Terreno` no `mundo.tscn` e esconde o chão do blockout, sem colisão; um
+   terreno mudado à mão fica. Teste no `test_fornalha_import.py` (o herói anda
+   no terreno; falha sem o código) e testes de unidade. **Não provado**: o chão
+   de verdade da Fornalha numa placa (RX 580, RTX), a pintura com o mouse no
+   editor, e a cor por vértice do chão (manchas de terra e grama seca), que o
+   terreno não leva. Falta, se o Kaiky quiser: texturas de foto no lugar da cor
+   lisa, atualização parcial da colisão ao pintar e o anel do pincel.
 7. **Vegetação**: espalhador com LOD, impostores e vento (MultiMesh,
    `visibility_range`, sombreador de vento).
 8. **Animação**: retarget automático para o esqueleto padrão do Plano 1 (a
@@ -512,6 +555,12 @@ comparado na cena de referência:
    final).
 10. Teste de pronto no CI com o que der (WARP/lavapipe); a prova na RTX e na
     RX 580 entra na lista do teste final do Kaiky.
+    **Feito (25/11, PR do teste sem ray tracing):** com ray tracing, o passo
+    "Capture the ray traced shadows" no lavapipe (desde o #34); sem ray tracing,
+    o workflow `erethea_raytracing_fallback.yml` no WARP do Direct3D 12 (que não
+    tem ray tracing nesta base): a cena de referência com `--rt=shadows` avisa
+    e sai igual à sem a opção (RMSE ≤ 0,5), e o `EretheaRayTracedShadows`
+    colocado à força numa cena só avisa.
 
 ### 8. Fase 5 · Geometria densa
 
@@ -734,6 +783,17 @@ revisados aqui antes do merge.
   minidump (LocalDumps) em `dumps/` no artefato `erethea-window-test`. Se
   acontecer de novo, o evento 1000 diz o módulo e o deslocamento, e o 1001 o
   código do fast fail; comece por aí (tarefa aberta).
+  **25/11: aconteceu de novo duas vezes seguidas** (#40 e #42; as novas
+  tentativas passaram), sempre uns 10 s depois de o editor abrir o
+  `smoke_project` pela primeira vez, e **sem evento nenhum do Windows nem
+  dump** (no mesmo tipo de executor, a queda da LibGodot deixou os eventos).
+  O editor já descarrega a saída a cada linha (`flush_stdout_on_print.debug`),
+  então ele não imprimia nada antes de cair. Agora o teste abre esse editor com
+  `--verbose` e prende a ele o ProcDump da Sysinternals (`-e`, que pega o fast
+  fail como depurador), com o dump MiniPlus em `dumps/` e o log do ProcDump
+  (`procdump-editor.log`, que já diz o código e o endereço) no artefato. Na
+  próxima falha, leia esse log; para o dump no Linux, `pip install minidump`
+  dá a lista de módulos e o registro da exceção.
 - Instalador, passo "Update silently": travou quatro vezes (duas antes do
   PR #23, duas em 23/11 mesmo com o limite de 4 minutos dele), sempre além do
   limite do passo e do job e sem log nenhum, nem dos passos anteriores; passou
