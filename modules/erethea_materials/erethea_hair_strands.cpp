@@ -28,12 +28,12 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-
 #include "erethea_hair_strands.h"
 
 #include "erethea_hair_builder.h"
 
 #include "core/object/callable_mp.h"
+#include "core/object/class_db.h"
 #include "scene/resources/mesh.h"
 
 Ref<Shader> EretheaHairStrands::shader;
@@ -219,6 +219,24 @@ float EretheaHairStrands::get_strand_fraction() const {
 	return strand_fraction;
 }
 
+void EretheaHairStrands::set_color_root(const Color &p_color) {
+	color_root = p_color;
+	_update_material();
+}
+
+Color EretheaHairStrands::get_color_root() const {
+	return color_root;
+}
+
+void EretheaHairStrands::set_color_tip(const Color &p_color) {
+	color_tip = p_color;
+	_update_material();
+}
+
+Color EretheaHairStrands::get_color_tip() const {
+	return color_tip;
+}
+
 #define ERETHEA_HAIR_SETTER(m_name, m_type, m_expr) \
 	void EretheaHairStrands::set_##m_name(m_type p_value) { \
 		m_name = m_expr; \
@@ -228,8 +246,6 @@ float EretheaHairStrands::get_strand_fraction() const {
 		return m_name; \
 	}
 
-ERETHEA_HAIR_SETTER(color_root, const Color &, p_value)
-ERETHEA_HAIR_SETTER(color_tip, const Color &, p_value)
 ERETHEA_HAIR_SETTER(roughness, float, CLAMP(p_value, 0.0f, 1.0f))
 ERETHEA_HAIR_SETTER(specular_primary, float, CLAMP(p_value, 0.0f, 1.0f))
 ERETHEA_HAIR_SETTER(specular_secondary, float, CLAMP(p_value, 0.0f, 1.0f))

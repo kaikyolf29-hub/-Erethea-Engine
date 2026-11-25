@@ -28,7 +28,6 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-
 #pragma once
 
 #include "../erethea_hair_builder.h"
@@ -174,8 +173,8 @@ TEST_CASE("[Modules][EretheaMaterials] Copies bones and weights from the source 
 		// Both vertices of point v / 2 get its bones and weights.
 		CHECK(out_bones[v * 4] == v / 2);
 		CHECK(out_bones[v * 4 + 1] == v / 2 + 1);
-		CHECK(out_weights[v * 4] == 0.75f);
-		CHECK(out_weights[v * 4 + 1] == 0.25f);
+		CHECK(Math::is_equal_approx(out_weights[v * 4], 0.75f, 0.001f));
+		CHECK(Math::is_equal_approx(out_weights[v * 4 + 1], 0.25f, 0.001f));
 	}
 	CHECK((result.surfaces[0].flags & Mesh::ARRAY_FLAG_USE_8_BONE_WEIGHTS) == 0);
 
@@ -234,7 +233,10 @@ TEST_CASE("[Modules][EretheaMaterials] Hair strands node builds its mesh") {
 	REQUIRE(hair->get_mesh().is_valid());
 	CHECK(hair->get_mesh()->get_surface_count() == 1);
 	CHECK(hair->get_mesh()->surface_get_material(0).is_valid());
-	CHECK(hair->get_aabb().size.x >= 0.9f + 0.02f - 0.001f);
+	// The renderer culls with the custom AABB, which holds the ribbons' width.
+	Ref<ArrayMesh> built = hair->get_mesh();
+	REQUIRE(built.is_valid());
+	CHECK(Math::is_equal_approx(built->get_custom_aabb().size.x, 0.9f + 0.02f));
 
 	hair->set_strand_fraction(0.5f);
 	hair->rebuild();

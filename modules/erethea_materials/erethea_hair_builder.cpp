@@ -28,7 +28,6 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-
 #include "erethea_hair_builder.h"
 
 #include "core/templates/local_vector.h"
@@ -163,7 +162,8 @@ EretheaHairBuilder::Result EretheaHairBuilder::build(const Ref<Mesh> &p_source, 
 				continue;
 			}
 
-			LocalVector<float> arc(count);
+			LocalVector<float> arc;
+			arc.resize(count);
 			arc[0] = 0.0f;
 			for (int i = 1; i < count; i++) {
 				arc[i] = arc[i - 1] + points[chain[from + i]].distance_to(points[chain[from + i - 1]]);
