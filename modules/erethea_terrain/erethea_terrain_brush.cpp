@@ -143,18 +143,18 @@ bool raycast(const Ref<EretheaTerrainData> &p_data, const Vector3 &p_origin, con
 		}
 		if (has_previous) {
 			// Went under the surface between the last sample and this one.
-			real_t near = previous;
-			real_t far = at;
+			real_t t_above = previous;
+			real_t t_under = at;
 			for (int i = 0; i < 24; i++) {
-				const real_t middle = (near + far) * 0.5;
+				const real_t middle = (t_above + t_under) * 0.5;
 				const Vector3 test = p_origin + direction * middle;
 				if (test.y >= p_data->get_height(test.x, test.z)) {
-					near = middle;
+					t_above = middle;
 				} else {
-					far = middle;
+					t_under = middle;
 				}
 			}
-			r_hit = p_origin + direction * ((near + far) * 0.5);
+			r_hit = p_origin + direction * ((t_above + t_under) * 0.5);
 			r_hit.y = p_data->get_height(r_hit.x, r_hit.z);
 			return true;
 		}
