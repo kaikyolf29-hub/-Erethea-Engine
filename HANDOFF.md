@@ -46,9 +46,9 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
   configurações da Erethea, #44 materiais do glTF que a Godot ignora, #46
   cascatas do sol no mundo da Fornalha, #47 texturas dos modelos da Fornalha
   comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
-  janela.
-- **PRs abertos**: nenhum depois do #41 (geometria densa, Fase 5) e do #51
-  (roteiro do teste do criador e estado). Regra para os próximos: merge um
+  janela, #41 geometria densa (Fase 5).
+- **PRs abertos**: só o da opção *publish* do workflow de release (abaixo).
+  O #41 (geometria densa, Fase 5) entrou no `main` em 25/11. Regra: merge um
   por vez, com o CI inteiro verde e conferindo conflito com o `main` antes;
   se conflitar, junte o `main`, valide o `doc/classes/ProjectSettings.xml` com
   `python3 -c "import xml.dom.minidom;xml.dom.minidom.parse('doc/classes/ProjectSettings.xml')"`
@@ -77,9 +77,15 @@ O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
   versão `v1.0.0`, sem assinatura por enquanto (o Azure Artifact Signing não
   aceita pessoa física no Brasil; a assinatura entra numa versão seguinte), e
   o nome já conferido no INPI.** O ensaio do workflow `🔥 Erethea Release` à
-  mão (versão `1.0.0-rc.1`, não publica) rodou no `main` em 25/11; depois dos
-  merges, crie a tag `v1.0.0` no `main` e avise o Kaiky para baixar e seguir o
-  `erethea/TESTE_DO_CRIADOR.md`.
+  mão (versão `1.0.0-rc.1`, não publica) rodou no `main` em 25/11. **A sessão
+  na nuvem não consegue enviar tags** (o proxy do git recusa com HTTP 403; só
+  branches passam), então o workflow ganhou a opção *publish*: rodado à mão no
+  `main` com a versão `1.0.0` e *publish* marcado, ele cria a tag `v1.0.0` no
+  commit compilado e publica o release (`erethea/README.md`, "Lançar uma
+  versão"). Depois do merge desse PR, rode-o assim (com a ferramenta
+  `actions_run_trigger`, método `run_workflow`, `ref` `main`), acompanhe até
+  aparecer o `erethea-setup-x86_64.exe` no release e avise o Kaiky para baixar
+  e seguir o `erethea/TESTE_DO_CRIADOR.md`.
 - **Lições**: compile sempre com `dev_mode=yes` (sem ele, avisos que o CI
   trata como erro passam, e trocar refaz o build inteiro, 23 min). Arquivos só
   do Windows também compilam aqui com o MinGW. Para provar que um teste pega a
@@ -602,7 +608,8 @@ hierarquia contínua de LOD e streaming do disco (itens 1 a 3 acima).
    música, dublagem), e a Erethea abre, monta as cenas e roda o jogo; ele
    procura falhas e o que melhorar.
 4. Tag `v1.0.0` (ou a versão que o Kaiky quiser) e o release com o
-   instalador. Só então avise o Kaiky para baixar e testar.
+   instalador: da nuvem, pelo workflow `🔥 Erethea Release` rodado à mão no
+   `main` com *publish* marcado. Só então avise o Kaiky para baixar e testar.
 
 ### 10. Godot 4.8 estável (depois do lançamento)
 

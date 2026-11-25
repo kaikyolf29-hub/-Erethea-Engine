@@ -1577,8 +1577,15 @@ git tag v0.2.0 && git push origin v0.2.0
 O workflow `🔥 Erethea Release` compila o editor do Windows com
 `BUILD_NAME=erethea-0.2.0`, confere o projeto de teste, gera o instalador e
 publica o release no GitHub com o arquivo `erethea-setup-x86_64.exe`. Uma
-versão com traço (`-beta.1`) sai como prerelease. Rodar o workflow à mão
-(`workflow_dispatch`) só compila e confere, sem publicar.
+versão com traço (`-beta.1`) sai como prerelease.
+
+Quem não pode enviar tags (as sessões do Claude Code na nuvem só enviam
+branches) lança rodando o workflow à mão no `main`, na aba Actions, com a
+versão e a opção *publish* marcada: ele compila, confere e cria a tag
+`v<versão>` no commit que compilou, junto com o release. Antes de compilar,
+ele para se a rodada não for no `main` ou se a tag já existir. Sem *publish*,
+a rodada à mão (`workflow_dispatch`) só compila e confere, sem publicar, como
+um ensaio.
 
 ## Atualização automática
 
