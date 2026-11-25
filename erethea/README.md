@@ -19,6 +19,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/preview/` | Teste de ponta a ponta da prévia para a Fornalha (arquivos glTF gerados pelo teste) |
 | `tests/libgodot/` | Programa em C que embute a engine pela LibGodot e teste da prévia embutida |
 | `tests/hair_strands/` | Cabelo fio a fio sobre uma esfera com um osso girando, e o teste de captura |
+| `TESTE_DO_CRIADOR.md` | Roteiro do teste final do Kaiky no PC, nas placas de referência e com a Fornalha 3D |
 
 ## Atualizar a Godot
 

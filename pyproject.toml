@@ -115,4 +115,12 @@ ignore-words-list = [
 	"textin",
 	"thirdparty",
 	"vai",
+	"comando",
+	"eles",
+	"erro",
+	"foto",
+	"instale",
+	"longe",
+	"mede",
+	"ser",
 ]
