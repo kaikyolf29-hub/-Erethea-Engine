@@ -35,44 +35,60 @@ e quem continua termina cada um (veja "Estado em 25/11", logo abaixo).
 ## Estado em 25/11 (leia antes de tudo)
 
 O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
-Nenhuma sessão Sonnet está rodando.
 
-- **No `main`**: #25 (WAV da dublagem e eco por área), #26 (janela moderna nos
-  jogos), #27 (canal de testes da atualização), #28 e #30 (teste do instalador
-  e diagnóstico do crash do editor no CI), #29 (música que muda no fim do
-  compasso), #32 (raios de luz `EretheaLightShafts`), #33 (HANDOFF para outra
-  conta) e, desde 25/11, **#34 (sombras do sol por ray tracing)**, com o CI
-  inteiro verde.
-- **PR #31 (prévia com LibGodot), causa achada e corrigida, esperando o CI**
-  (branch `claude/erethea-libgodot-preview`). O programa de exemplo saía com
-  **0xE0464645** no Windows depois de destruir a instância e descarregar a
-  DLL. Esse é o código do "fail fast" do **CoreMessaging** do Windows (não há
-  texto oficial da Microsoft; relatos: o PR #1532 do `momo5502/sogen`, que
-  mostra o CoreMessaging encerrando o processo com esse código, e o DWM, que
-  sai com ele). Um fail fast não passa pelos manipuladores de exceção, por isso
-  o diagnóstico do programa não imprimiu nada. A engine cria um
-  `DispatcherQueueController` do CoreMessaging na thread principal
-  (`WinRTUtils::create_queue`, para as notificações). Na LibGodot do Windows,
-  diferente do `main()` da engine: (1) o controlador ficava num `ComPtr`
-  global depois de desligado e só era solto no destrutor estático, dentro do
-  `FreeLibrary`, com a trava do loader presa; (2) o `OS_Windows` nunca era
-  destruído, então `CoUninitialize` e `WinRTUtils::cleanup` não rodavam.
-  Correção no commit `a0db15db` (os dois pontos, com `// Erethea:`; o mesmo
-  defeito está na Godot, vale propor), e o job agora imprime os eventos
-  1000/1001/1026 do Windows quando o programa falha (`58706aa3`). Se o CI
-  passar inteiro, faça o merge. Se o job "LibGodot on Windows" falhar de novo,
-  leia os eventos impressos no log (módulo e deslocamento) e continue daí.
-- **Depois do #31**: fechar a Fase 3 (passo 5) e seguir a Fase 4, item 2,
-  "Próximo PR: personagens com esqueleto".
+- **No `main`**: #25 a #30, #32 e #33 (ver a tabela das fases), e desde 25/11
+  **#34 (sombras do sol por ray tracing)** e **#31 (prévia com LibGodot)**.
+  O #31 tinha a saída **0xE0464645** no Windows: é o "fail fast" do
+  **CoreMessaging** do Windows (sem texto oficial da Microsoft; relatos no PR
+  #1532 do `momo5502/sogen` e no DWM). Um fail fast não passa pelos
+  manipuladores de exceção. Na LibGodot do Windows, diferente do `main()` da
+  engine, o `DispatcherQueueController` (WinRT) era solto só no destrutor
+  estático, dentro do `FreeLibrary` com a trava do loader, e o `OS_Windows`
+  nunca era destruído (`CoUninitialize` não rodava). Corrigido nos dois
+  pontos com `// Erethea:` (`winrt_utils.cpp`, `libgodot_windows.cpp`); o mesmo
+  defeito está na Godot, vale propor.
+- **Fase 3 fechada** (passo 5): o "pronto quando" é provado no CI pelos testes
+  da ponte e do modo de teste; a prova com a Fornalha de verdade é do teste
+  final. O pedido nº 9 (embutir a prévia na Galeria) está na lista para a
+  Fornalha.
+- **PRs abertos, meus (sessão principal)**, nesta ordem de merge, cada um com o
+  `main` juntado antes:
+  - **#35** sombras por ray tracing dos personagens com esqueleto (branch
+    `claude/erethea-engine-continuation-2word6`);
+  - **#36** escolha por placa: upscaler `Automatic` e sombras por ray tracing
+    ligadas pelo preset (branch `claude/erethea-auto-gpu-choice`);
+  - **#37** sombra de contato na tela, em qualquer placa (branch
+    `claude/erethea-contact-shadows`).
+  Os três mexem em `modules/erethea_raytracing/` e no workflow da cena de
+  referência: depois de cada merge, junte o `main` no próximo, resolva (os
+  trechos são de funções e passos diferentes), rode os testes da Erethea e
+  espere o CI.
+- **Sessões Sonnet em paralelo** (abertas pela sessão principal em 25/11; se a
+  conta mudar, elas não existem mais e quem continua termina o PR delas):
+  - **terreno nativo, parte 1** (Fase 4, item 6): branch
+    `claude/erethea-terrain`, módulo `modules/erethea_terrain/`;
+  - **cabelo fio a fio** (Fase 4, item 5, pedido nº 1 da Fornalha): branch
+    `claude/erethea-hair-strands`, módulo `modules/erethea_materials/`. Os
+    fios chegam como arestas soltas (linhas) no `.glb`.
+  Revise cada uma antes do merge (veja "Como trabalhar com sessões em
+  paralelo").
+- **Próximos meus**, depois desses PRs: pele com subsuperfície melhor (resto do
+  pedido nº 2 da Fornalha), Fase 5 (geometria densa) e o estudo do path
+  tracing da NVIDIA (item 3). Os itens 7 (vegetação) e 8 (retarget) ficaram
+  com prioridade baixa: a Fornalha já faz a grama com vento (`principal.gd`) e
+  o retarget no Blender (`fc_retarget.py`).
 - **Falhas conhecidas do CI** ainda abertas: o travamento do passo "Update
-  silently" do instalador (experimento 2 no `main` desde o #30; conte as
-  execuções) e o crash 0xC0000409 do editor no teste da janela (diagnóstico
-  pronto; espere acontecer de novo e leia o evento/minidump). Detalhes em
-  "Falhas conhecidas do CI".
+  silently" do instalador (experimento 2 desde o #30: passou também no CI do
+  #34 e duas vezes no do #31 em 25/11; conte mais algumas) e o crash
+  0xC0000409 do editor no teste da janela (diagnóstico pronto; espere
+  acontecer de novo e leia o evento/minidump). Detalhes em "Falhas conhecidas
+  do CI".
 - **Lições**: o build local sem `dev_mode=yes` não pega avisos que o CI trata
-  como erro; compile os objetos mudados com `dev_mode=yes`. Arquivos só do
-  Windows também dá para compilar aqui com o MinGW (veja "Como compilar e
-  testar").
+  como erro, e trocar o `dev_mode` refaz o build inteiro (23 min); compile
+  sempre com `dev_mode=yes`. Arquivos só do Windows também compilam aqui com o
+  MinGW (veja "Como compilar e testar"). Para provar que um teste pega a
+  falha sem deixar função sem uso (aviso vira erro), mude a condição (por
+  exemplo `if (!x || true)`) em vez de apagar a chamada.
 
 ## O que é a Erethea
 
@@ -121,8 +137,8 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). Falta só a assinatura (no lançamento) |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Quase pronta: MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24) e o bloco de som (#25, #29; a boca é da Fornalha) no `main`. Falta a prévia com LibGodot (PR #31) e fechar a fase (passo 5) |
-| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32) e sombras do sol por ray tracing (#34) no `main`; próximo: sombras dos personagens com esqueleto (item 2) |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Pronta (25/11): MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24), bloco de som (#25, #29; a boca é da Fornalha) e prévia com LibGodot (#31). A prova com a Fornalha de verdade é do teste final |
+| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32) e sombras do sol por ray tracing (#34) no `main`; personagens com esqueleto (#35), escolha por placa (#36) e sombra de contato (#37) em PR; terreno e cabelo fio a fio com sessões Sonnet |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Primeira versão em PR: divisão em pedaços na importação, com LOD e corte por pedaço (2 milhões de triângulos, 24× menos primitivas de perto); falta a prova na placa |
 
 ## O que fazer agora (na ordem)
@@ -377,38 +393,41 @@ comparado na cena de referência:
      pose) e partículas; reflexos e GI pelo mesmo caminho; a escolha por placa
      (item 1) passa a ligar o efeito em placas com ray query; a prova de
      velocidade na RTX fica para o teste final.
-   - **Próximo PR: personagens com esqueleto** (os da Fornalha são todos
-     assim). Já estudado em 23/11:
-     - Os vértices deformados pelo esqueleto (e pelas blend shapes) ficam em
-       `MeshStorage::MeshInstance::Surface::vertex_buffer[current_buffer]`,
-       gravados pelo compute `shaders/skeleton.glsl` em
-       `update_mesh_instances()`, no começo do quadro (antes do `PRE_OPAQUE`).
-       No 3D, as posições vêm primeiro, em float 32 (`index * vertex_stride`
-       palavras, normalmente 3), depois as normais e tangentes.
-     - Esse buffer é criado em `_mesh_instance_add_surface_buffer`
-       (`mesh_storage.cpp`) só com `BUFFER_CREATION_AS_STORAGE_BIT`. Mudança
-       de uma linha no núcleo (`// Erethea:`): acrescentar
-       `BUFFER_CREATION_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT`
-       quando o `RenderingDevice` tem ray query. E uma função pública na
-       `MeshStorage` (`// Erethea:`) que devolve o RID desse buffer, a contagem
-       e o passo dos vértices para (mesh instance, superfície), ou `RID()` se a
-       superfície não tem buffer próprio (`uniform_set[0]` nulo).
-     - `RenderGeometryInstanceBase::mesh_instance` é público: o módulo sabe
-       qual instância da lista do cull tem esqueleto. Os índices saem do buffer
-       próprio do módulo (lidos uma vez por malha, como hoje).
-     - BLAS por mesh instance, refeita todo quadro com `blas_build` (a API do
-       RD não tem atualização parcial). O `current_buffer` alterna quando há
-       vetores de movimento (TAA, FSR): guarde até duas BLAS por mesh instance,
-       pela RID do buffer, e recrie se a RID mudar. O grafo do RD cuida das
-       barreiras entre o compute do esqueleto e a montagem da BLAS.
-     - As posições estão no espaço da malha: a transformação da instância vai
-       na TLAS, como nas malhas paradas.
-     - Teste: na `erethea/tests/raytracing/shadows_scene`, uma malha com
-       esqueleto montada em GDScript (ArrayMesh com ossos e pesos e um
-       `Skeleton3D` girando um osso) e a sombra seguindo a pose.
+   - **Personagens com esqueleto: feito (PR das sombras dos personagens,
+     25/11).** Como ficou, diferente do plano de 23/11 por um motivo: o
+     `blas_create` registra a BLAS como dependente dos buffers de vértices, e o
+     RD apaga os dependentes junto com o buffer; montar a BLAS direto do buffer
+     da `MeshInstance` deixaria RIDs apagados no cache quando a malha mudasse.
+     Então:
+     - No núcleo, só uma função de leitura (`// Erethea:`):
+       `MeshStorage::erethea_mesh_instance_get_surface_vertices(mesh_instance,
+       superfície, &contagem, &passo, &última_mudança)`, que devolve o buffer
+       onde o esqueleto e as blend shapes deixaram os vértices (posições em
+       float 32 primeiro), ou `RID()` quando a superfície desenha os vértices
+       da própria malha (superfície 2D ou comprimida também dá `RID()`).
+     - No módulo: `DeformedBLAS` por mesh instance, com cópias próprias das
+       posições (`buffer_copy` na placa) e os buffers de índices da BLAS da
+       malha; refeita só nos quadros em que `last_change` muda (personagem
+       parado não custa nada). A BLAS deformada é apagada antes dos buffers da
+       malha (`free_mesh` cuida disso).
+     - Teste: `--skinned-check` na `erethea/tests/raytracing/shadows_scene`
+       (braço de dois ossos, reto e dobrado, dois pontos do chão medidos), no
+       CI no passo "Check the ray traced shadows of a skinned mesh". Provado
+       que falha com a sombra presa à pose de repouso. Pegadinha: o
+       `MeshInstance3D.skeleton` vem vazio nesta base; aponte para o
+       `Skeleton3D` (`NodePath("..")`).
+     - Falta: partículas; reflexos e GI pelo mesmo caminho; a prova de
+       velocidade na RTX fica para o teste final.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
+   **Cascatas (PR do sol do mundo, 25/11):** no `World/mundo.tscn` que a
+   Erethea monta para a Fornalha, o sol mistura as cascatas
+   (`blend_splits`, sem a emenda visível) e alcança o mundo inteiro
+   (`get_sun_shadow_distance`: o dobro da borda de área mais longe, de 100 a
+   300 m). Ficou de fora o PCSS (`light_angular_distance`): custo alto na
+   RX 580 sem prova; se o teste final pedir sombra mais suave sem ray tracing,
+   ligue pelo preset `Cinematic` só.
 5. **Pele: feito o que faltava (PR da pele, 25/11)**. A Godot já tem o perfil
    por canal (modo pele) e o mapa de espessura (transmitância com textura); a
    Erethea somou `rendering/erethea/subsurface_scattering/follow_surface`
@@ -538,6 +557,32 @@ dela (cabelo fio a fio, pele, geometria virtual, terreno, FSR, névoa de altura 
 raios de luz); esses pedidos estão nas Fases 4 e 5 acima. A Fornalha acha a
 Erethea em `%LOCALAPPDATA%\Erethea` (`erethea.console.exe`), que é onde o
 instalador põe.
+
+**Projetos da Fornalha com as configurações da Erethea (PR de 25/11).** A
+Fornalha escreve o próprio `project.godot` (modelo em
+`crates/fornalha-core/src/engine.rs` do repositório dela), sem nenhuma
+configuração da Erethea, então os jogos dela rodavam com o preset `Disabled`,
+iguais aos da Godot. Agora o módulo `erethea_fornalha`, ao abrir um projeto com
+`game.project.json` no editor (inclusive no `--headless --import` que a
+Fornalha chama), dá a ele uma vez cada configuração de projeto novo da Erethea
+(`EditorNode::erethea_get_initial_settings()`, que saiu do meio da lista da
+Godot no `editor_node.cpp`), guarda quais deu em
+`editor/erethea_fornalha/erethea_defaults_applied` e salva o `project.godot`.
+O que o projeto já mudou fica. Uma configuração nova da Erethea para projetos
+novos entra nessa função e chega sozinha aos projetos da Fornalha. Não precisa
+de pedido para a Fornalha.
+
+**Materiais do glTF que a Godot ignora (PR de 25/11, em cima do anterior).** O
+importador glTF da Godot descarta `KHR_materials_clearcoat`, `_anisotropy`,
+`_sheen`, `_ior` e `_specular`, e a Fornalha usa coat na córnea
+(`fc_humano.py`) e anisotropia e sheen no cabelo (`fc_cabelo.py`). O módulo
+`modules/erethea_gltf/` (uma `GLTFDocumentExtension`) leva cada um para a
+propriedade mais próxima do `StandardMaterial3D`, com
+`rendering/erethea/gltf/import_material_extensions` (desligada na Godot, ligada
+em projeto novo e nos da Fornalha pela lista de configurações iniciais). Detalhe
+encontrado no lavapipe: coat 1,0 com rugosidade do coat perto de 0 perde o
+brilho (o pico estoura em meia precisão); a conversão não passa de 0,05 para
+baixo. Ver README, "Materiais do glTF que a Godot ignora". Vale propor à Godot.
 
 ## Como compilar e testar
 

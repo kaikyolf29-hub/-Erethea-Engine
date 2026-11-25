@@ -14,3 +14,8 @@ config/features=PackedStringArray("4.8", "Forward Plus")
 3d_physics/layer_1="mundo"
 3d_physics/layer_2="jogador"
 3d_physics/layer_3="inimigos"
+
+[rendering]
+
+; Chosen on purpose: Erethea's default for new projects is 0.03.
+erethea/subsurface_scattering/follow_surface=0.05

@@ -592,3 +592,7 @@
 /modules/erethea_preview/**/SCsub              @kaikyolf29-hub @godotengine/buildsystem
 /modules/erethea_preview/doc_classes/          @kaikyolf29-hub @godotengine/documentation
 /modules/erethea_preview/tests/                @kaikyolf29-hub @godotengine/tests
+/modules/erethea_gltf/                         @kaikyolf29-hub @godotengine/asset-pipeline
+/modules/erethea_gltf/**/*.py                  @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_gltf/**/SCsub                 @kaikyolf29-hub @godotengine/buildsystem
+/modules/erethea_gltf/tests/                   @kaikyolf29-hub @godotengine/tests
