@@ -249,8 +249,18 @@ jobs:
           $library = (Get-ChildItem bin -Filter "erethea.windows.editor.x86_64*.dll" | Select-Object -First 1).FullName
           # The host program needs the Visual C++ tools in the path.
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $since = Get-Date
           cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" && python erethea/tests/libgodot/test_libgodot.py `"$library`" --engine-args `"--rendering-driver opengl3_angle`" --out `"${{ github.workspace }}/libgodot/windows`""
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            # A fail fast (such as 0xE0464645 from CoreMessaging) skips the host's
+            # exception handlers; Windows still records the faulting module.
+            Start-Sleep -Seconds 15
+            Get-WinEvent -FilterHashtable @{ LogName = "Application"; Id = 1000, 1001, 1026; StartTime = $since } -ErrorAction SilentlyContinue |
+              Where-Object { $_.Message -match "libgodot_preview" } |
+              ForEach-Object { Write-Output "----- Windows event $($_.Id) at $($_.TimeCreated) -----"; Write-Output $_.Message }
+            exit $code
+          }
 
       - name: Upload the library
         uses: actions/upload-artifact@v7
