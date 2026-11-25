@@ -34,8 +34,11 @@
 #include "../editor/erethea_fornalha_plugin.h"
 #include "../erethea_fornalha_import.h"
 
+#include "core/config/project_settings.h"
 #include "core/io/config_file.h"
+#include "editor/editor_node.h"
 #include "scene/3d/camera_3d.h"
+#include "scene/3d/light_3d.h"
 #include "scene/3d/physics/character_body_3d.h"
 #include "scene/3d/physics/collision_shape_3d.h"
 #include "scene/3d/physics/spring_arm_3d.h"
@@ -163,6 +166,37 @@ static Ref<PackedScene> _model(const String &p_path) {
 	memdelete(root);
 	scene->set_path(p_path);
 	return scene;
+}
+
+TEST_CASE("[SceneTree][Modules][EretheaFornalha] The sun of the world") {
+	EretheaFornalhaProject project;
+	// No areas yet: Godot's distance.
+	CHECK(EretheaFornalhaImport::get_sun_shadow_distance(project) == doctest::Approx(100.0));
+	EretheaFornalhaArea village;
+	village.id = "vila";
+	village.center = Vector3(40, 0, 30);
+	project.areas.push_back(village);
+	EretheaFornalhaArea forest;
+	forest.id = "floresta";
+	forest.center = Vector3(-60, 0, 0);
+	project.areas.push_back(forest);
+	// Each area reaches half way to the other (52.2 m): the forest's edge is
+	// 112.2 m from the center of the world, so the world is 224.4 m across.
+	CHECK(EretheaFornalhaImport::get_sun_shadow_distance(project) == doctest::Approx(224.4).epsilon(0.01));
+	EretheaFornalhaArea mountain;
+	mountain.id = "montanha";
+	mountain.center = Vector3(0, 0, 400);
+	project.areas.push_back(mountain);
+	CHECK(EretheaFornalhaImport::get_sun_shadow_distance(project) == doctest::Approx(300.0));
+
+	Vector<String> warnings;
+	Node *world = EretheaFornalhaImport::make_world(project, warnings);
+	DirectionalLight3D *sun = Object::cast_to<DirectionalLight3D>(world->get_node_or_null(NodePath("Sol")));
+	REQUIRE(sun != nullptr);
+	CHECK(sun->has_shadow());
+	CHECK(sun->is_blend_splits_enabled());
+	CHECK(sun->get_param(Light3D::PARAM_SHADOW_MAX_DISTANCE) == doctest::Approx(300.0));
+	memdelete(world);
 }
 
 TEST_CASE("[SceneTree][Modules][EretheaFornalha] Character scenes") {
@@ -314,6 +348,57 @@ TEST_CASE("[Modules][EretheaFornalha] Building scenes by themselves") {
 	EretheaFornalhaProject warned = project;
 	warned.warnings.push_back("No blockout in World/ yet.");
 	CHECK(warned.get_signature() == signature);
+}
+
+TEST_CASE("[Modules][EretheaFornalha] Erethea's settings in projects from the Fornalha") {
+	using Import = EretheaFornalhaImport;
+	ProjectSettings *project_settings = ProjectSettings::get_singleton();
+	const Variant applied_before = GLOBAL_GET(Import::SETTING_ERETHEA_DEFAULTS_APPLIED);
+	const String chosen = "erethea_tests/fornalha_defaults/chosen";
+	const String untouched = "erethea_tests/fornalha_defaults/untouched";
+	const String later = "erethea_tests/fornalha_defaults/later";
+	GLOBAL_DEF(chosen, 1);
+	GLOBAL_DEF(untouched, 1);
+	GLOBAL_DEF(later, 1);
+	// The project chose this one on purpose.
+	project_settings->set_setting(chosen, 2);
+
+	HashMap<String, Variant> defaults;
+	defaults[chosen] = 3;
+	defaults[untouched] = 3;
+	Vector<String> changed = Import::apply_erethea_defaults(defaults);
+	CHECK(changed.size() == 1);
+	CHECK(changed.has(untouched));
+	CHECK(int(GLOBAL_GET(chosen)) == 2);
+	CHECK(int(GLOBAL_GET(untouched)) == 3);
+	const PackedStringArray applied = GLOBAL_GET(Import::SETTING_ERETHEA_DEFAULTS_APPLIED);
+	CHECK(applied.has(chosen));
+	CHECK(applied.has(untouched));
+
+	// Turned back off by hand, it stays off the next time the project opens.
+	project_settings->set_setting(untouched, 1);
+	CHECK(Import::apply_erethea_defaults(defaults).is_empty());
+	CHECK(int(GLOBAL_GET(untouched)) == 1);
+
+	// A setting that a later Erethea starts new projects with still arrives.
+	defaults[later] = 3;
+	changed = Import::apply_erethea_defaults(defaults);
+	CHECK(changed.size() == 1);
+	CHECK(changed.has(later));
+	CHECK(int(GLOBAL_GET(later)) == 3);
+
+	// Erethea's own list names settings that exist.
+	const HashMap<String, Variant> erethea_defaults = EditorNode::erethea_get_initial_settings();
+	CHECK(int(erethea_defaults["rendering/erethea/quality_preset"]) == 4);
+	for (const KeyValue<String, Variant> &E : erethea_defaults) {
+		CHECK_MESSAGE(project_settings->has_setting(E.key), E.key);
+		CHECK_MESSAGE(EditorNode::get_initial_settings().has(E.key), E.key);
+	}
+
+	project_settings->set_setting(Import::SETTING_ERETHEA_DEFAULTS_APPLIED, applied_before);
+	project_settings->clear(chosen);
+	project_settings->clear(untouched);
+	project_settings->clear(later);
 }
 
 TEST_CASE("[Modules][EretheaFornalha] Messages from the Fornalha") {

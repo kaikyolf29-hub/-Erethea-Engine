@@ -98,6 +98,11 @@ jobs:
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_export_checks.yml
 
+  erethea-hair-strands:
+    name: 🔥 Erethea hair strands
+    needs: linux-build
+    uses: ./.github/workflows/erethea_hair_strands.yml
+
   erethea-fornalha-import:
     name: 🔥 Erethea Fornalha import
     needs: [linux-build, windows-build]
@@ -107,6 +112,11 @@ jobs:
     name: 🔥 Erethea assistant
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_assistant.yml
+
+  erethea-terrain:
+    name: 🔥 Erethea terrain
+    needs: linux-build
+    uses: ./.github/workflows/erethea_terrain.yml
 
   erethea-preview:
     name: 🔥 Erethea preview

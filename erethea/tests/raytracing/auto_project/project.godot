@@ -1,0 +1,15 @@
+config_version=5
+
+[application]
+
+config/name="rtauto"
+run/main_scene="res://main.tscn"
+
+[display]
+
+window/size/viewport_width=320
+window/size/viewport_height=180
+
+[rendering]
+
+erethea/ray_tracing/sun_shadows=2

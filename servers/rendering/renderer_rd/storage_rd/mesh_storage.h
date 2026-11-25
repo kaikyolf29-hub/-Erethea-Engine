@@ -656,6 +656,13 @@ public:
 	virtual void mesh_instance_set_canvas_item_transform(RID p_mesh_instance, const Transform2D &p_transform) override;
 	virtual void update_mesh_instances() override;
 
+	// Erethea: The vertex buffer where the skeleton and blend shapes of a mesh
+	// instance left the vertices of a 3D surface, for ray tracing effects
+	// (modules/erethea_raytracing): the positions come first, as three 32-bit
+	// floats, r_stride bytes apart. r_last_change is the frame they were last
+	// written in. Returns RID() when the surface draws the mesh's own vertices.
+	RID erethea_mesh_instance_get_surface_vertices(RID p_mesh_instance, int p_surface, uint32_t &r_vertex_count, uint32_t &r_stride, uint64_t &r_last_change) const;
+
 	/* MULTIMESH API */
 
 	bool owns_multimesh(RID p_rid) { return multimesh_owner.owns(p_rid); }
