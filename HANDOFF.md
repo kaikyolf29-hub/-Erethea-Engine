@@ -426,6 +426,28 @@ comparado na cena de referência:
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
+   **Sombra de contato: feita (PR da sombra de contato, 25/11)**, pedido nº 2
+   da Fornalha junto com a pele. `EretheaContactShadows` em
+   `modules/erethea_raytracing/`: na tela, em qualquer placa com o Forward+
+   (inclusive a RX 580), grava a mesma máscara `erethea_rt/shadow_mask` que o
+   Forward+ aplica ao sol (`min` com o mapa de sombra). No núcleo, um pedido de
+   máscara sem juntar geometria (`erethea_request_shadow_mask`, `// Erethea:`).
+   Onde o ray tracing roda, ela não faz nada. Teste:
+   `erethea/tests/raytracing/contact_scene` (no CI). Achados no caminho: no
+   GLSL, `params.length` num bloco uniforme é lido como o método `.length()`
+   (dê outro nome); e o efeito só pede a máscara depois de ter a pipeline,
+   senão uma máscara nunca escrita escurece a cena inteira.
+   **Ligada sozinha pela placa (PR seguinte, 25/11):**
+   `rendering/erethea/contact_shadows/sun` (`Disabled`, `Automatic` = padrão,
+   `Enabled`), como a `sun_shadows` do ray tracing: `Automatic` liga com o
+   preset `Automatic` em placa dedicada (`Balanced` ou `Cinematic`; na RTX ela
+   se cala onde o ray tracing roda), não na integrada. O código que põe um
+   efeito nas cenas em execução virou `EretheaSceneEffects`
+   (`erethea_scene_effects.*`), usado pelos dois. Achado: um sinal só aceita a
+   mesma função uma vez, mesmo com outros argumentos no `bind`; por isso há uma
+   conexão só ao `node_added`, que percorre a lista de efeitos (o teste
+   `auto_project`, que agora confere os dois efeitos, pegou isso numa câmera
+   criada depois). A prova de custo na RX 580 é do teste final.
    **Cascatas (PR do sol do mundo, 25/11):** no `World/mundo.tscn` que a
    Erethea monta para a Fornalha, o sol mistura as cascatas
    (`blend_splits`, sem a emenda visível) e alcança o mundo inteiro

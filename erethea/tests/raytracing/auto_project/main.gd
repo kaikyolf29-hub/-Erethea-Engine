@@ -1,7 +1,8 @@
 extends Node3D
-## Erethea: this project sets rendering/erethea/ray_tracing/sun_shadows to
-## Enabled. On a graphics card with ray tracing (lavapipe has it), the running
-## project must get EretheaRayTracedShadows in the compositor of its
+## Erethea: this project sets rendering/erethea/ray_tracing/sun_shadows and
+## rendering/erethea/contact_shadows/sun to Enabled. On a graphics card with
+## ray tracing (lavapipe has it), the running project must get
+## EretheaRayTracedShadows and EretheaContactShadows in the compositor of its
 ## WorldEnvironment (created, as it has none) and in a camera's own compositor,
 ## also for a camera added later, while a camera without a compositor keeps
 ## using the environment's. Prints ERETHEA_RT_AUTO_OK and quits with 0, or
@@ -31,12 +32,12 @@ func _ready() -> void:
 	add_child(ground)
 
 
-func _count_effects(compositor: Compositor) -> int:
+func _count_effects(compositor: Compositor, effect_class := "EretheaRayTracedShadows") -> int:
 	if compositor == null:
 		return -1
 	var count := 0
 	for effect in compositor.compositor_effects:
-		if effect != null and effect.get_class() == "EretheaRayTracedShadows":
+		if effect != null and effect.get_class() == effect_class:
 			count += 1
 	return count
 
@@ -55,8 +56,14 @@ func _process(_delta: float) -> void:
 			"plain_camera": _count_effects(plain_camera.compositor),
 			"late_camera": _count_effects(late_camera.compositor),
 		}
+		for node in ["environment", "own_compositor_camera", "plain_camera", "late_camera"]:
+			var compositor: Compositor = (environment if node == "environment" else get(node)).compositor
+			counts[node + "_contact"] = _count_effects(compositor, "EretheaContactShadows")
 		print("RTAUTO supported=", supported, " ", counts)
-		var expected := { "environment": 1, "own_compositor_camera": 1, "plain_camera": -1, "late_camera": 1 }
+		var expected := {
+			"environment": 1, "own_compositor_camera": 1, "plain_camera": -1, "late_camera": 1,
+			"environment_contact": 1, "own_compositor_camera_contact": 1, "plain_camera_contact": -1, "late_camera_contact": 1,
+		}
 		if not supported:
 			printerr("RTAUTO FAILED: no ray tracing on this graphics card.")
 			get_tree().quit(1)

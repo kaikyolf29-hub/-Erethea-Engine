@@ -32,8 +32,6 @@
 
 #include "scene/resources/compositor.h"
 
-class Node;
-
 // Ray traced shadow of the sun (the first directional light), for the
 // Forward+ renderer on graphics cards with ray tracing (ray queries). After
 // the depth pre-pass, rays go from the surface seen in each pixel towards the
@@ -55,9 +53,6 @@ class EretheaRayTracedShadows : public CompositorEffect {
 
 	void _render(int p_effect_callback_type, const RenderData *p_render_data);
 	static void _free_render_resources();
-
-	static void _add_to_node(Node *p_node);
-	static void _add_to_tree(Node *p_node);
 
 protected:
 	static void _bind_methods();

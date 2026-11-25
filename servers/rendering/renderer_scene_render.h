@@ -366,11 +366,18 @@ public:
 	float erethea_get_ray_tracing_radius() const { return erethea_rt_radius; }
 	void erethea_set_ray_tracing_instances(const PagedArray<RenderGeometryInstance *> *p_instances) { erethea_rt_instances = p_instances; }
 	const PagedArray<RenderGeometryInstance *> *erethea_get_ray_tracing_instances() const { return erethea_rt_instances; }
+	// Effects that fill the sun's shadow mask without ray tracing (such as
+	// contact shadows) ask for it each frame, without gathering geometry. The
+	// renderer reads the mask while either request holds.
+	void erethea_request_shadow_mask();
+	bool erethea_is_shadow_mask_requested() const;
 
 	virtual ~RendererSceneRender() {}
 
 private:
 	float erethea_rt_radius = 0.0;
 	uint64_t erethea_rt_requested_frame = 0;
+	uint64_t erethea_mask_requested_frame = 0;
+	bool erethea_mask_requested = false;
 	const PagedArray<RenderGeometryInstance *> *erethea_rt_instances = nullptr;
 };

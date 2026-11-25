@@ -7,6 +7,7 @@ Import("env_modules")
 env_erethea_raytracing = env_modules.Clone()
 
 env_erethea_raytracing.RD_GLSL("erethea_ray_traced_shadows.glsl")
+env_erethea_raytracing.RD_GLSL("erethea_contact_shadows.glsl")
 env_erethea_raytracing.Depends(Glob("*.glsl.gen.h"), ["#glsl_builders.py"])
 
 module_obj = []
