@@ -16,6 +16,7 @@ que juntar versões novas da Godot não dê conflito.
 | `tests/export_checks/` | Projeto da Fornalha e teste das validações antes de exportar |
 | `tests/fornalha_import/` | Projeto da Fornalha e teste das cenas montadas pelo `game.project.json` |
 | `tests/fornalha_link/` | Teste do elo ao vivo com a Fornalha, com uma Fornalha de mentira |
+| `tests/hair_strands/` | Cabelo fio a fio sobre uma esfera com um osso girando, e o teste de captura |
 
 ## Atualizar a Godot
 
@@ -347,6 +348,100 @@ Erethea carrega o Streamline, que ele responde que a placa não tem DLSS, que a
 Erethea volta para o FSR 2.2 com a mesma imagem e que fecha sem erro; os
 arquivos da NVIDIA não vão para o artefato. **Não testado na placa:** o DLSS
 reconstruindo de fato, a qualidade e o custo em FPS na RTX 4060 Ti/5060 Ti.
+
+## Cabelo fio a fio
+
+`EretheaHairStrands` (módulo `modules/erethea_materials/`) desenha o penteado
+fio a fio, em vez de cards, no nível Máximo da Fornalha. A Fornalha gera os
+fios (`fc_cabelo.py`, no Blender); a Erethea só os **desenha**. Quem não usa a
+classe não muda em nada.
+
+**Como os fios chegam.** Como linhas: no Blender, cada fio é uma sequência de
+arestas soltas (*loose edges*, sem faces), e o exportador glTF as grava como
+primitivas `LINES`. O importador da Godot cria uma superfície
+`Mesh.PRIMITIVE_LINES` com índices (`LINE_STRIP` também serve, com ou sem
+índices). Os vértices podem ter ossos e pesos (o cabelo preso à cabeça) e UV
+(a Erethea não precisa dele). Um fio é uma cadeia de segmentos ligados: o
+segmento que começa onde o anterior terminou continua o fio; quando não
+começa, começa outro fio. Por isso as arestas de cada fio têm de vir na ordem
+(raiz → ponta), e fios que dividem um vértice não se ligam.
+
+**O que a classe faz.** `EretheaHairStrands` herda de `MeshInstance3D`, então
+`skeleton`, `skin`, `layers`, sombras e o resto são os do `MeshInstance3D`
+(aponte `skeleton` para o `Skeleton3D` da cabeça; nesta base o caminho vem
+vazio). Ao receber `source_mesh`, ela monta a malha de fitas: para cada ponto
+do fio, dois vértices na mesma posição, com a direção do fio no `TANGENT`, o
+lado (-1/+1) e a posição raiz→ponta (por comprimento) no `UV`, e um valor
+aleatório por fio e o comprimento do fio no `UV2`. Ossos e pesos são copiados
+do vértice de origem, então o skinning da Godot (que transforma `VERTEX`,
+`NORMAL` e `TANGENT`) leva as fitas junto com a pose. No shader (embutido no
+módulo, sem arquivo para editar), a fita abre para os lados no espaço de
+vista, perpendicular ao fio e à direção da câmera, afinando até a ponta; a
+transparência é *alpha hash* (sem erro de ordem, e funciona no Compatibility);
+o brilho tem duas faixas anisotrópicas (Kajiya-Kay), com deslocamento
+diferente em cada fio, mais a raiz mais escura e a luz atravessando contra a
+luz. A AABB inclui a metade da largura.
+
+```gdscript
+var hair := EretheaHairStrands.new()
+hair.source_mesh = hair_mesh_instance.mesh   # a malha de linhas importada do .glb
+hair.width = 0.0015                          # largura na raiz, em metros
+hair.tip_width = 0.25                        # largura na ponta, como fração da da raiz
+hair.strand_fraction = 0.5                   # LOD: desenha metade dos fios, espalhados
+hair.color_root = Color(0.05, 0.03, 0.02)
+hair.color_tip = Color(0.2, 0.12, 0.08)
+skeleton.add_child(hair)
+hair.skeleton = NodePath("..")               # o Skeleton3D da cabeça
+```
+
+Propriedades: `source_mesh`, `strand_fraction` (0 a 1), `width`, `tip_width`,
+`color_root`, `color_tip`, `roughness`, `specular_primary`,
+`specular_secondary`, `specular_shift_primary`, `specular_shift_secondary`,
+`backlight`. A malha de fitas é refeita (no fim do quadro) quando mudam
+`source_mesh`, `strand_fraction` ou `width`; as demais só atualizam o
+material. `get_strand_count()` diz quantos fios estão desenhados. Para usar
+um shader seu, ponha um `material_override`.
+
+**Teste.** `erethea/tests/hair_strands/` gera algumas centenas de fios sobre
+uma esfera, com um `Skeleton3D` de um osso, desenha o cabelo, gira o osso em
+90° e desenha de novo; confere que há pixels de cabelo sobre a cabeça, que eles
+mudam de lugar com o giro e que `strand_fraction` menor desenha menos, e
+imprime `ERETHEA_HAIR_OK`. O CI (`erethea_hair_strands.yml`) roda a cena no
+lavapipe e sobe as capturas. Rodando à mão:
+
+```sh
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 1280x720x24" \
+  bin/erethea.linuxbsd.editor.x86_64 --path erethea/tests/hair_strands --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/hair.png"
+```
+
+**O que falta.**
+
+- **Não testado** numa placa de verdade (RX 580, RTX 4060 Ti/5060 Ti) nem com
+  fios da Fornalha de verdade: o teste usa fios de mentira, desenhados no
+  lavapipe. O custo em quadros de dezenas de milhares de fios só se mede na
+  placa.
+- Nos renderizadores Mobile e Compatibility o shader é o mesmo (a Godot
+  trata o alpha hash neles), mas só o Forward+ foi desenhado em teste.
+- A Fornalha ainda não exporta as arestas soltas (veja o pedido abaixo).
+- Sombras próprias do cabelo (sombra entre os fios) e o LOD por distância
+  (hoje o `strand_fraction` é manual) ficam para depois.
+- Fios com uma aresta virada (`b → a` no meio da cadeia) não são ligados.
+
+**Pedido para a Fornalha** (cole no chat dela):
+
+> Erethea Engine: o cabelo fio a fio nativo está pronto (classe
+> `EretheaHairStrands`). Em vez de cards no nível Máximo, exporte o penteado
+> como **arestas soltas**: uma malha sem faces, onde cada fio é uma cadeia de
+> arestas (ponto 0 → ponto 1, ponto 1 → ponto 2, ... na ordem da raiz para a
+> ponta). Sem faces e sem vértices soltos, para o glTF gravar primitivas
+> `LINES`. Prenda os vértices à cabeça com o grupo de vértices e o modificador
+> Armature (como a `malha_de_fios` já faz, peso 1,0 no osso `head`); a UV é
+> opcional. Chame a malha `<id>_hair_strands` (para a Erethea achar) e ponha a
+> largura do fio em metros no nome do material, como hoje (`_cabelo_fios_70` =
+> 0,7 mm). A Erethea não precisa dos cards nesse nível. No Godot, monte um
+> `EretheaHairStrands` com `source_mesh = <a malha importada>`, `width`
+> da largura do material e `skeleton = NodePath("..")` sob o `Skeleton3D` do
+> personagem.
 
 ## Streaming de texturas
 
