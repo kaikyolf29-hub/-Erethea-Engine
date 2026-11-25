@@ -1,0 +1,48 @@
+name: 🔥 Erethea dense geometry
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Makes a landscape of about two million triangles, imports it with and
+# without rendering/erethea/dense_geometry/cluster_triangles, and draws both on
+# lavapipe (modules/erethea_dense_geometry): split into clusters, the near view
+# must draw far fewer primitives than the same model whole.
+
+jobs:
+  dense-geometry-linux:
+    runs-on: ubuntu-24.04
+    name: Dense geometry on Linux
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the lavapipe Vulkan driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers
+
+      - name: Download Linux editor
+        uses: ./.github/actions/download-artifact
+        with:
+          name: linux-editor-mono
+          path: bin
+
+      - name: Import and draw the dense model
+        env:
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+        run: |
+          chmod +x bin/erethea.*
+          xvfb-run -a -s "-screen 0 1280x720x24" python3 erethea/tests/dense_geometry/test_dense_geometry.py \
+            bin/erethea.linuxbsd.editor.x86_64.mono --out "$RUNNER_TEMP/dense" 2>&1 | tee dense.log
+          grep -q "ERETHEA_DENSE_OK" dense.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-dense-geometry
+          path: |
+            dense.log
+            ${{ runner.temp }}/dense/*/*.log
+          retention-days: 14

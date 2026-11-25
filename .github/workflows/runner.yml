@@ -103,6 +103,11 @@ jobs:
     needs: [linux-build, windows-build]
     uses: ./.github/workflows/erethea_fornalha_import.yml
 
+  erethea-dense-geometry:
+    name: 🔥 Erethea dense geometry
+    needs: linux-build
+    uses: ./.github/workflows/erethea_dense_geometry.yml
+
   erethea-assistant:
     name: 🔥 Erethea assistant
     needs: [linux-build, windows-build]
