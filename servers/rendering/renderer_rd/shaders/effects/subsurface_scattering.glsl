@@ -98,7 +98,10 @@ layout(push_constant, std430) uniform Params {
 	float scale;
 
 	float depth_scale;
-	uint pad[3];
+	// Erethea: Samples farther in depth than this, in meters, don't scatter
+	// into the pixel (Jimenez's "follow surface"). 0 turns it off.
+	float follow_surface;
+	uint pad[2];
 }
 params;
 
@@ -106,7 +109,16 @@ layout(set = 0, binding = 0) uniform sampler2D source_image;
 layout(rgba16f, set = 1, binding = 0) uniform restrict writeonly image2D dest_image;
 layout(set = 2, binding = 0) uniform sampler2D source_depth;
 
-void do_filter(inout vec3 color_accum, inout vec3 divisor, vec2 uv, vec2 step, bool p_skin) {
+// Erethea: The linear depth at uv, as in main().
+float linear_depth(vec2 uv) {
+	float depth = texture(source_depth, uv).r * 2.0 - 1.0;
+	if (params.orthogonal) {
+		return -(depth * (params.camera_z_far - params.camera_z_near) - (params.camera_z_far + params.camera_z_near)) / 2.0;
+	}
+	return 2.0 * params.camera_z_near * params.camera_z_far / (params.camera_z_far + params.camera_z_near + depth * (params.camera_z_far - params.camera_z_near));
+}
+
+void do_filter(inout vec3 color_accum, inout vec3 divisor, vec2 uv, vec2 step, bool p_skin, vec3 p_center_color, float p_center_depth) {
 	// Accumulate the other samples:
 	for (int i = 1; i < kernel_size; i++) {
 		// Fetch color and depth for current sample:
@@ -115,6 +127,14 @@ void do_filter(inout vec3 color_accum, inout vec3 divisor, vec2 uv, vec2 step, b
 
 		if (abs(color.a) < 0.001) {
 			break; //mix no more
+		}
+
+		// Erethea: A sample on another surface, in front or behind, doesn't
+		// scatter into this pixel: use the pixel's own color instead, so that
+		// light doesn't bleed between skin at different depths.
+		if (params.follow_surface > 0.0) {
+			float difference = abs(linear_depth(offset) - p_center_depth);
+			color.rgb = mix(color.rgb, p_center_color, clamp(difference / params.follow_surface, 0.0, 1.0));
 		}
 
 		vec3 w;
@@ -179,8 +199,8 @@ void main() {
 
 		vec3 color = base_color.rgb * divisor;
 
-		do_filter(color, divisor, uv, step, skin);
-		do_filter(color, divisor, uv, -step, skin);
+		do_filter(color, divisor, uv, step, skin, base_color.rgb, depth);
+		do_filter(color, divisor, uv, -step, skin, base_color.rgb, depth);
 
 		base_color.rgb = color / divisor;
 	}
