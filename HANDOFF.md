@@ -32,63 +32,63 @@ Na conta nova, as sessões do Claude Code desta conta (inclusive as sessões
 Sonnet que ajudavam em paralelo) não existem: os PRs abertos ficam no GitHub,
 e quem continua termina cada um (veja "Estado em 25/11", logo abaixo).
 
-## Estado em 25/11 (leia antes de tudo)
+## Estado em 25/11, fim da tarde (leia antes de tudo)
 
 O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
 
-- **No `main`**: #25 a #30, #32 e #33 (ver a tabela das fases), e desde 25/11
-  **#34 (sombras do sol por ray tracing)** e **#31 (prévia com LibGodot)**.
-  O #31 tinha a saída **0xE0464645** no Windows: é o "fail fast" do
-  **CoreMessaging** do Windows (sem texto oficial da Microsoft; relatos no PR
-  #1532 do `momo5502/sogen` e no DWM). Um fail fast não passa pelos
-  manipuladores de exceção. Na LibGodot do Windows, diferente do `main()` da
-  engine, o `DispatcherQueueController` (WinRT) era solto só no destrutor
-  estático, dentro do `FreeLibrary` com a trava do loader, e o `OS_Windows`
-  nunca era destruído (`CoUninitialize` não rodava). Corrigido nos dois
-  pontos com `// Erethea:` (`winrt_utils.cpp`, `libgodot_windows.cpp`); o mesmo
-  defeito está na Godot, vale propor.
-- **Fase 3 fechada** (passo 5): o "pronto quando" é provado no CI pelos testes
-  da ponte e do modo de teste; a prova com a Fornalha de verdade é do teste
-  final. O pedido nº 9 (embutir a prévia na Galeria) está na lista para a
-  Fornalha.
-- **PRs abertos, meus (sessão principal)**, nesta ordem de merge, cada um com o
-  `main` juntado antes:
-  - **#35** sombras por ray tracing dos personagens com esqueleto (branch
-    `claude/erethea-engine-continuation-2word6`);
-  - **#36** escolha por placa: upscaler `Automatic` e sombras por ray tracing
-    ligadas pelo preset (branch `claude/erethea-auto-gpu-choice`);
-  - **#37** sombra de contato na tela, em qualquer placa (branch
-    `claude/erethea-contact-shadows`).
-  Os três mexem em `modules/erethea_raytracing/` e no workflow da cena de
-  referência: depois de cada merge, junte o `main` no próximo, resolva (os
-  trechos são de funções e passos diferentes), rode os testes da Erethea e
-  espere o CI.
-- **Sessões Sonnet em paralelo** (abertas pela sessão principal em 25/11; se a
-  conta mudar, elas não existem mais e quem continua termina o PR delas):
-  - **terreno nativo, parte 1** (Fase 4, item 6): branch
-    `claude/erethea-terrain`, módulo `modules/erethea_terrain/`;
-  - **cabelo fio a fio** (Fase 4, item 5, pedido nº 1 da Fornalha): branch
-    `claude/erethea-hair-strands`, módulo `modules/erethea_materials/`. Os
-    fios chegam como arestas soltas (linhas) no `.glb`.
-  Revise cada uma antes do merge (veja "Como trabalhar com sessões em
-  paralelo").
-- **Próximos meus**, depois desses PRs: pele com subsuperfície melhor (resto do
-  pedido nº 2 da Fornalha), Fase 5 (geometria densa) e o estudo do path
-  tracing da NVIDIA (item 3). Os itens 7 (vegetação) e 8 (retarget) ficaram
-  com prioridade baixa: a Fornalha já faz a grama com vento (`principal.gd`) e
-  o retarget no Blender (`fc_retarget.py`).
-- **Falhas conhecidas do CI** ainda abertas: o travamento do passo "Update
-  silently" do instalador (experimento 2 desde o #30: passou também no CI do
-  #34 e duas vezes no do #31 em 25/11; conte mais algumas) e o crash
-  0xC0000409 do editor no teste da janela (diagnóstico pronto; espere
-  acontecer de novo e leia o evento/minidump). Detalhes em "Falhas conhecidas
-  do CI".
-- **Lições**: o build local sem `dev_mode=yes` não pega avisos que o CI trata
-  como erro, e trocar o `dev_mode` refaz o build inteiro (23 min); compile
-  sempre com `dev_mode=yes`. Arquivos só do Windows também compilam aqui com o
-  MinGW (veja "Como compilar e testar"). Para provar que um teste pega a
-  falha sem deixar função sem uso (aviso vira erro), mude a condição (por
-  exemplo `if (!x || true)`) em vez de apagar a chamada.
+- **No `main`** (além do que a tabela das fases lista): #31 prévia com
+  LibGodot (o 0xE0464645 era o fail fast do CoreMessaging, corrigido em
+  `winrt_utils.cpp` e `libgodot_windows.cpp`, vale propor à Godot), #34
+  sombras do sol por ray tracing, #35 sombras dos personagens com esqueleto,
+  #36 escolha por placa, #37 e #45 sombra de contato (ligada sozinha pela
+  placa), #38, #42 e #50 terreno partes 1 a 3, #39 pele que segue a
+  superfície, #40 cabelo fio a fio, #43 projetos da Fornalha com as
+  configurações da Erethea, #44 materiais do glTF que a Godot ignora, #46
+  cascatas do sol no mundo da Fornalha, #47 texturas dos modelos da Fornalha
+  comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
+  janela.
+- **PRs abertos** (merge um por vez, com o CI inteiro verde e conferindo
+  conflito com o `main` antes; se conflitar, junte o `main`, valide o
+  `doc/classes/ProjectSettings.xml` com
+  `python3 -c "import xml.dom.minidom;xml.dom.minidom.parse('doc/classes/ProjectSettings.xml')"`
+  e rode os testes):
+  - **#41** geometria densa (Fase 5), com o `main` juntado de novo em 25/11
+    (o CI anterior estava todo verde);
+  - este PR (roteiro do teste do criador e estado).
+- **Sessões Sonnet**: nenhuma rodando. As duas de 25/11 terminaram (cabelo
+  no #40; terreno nos #38, #42 e #50).
+- **Decisões de 25/11**: o path tracing da NVIDIA e, com ele, reflexos e GI
+  por ray tracing ficam para depois do lançamento (item 3 e o fim do item 2 da
+  Fase 4); os itens 7 (vegetação) e 8 (retarget) seguem com prioridade baixa
+  (a Fornalha já faz a grama com vento e o retarget no Blender).
+- **Falhas conhecidas do CI**, as duas intermitentes e sem relação com os PRs
+  em que aparecem (refaça só o job que falhou, nunca faça merge com ele
+  vermelho):
+  - teste da janela no Windows: o editor sai com **0xC0000409** uns 10 s
+    depois de abrir o `smoke_project`, sem evento do Windows nem dump; voltou
+    duas vezes em 25/11 (#40 e #42). O #49 prende o ProcDump ao editor: na
+    próxima falha, leia `procdump-editor.log` e o dump do artefato
+    `erethea-window-test`;
+  - instalador, passo "Update silently": **travou de novo em 25/11 (#45)**,
+    então o experimento 2 (fechar o editor reaberto antes da parte gráfica)
+    não resolveu; a suspeita passa ao instalador (o Restart Manager do
+    `/CLOSEAPPLICATIONS`). Detalhes em "Falhas conhecidas do CI".
+- **Próximos passos até o lançamento**: merge do #41 e deste PR; achar a
+  causa do 0xC0000409 quando o ProcDump pegar;
+  depois o item 9 da Fase 4 ("Lançamento"). **Decidido pelo Kaiky em 25/11:
+  versão `v1.0.0`, sem assinatura por enquanto (o Azure Artifact Signing não
+  aceita pessoa física no Brasil; a assinatura entra numa versão seguinte), e
+  o nome já conferido no INPI.** O ensaio do workflow `🔥 Erethea Release` à
+  mão (versão `1.0.0-rc.1`, não publica) rodou no `main` em 25/11; depois dos
+  merges, crie a tag `v1.0.0` no `main` e avise o Kaiky para baixar e seguir o
+  `erethea/TESTE_DO_CRIADOR.md`.
+- **Lições**: compile sempre com `dev_mode=yes` (sem ele, avisos que o CI
+  trata como erro passam, e trocar refaz o build inteiro, 23 min). Arquivos só
+  do Windows também compilam aqui com o MinGW. Para provar que um teste pega a
+  falha sem deixar função sem uso, mude a condição (por exemplo
+  `if (!x || true)`) em vez de apagar a chamada. Ao resolver conflito no
+  `ProjectSettings.xml`, o `</member>` fica fora do trecho em conflito: valide
+  o XML sempre. Não encadeie `git push` depois do `prek` com `;`.
 
 ## O que é a Erethea
 
@@ -138,8 +138,8 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). Falta só a assinatura (no lançamento) |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
 | 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Pronta (25/11): MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24), bloco de som (#25, #29; a boca é da Fornalha) e prévia com LibGodot (#31). A prova com a Fornalha de verdade é do teste final |
-| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32) e sombras do sol por ray tracing (#34) no `main`; personagens com esqueleto (#35), escolha por placa (#36) e sombra de contato (#37) em PR; terreno e cabelo fio a fio com sessões Sonnet |
-| 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
+| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Pronta no CI (25/11): com ray tracing no lavapipe (sombras do sol e dos personagens com esqueleto, #34 e #35) e sem ele no WARP, igual à sem a opção (#48). No `main` também: raios de luz (#32), escolha por placa (#36), sombra de contato (#37, #45), terreno (#38, #42, #50), pele (#39), cabelo fio a fio (#40), materiais do glTF (#44) e cascatas (#46). Depois do lançamento: path tracing da NVIDIA, reflexos e GI por ray tracing. A prova na RTX e na RX 580 é do teste final |
+| 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Primeira versão em PR (#41): divisão em pedaços na importação, com LOD e corte por pedaço (2 milhões de triângulos, 24× menos primitivas de perto); falta a prova na placa |
 
 ## O que fazer agora (na ordem)
 
@@ -425,6 +425,51 @@ comparado na cena de referência:
        velocidade na RTX fica para o teste final.
 3. **Path tracing do fork RTX da NVIDIA** (MIT, lançado na GDC 2026): estudar e
    trazer como opção só para RTX, com a mesma configuração.
+
+   **Estudo (25/11):** o fork é `NVIDIA-RTX/godot`, branch `nvidia-pt-dlss`
+   (também `nvidia-pt-dlss-dev` e `backport/nvidia-pt-dlss-4.6.3`), sem
+   binários. Sobre a Godot `master` de início de novembro (merge do PR
+   #119319), quase a nossa base 4.8-beta4. São três commits de L. Sikkes
+   (02/11): "Miscellaneous", "Dependencies" (o Streamline em
+   `thirdparty/streamline/`, +13 mil linhas) e "Pathtracer + DLSS" (297
+   arquivos, +36,6 mil linhas): o path tracer dentro do Forward+
+   (`render_raytracing*.cpp`, `shaders/raytracing/`, pipeline de ray tracing
+   do Vulkan, materiais, luzes, decalques e névoa no path tracer) e o **DLSS
+   pelo Streamline no Vulkan** (`drivers/streamline/`), que é o extra "DLSS no
+   Vulkan" da lista. Muda 218 arquivos da Godot (núcleo, drivers Vulkan,
+   D3D12, Metal e GLES3, editor, cena); só 26 deles a Erethea também mudou (o
+   gancho das sombras por ray tracing no Forward+ e no cull, o driver Vulkan,
+   `main.cpp`, o CI). Decisão: trazer como tarefa própria, depois dos PRs da
+   fila e antes do lançamento se der tempo, num branch só dele: juntar os três
+   commits, resolver os 26 arquivos, conferir que com a configuração padrão a
+   cena de referência continua igual à Godot (o CI prova), ligar só em RTX pela
+   escolha por placa (item 1) e escolher entre o DLSS da NVIDIA (Vulkan) e o da
+   Erethea (D3D12) sem duplicar o Streamline. Risco: 218 arquivos do núcleo a
+   manter até a NVIDIA levar isso para a Godot (o que diminui quando ela
+   levar). O lavapipe tem pipeline de ray tracing, então o CI consegue provar
+   que o path tracer desenha.
+   Tentado em 25/11 (`git cherry-pick` dos três commits sobre o `main`, depois
+   de `git fetch --depth=5 https://github.com/NVIDIA-RTX/godot nvidia-pt-dlss`):
+   o "Miscellaneous" é quase todo a infraestrutura de CI da NVIDIA (ações do
+   GitHub copiadas em `.github/actions/changed-files/`, com 2 MB de
+   JavaScript, workflows próprios) e o SDK Aftermath (`drivers/aftermath/`), e
+   já conflita no CI (a base dela é um pouco mais antiga que a nossa nos
+   arquivos `.github`). Na integração, deixe de fora o `.github` e o
+   Aftermath, traga só o `thirdparty/streamline/` e o path tracer, e resolva
+   os arquivos de renderização com os trechos `// Erethea:`.
+   Segunda tentativa (25/11, já com o #36 no `main`): o "Miscellaneous" é só
+   `.github`, `.gitignore` e pre-commit (fica de fora inteiro); o
+   "Dependencies" entra limpo; o "Pathtracer + DLSS" dá **33 arquivos em
+   conflito**, muitos que a Erethea nem tocou (`godot_shape_3d.h`,
+   `visual_shader.cpp`, `light_3d.*`, `material.cpp`, `mesh_library.cpp`,
+   `shader_preprocessor.*`, `particles_storage.cpp`, `texture_storage.*`...),
+   porque a base da NVIDIA está noutro ponto do `master`. **Decisão (25/11):
+   fica para depois do lançamento**, ou para quando a NVIDIA levar o path
+   tracer para a Godot (aí ele chega na junção da Godot sem custo). No
+   lançamento, as RTX usam o ray tracing da própria Erethea (sombras, item 2).
+   Se for retomar: refaça o cherry-pick sobre a base da Godot que a NVIDIA usou
+   (`c3e6b2c0`, merge do PR #119319) num branch à parte, e só depois junte
+   esse branch no `main`, resolvendo apenas os conflitos com a Erethea.
 4. **Sombras**: cascatas melhores e sombras suaves por ray tracing (do item 2).
    **Sombra de contato: feita (PR da sombra de contato, 25/11)**, pedido nº 2
    da Fornalha junto com a pele. `EretheaContactShadows` em
@@ -767,6 +812,12 @@ revisados aqui antes do merge.
   causa é essa inicialização gráfica; se travar, a suspeita passa ao instalador (o Restart
   Manager do `/CLOSEAPPLICATIONS`, que pode querer fechar o Explorer, que
   segura o ícone do `erethea.exe`).
+  **25/11: travou de novo no #45** (passo "Update silently, like the editor
+  does" parado até o job ser cancelado aos 25 min; os passos anteriores
+  passaram). O experimento 2 não resolveu. Próximo experimento: tirar o
+  `/CLOSEAPPLICATIONS` (ou trocar por `/NOCLOSEAPPLICATIONS`) só no passo do
+  teste e contar de novo; se parar de travar, a correção vai para o
+  instalador de verdade, fechando o editor antes de instalar.
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
   um build novo, suba um commit.
 
