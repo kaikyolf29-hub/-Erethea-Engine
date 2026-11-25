@@ -35,44 +35,60 @@ e quem continua termina cada um (veja "Estado em 25/11", logo abaixo).
 ## Estado em 25/11 (leia antes de tudo)
 
 O trabalho voltou em 25/11 numa conta nova (a anterior é a da Fornalha 3D).
-Nenhuma sessão Sonnet está rodando.
 
-- **No `main`**: #25 (WAV da dublagem e eco por área), #26 (janela moderna nos
-  jogos), #27 (canal de testes da atualização), #28 e #30 (teste do instalador
-  e diagnóstico do crash do editor no CI), #29 (música que muda no fim do
-  compasso), #32 (raios de luz `EretheaLightShafts`), #33 (HANDOFF para outra
-  conta) e, desde 25/11, **#34 (sombras do sol por ray tracing)**, com o CI
-  inteiro verde.
-- **PR #31 (prévia com LibGodot), causa achada e corrigida, esperando o CI**
-  (branch `claude/erethea-libgodot-preview`). O programa de exemplo saía com
-  **0xE0464645** no Windows depois de destruir a instância e descarregar a
-  DLL. Esse é o código do "fail fast" do **CoreMessaging** do Windows (não há
-  texto oficial da Microsoft; relatos: o PR #1532 do `momo5502/sogen`, que
-  mostra o CoreMessaging encerrando o processo com esse código, e o DWM, que
-  sai com ele). Um fail fast não passa pelos manipuladores de exceção, por isso
-  o diagnóstico do programa não imprimiu nada. A engine cria um
-  `DispatcherQueueController` do CoreMessaging na thread principal
-  (`WinRTUtils::create_queue`, para as notificações). Na LibGodot do Windows,
-  diferente do `main()` da engine: (1) o controlador ficava num `ComPtr`
-  global depois de desligado e só era solto no destrutor estático, dentro do
-  `FreeLibrary`, com a trava do loader presa; (2) o `OS_Windows` nunca era
-  destruído, então `CoUninitialize` e `WinRTUtils::cleanup` não rodavam.
-  Correção no commit `a0db15db` (os dois pontos, com `// Erethea:`; o mesmo
-  defeito está na Godot, vale propor), e o job agora imprime os eventos
-  1000/1001/1026 do Windows quando o programa falha (`58706aa3`). Se o CI
-  passar inteiro, faça o merge. Se o job "LibGodot on Windows" falhar de novo,
-  leia os eventos impressos no log (módulo e deslocamento) e continue daí.
-- **Depois do #31**: fechar a Fase 3 (passo 5) e seguir a Fase 4, item 2,
-  "Próximo PR: personagens com esqueleto".
+- **No `main`**: #25 a #30, #32 e #33 (ver a tabela das fases), e desde 25/11
+  **#34 (sombras do sol por ray tracing)** e **#31 (prévia com LibGodot)**.
+  O #31 tinha a saída **0xE0464645** no Windows: é o "fail fast" do
+  **CoreMessaging** do Windows (sem texto oficial da Microsoft; relatos no PR
+  #1532 do `momo5502/sogen` e no DWM). Um fail fast não passa pelos
+  manipuladores de exceção. Na LibGodot do Windows, diferente do `main()` da
+  engine, o `DispatcherQueueController` (WinRT) era solto só no destrutor
+  estático, dentro do `FreeLibrary` com a trava do loader, e o `OS_Windows`
+  nunca era destruído (`CoUninitialize` não rodava). Corrigido nos dois
+  pontos com `// Erethea:` (`winrt_utils.cpp`, `libgodot_windows.cpp`); o mesmo
+  defeito está na Godot, vale propor.
+- **Fase 3 fechada** (passo 5): o "pronto quando" é provado no CI pelos testes
+  da ponte e do modo de teste; a prova com a Fornalha de verdade é do teste
+  final. O pedido nº 9 (embutir a prévia na Galeria) está na lista para a
+  Fornalha.
+- **PRs abertos, meus (sessão principal)**, nesta ordem de merge, cada um com o
+  `main` juntado antes:
+  - **#35** sombras por ray tracing dos personagens com esqueleto (branch
+    `claude/erethea-engine-continuation-2word6`);
+  - **#36** escolha por placa: upscaler `Automatic` e sombras por ray tracing
+    ligadas pelo preset (branch `claude/erethea-auto-gpu-choice`);
+  - **#37** sombra de contato na tela, em qualquer placa (branch
+    `claude/erethea-contact-shadows`).
+  Os três mexem em `modules/erethea_raytracing/` e no workflow da cena de
+  referência: depois de cada merge, junte o `main` no próximo, resolva (os
+  trechos são de funções e passos diferentes), rode os testes da Erethea e
+  espere o CI.
+- **Sessões Sonnet em paralelo** (abertas pela sessão principal em 25/11; se a
+  conta mudar, elas não existem mais e quem continua termina o PR delas):
+  - **terreno nativo, parte 1** (Fase 4, item 6): branch
+    `claude/erethea-terrain`, módulo `modules/erethea_terrain/`;
+  - **cabelo fio a fio** (Fase 4, item 5, pedido nº 1 da Fornalha): branch
+    `claude/erethea-hair-strands`, módulo `modules/erethea_materials/`. Os
+    fios chegam como arestas soltas (linhas) no `.glb`.
+  Revise cada uma antes do merge (veja "Como trabalhar com sessões em
+  paralelo").
+- **Próximos meus**, depois desses PRs: pele com subsuperfície melhor (resto do
+  pedido nº 2 da Fornalha), Fase 5 (geometria densa) e o estudo do path
+  tracing da NVIDIA (item 3). Os itens 7 (vegetação) e 8 (retarget) ficaram
+  com prioridade baixa: a Fornalha já faz a grama com vento (`principal.gd`) e
+  o retarget no Blender (`fc_retarget.py`).
 - **Falhas conhecidas do CI** ainda abertas: o travamento do passo "Update
-  silently" do instalador (experimento 2 no `main` desde o #30; conte as
-  execuções) e o crash 0xC0000409 do editor no teste da janela (diagnóstico
-  pronto; espere acontecer de novo e leia o evento/minidump). Detalhes em
-  "Falhas conhecidas do CI".
+  silently" do instalador (experimento 2 desde o #30: passou também no CI do
+  #34 e duas vezes no do #31 em 25/11; conte mais algumas) e o crash
+  0xC0000409 do editor no teste da janela (diagnóstico pronto; espere
+  acontecer de novo e leia o evento/minidump). Detalhes em "Falhas conhecidas
+  do CI".
 - **Lições**: o build local sem `dev_mode=yes` não pega avisos que o CI trata
-  como erro; compile os objetos mudados com `dev_mode=yes`. Arquivos só do
-  Windows também dá para compilar aqui com o MinGW (veja "Como compilar e
-  testar").
+  como erro, e trocar o `dev_mode` refaz o build inteiro (23 min); compile
+  sempre com `dev_mode=yes`. Arquivos só do Windows também compilam aqui com o
+  MinGW (veja "Como compilar e testar"). Para provar que um teste pega a
+  falha sem deixar função sem uso (aviso vira erro), mude a condição (por
+  exemplo `if (!x || true)`) em vez de apagar a chamada.
 
 ## O que é a Erethea
 
@@ -121,8 +137,8 @@ As fases e o "pronto quando" de cada uma vêm do Plano 2.
 | 0 · Fork e marca | O instalador com o nome novo abre um projeto da Godot sem erro | Pronta (PR #3) |
 | 1 · Janela nativa | O editor não tem mais a barra do sistema e encaixa nas bordas do Windows 11 | Pronta (PR #4 barra de título, PR #5 atualização automática; extras: janela moderna nos jogos #26 e canal de testes da atualização #27). Falta só a assinatura (no lançamento) |
 | 2 · Visual rápido | A cena de referência fica visivelmente melhor que na Godot padrão, no mesmo FPS | Pronta (PRs #6 a #14: cena de referência, presets, pós-processamento, AMD FSR 3.1/4, XeSS, DLSS, streaming de texturas) |
-| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Quase pronta: MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24) e o bloco de som (#25, #29; a boca é da Fornalha) no `main`. Falta a prévia com LibGodot (PR #31) e fechar a fase (passo 5) |
-| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32) e sombras do sol por ray tracing (#34) no `main`; próximo: sombras dos personagens com esqueleto (item 2) |
+| 3 · Ponte com a Fábrica | Um personagem vindo do Plano 1 aparece na cena sozinho e anda | Pronta (25/11): MCP (#15), validações (#16), logo (#17), importador do `game.project.json` (#18), elo ao vivo (#19), modo de teste (#20), painel de IA (#22, #24), bloco de som (#25, #29; a boca é da Fornalha) e prévia com LibGodot (#31). A prova com a Fornalha de verdade é do teste final |
+| 4 · Visual avançado | A cena roda com ray tracing numa placa RTX e sem ele numa placa sem suporte | Em andamento: raios de luz (#32) e sombras do sol por ray tracing (#34) no `main`; personagens com esqueleto (#35), escolha por placa (#36) e sombra de contato (#37) em PR; terreno e cabelo fio a fio com sessões Sonnet |
 | 5 · Geometria densa | Um modelo de milhões de polígonos roda sem LOD feito à mão | Não começou |
 
 ## O que fazer agora (na ordem)
