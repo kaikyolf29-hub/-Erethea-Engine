@@ -4,6 +4,9 @@ name: 🔥 Erethea window stress (investigation)
 on:
   push:
     branches: [claude/erethea-window-stress]
+    paths:
+      - ".github/workflows/erethea_window_stress.yml"
+      - "erethea/tests/window/editor_stress.ps1"
 
 permissions:
   actions: read

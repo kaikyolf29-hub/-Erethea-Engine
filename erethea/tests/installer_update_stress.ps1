@@ -13,7 +13,10 @@ param(
 	[switch]$NoReopen,
 	# No installer: only starts the installed editor (the project manager, with
 	# the default renderer, as the installer does) and stops it.
-	[switch]$EditorOnly
+	[switch]$EditorOnly,
+	# Before each update, uninstall, install again and open a project with the
+	# installed editor, as the installer test does before its one update.
+	[string]$FreshInstallProject = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +40,17 @@ if ($EditorOnly) {
 }
 
 for ($i = 1; $i -le $Runs; $i++) {
+	if ($FreshInstallProject -ne "") {
+		$uninstaller = Join-Path $Dir "unins000.exe"
+		if (Test-Path $uninstaller) {
+			Start-Process -Wait -FilePath $uninstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" | Out-Null
+		}
+		$p = Start-Process -Wait -PassThru -FilePath $Setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$Dir`""
+		Write-Output "$(Get-Date -Format o) INSTALLED again (exit code $($p.ExitCode))"
+		& $exe --headless --import --path $FreshInstallProject 2>&1 | Out-Null
+		& $exe --headless --path $FreshInstallProject 2>&1 | Out-Null
+		Write-Output "$(Get-Date -Format o) opened the project with the installed editor"
+	}
 	Write-Output "$(Get-Date -Format o) UPDATE $i$close$update"
 	Get-CimInstance Win32_Process | Where-Object { $_.Name -like "erethea*" -or $_.Name -like "*setup*" -or ($_.ExecutablePath -and $_.ExecutablePath -like "$Dir*") } |
 		Format-Table ProcessId, ParentProcessId, Name, ExecutablePath -AutoSize | Out-String -Width 300

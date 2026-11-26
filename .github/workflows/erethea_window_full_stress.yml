@@ -1,0 +1,77 @@
+name: 🔥 Erethea window test many times (investigation)
+# Investigation only, on its own branch: runs the whole window test
+# (title_bar_test.ps1) many times, each on a fresh copy of the project and
+# without the editor's data, with ProcDump on the editor, to catch the fast
+# fail (0xC0000409) in a dump. Not part of the CI.
+on:
+  push:
+    branches: [claude/erethea-window-stress]
+    paths:
+      - ".github/workflows/erethea_window_full_stress.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  window:
+    runs-on: windows-latest
+    name: Window test many times (${{ matrix.shard }})
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download the Windows editor of main
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-editor
+          path: bin
+          run-id: 45706536850
+          github-token: ${{ github.token }}
+
+      - name: Run the window test many times
+        shell: pwsh
+        run: |
+          $procdump = Join-Path $env:RUNNER_TEMP "procdump"
+          Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile "$procdump.zip"
+          Expand-Archive "$procdump.zip" -DestinationPath $procdump -Force
+          $root = Join-Path $env:RUNNER_TEMP "full"
+          $crashes = 0
+          for ($i = 1; $i -le 8; $i++) {
+            $out = Join-Path $root ("run{0:D2}" -f $i)
+            $project = Join-Path $root ("project{0:D2}" -f $i)
+            Copy-Item -Recurse -Path erethea/tests/smoke_project -Destination $project
+            Remove-Item -Recurse -Force (Join-Path $env:APPDATA "Erethea") -ErrorAction SilentlyContinue
+            $log = Join-Path $root ("run{0:D2}.log" -f $i)
+            & pwsh -NoProfile -File ./erethea/tests/window/title_bar_test.ps1 `
+              -ProcDump (Join-Path $procdump "procdump64.exe") `
+              -Editor (Resolve-Path bin/erethea.windows.editor.x86_64.exe) `
+              -Project $project `
+              -GameProject (Resolve-Path erethea/tests/window/game_project) `
+              -OutDir $out *> $log
+            $code = $LASTEXITCODE
+            $crash = Select-String -Path $log -Pattern "-1073740791|C0000409" -Quiet
+            Write-Output ("RUN {0:D2}: exit code {1}, fast fail: {2}" -f $i, $code, $crash)
+            if ($crash) {
+              $crashes++
+              Get-Content $log | Select-String -Pattern "ERROR|exited|C0000409|procdump" | Select-Object -First 20
+            } else {
+              Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue
+            }
+            Remove-Item -Recurse -Force $project -ErrorAction SilentlyContinue
+          }
+          Write-Output "FAST FAILS $crashes of 8"
+
+      - name: Upload the runs that crashed
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-window-full-stress-${{ matrix.shard }}
+          path: ${{ runner.temp }}/full
+          retention-days: 14
+          if-no-files-found: ignore

@@ -21,11 +21,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Experiment of 26/11: the update without /CLOSEAPPLICATIONS hung too.
-        # Now: an update that doesn't start the editor again, against only
-        # starting the installed editor, with no installer.
-        mode: [no-reopen, editor-only]
-        shard: [1, 2]
+        # Experiments of 26/11: the update without /CLOSEAPPLICATIONS hung too,
+        # once in about 80; an update that doesn't start the editor again and
+        # only starting the installed editor never did. Now: a fresh install
+        # (and the first use of the editor) before each update, as in the CI.
+        mode: [fresh-install]
+        shard: [1, 2, 3]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -62,6 +63,7 @@ jobs:
           $arguments.CloseApplications = $true
           if ("${{ matrix.mode }}" -eq "no-reopen") { $arguments.NoReopen = $true }
           if ("${{ matrix.mode }}" -eq "editor-only") { $arguments.EditorOnly = $true; $arguments.Runs = 20 }
+          if ("${{ matrix.mode }}" -eq "fresh-install") { $arguments.FreshInstallProject = (Resolve-Path erethea/tests/smoke_project).Path; $arguments.Runs = 8 }
           ./erethea/tests/installer_update_stress.ps1 @arguments
 
       - name: Upload the installer's logs
