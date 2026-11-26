@@ -37,34 +37,34 @@ for ($i = 1; $i -le $Runs; $i++) {
 	Start-Sleep -Seconds 1
 
 	$start = Get-Date
-	$editor = Start-Process -FilePath $Editor -ArgumentList (@("--editor", "--verbose", "--path", $dir) + $renderer) -PassThru `
+	$process = Start-Process -FilePath $Editor -ArgumentList (@("--editor", "--verbose", "--path", $dir) + $renderer) -PassThru `
 		-RedirectStandardOutput (Join-Path $run "editor.log") -RedirectStandardError (Join-Path $run "editor.err.log")
 	$dumps = Join-Path $run "dumps"
 	New-Item -ItemType Directory -Force -Path $dumps | Out-Null
 	# -e: on an unhandled (second chance) exception, which is how a fast fail
 	# reaches a debugger.
-	$pd = Start-Process -FilePath $ProcDump -ArgumentList "-accepteula", "-mp", "-e", $editor.Id, $dumps -PassThru -WindowStyle Hidden `
+	$pd = Start-Process -FilePath $ProcDump -ArgumentList "-accepteula", "-mp", "-e", $process.Id, $dumps -PassThru -WindowStyle Hidden `
 		-RedirectStandardOutput (Join-Path $run "procdump.log") -RedirectStandardError (Join-Path $run "procdump.err.log")
 
 	$deadline = $start.AddSeconds($Seconds)
-	while (-not $editor.HasExited -and (Get-Date) -lt $deadline) {
+	while (-not $process.HasExited -and (Get-Date) -lt $deadline) {
 		Start-Sleep -Milliseconds 250
 	}
 	$crashed = $false
-	if ($editor.HasExited) {
-		$code = $editor.ExitCode
+	if ($process.HasExited) {
+		$code = $process.ExitCode
 		$after = ((Get-Date) - $start).TotalSeconds
 		Write-Output ("RUN {0:D2} (fresh: {1}): the editor exited with code 0x{2:X8} after {3:N1} s" -f $i, $fresh, $code, $after)
 		$crashed = $code -ne 0
 	} else {
 		Write-Output ("RUN {0:D2} (fresh: {1}): still running after {2} s" -f $i, $fresh, $Seconds)
-		Stop-Process -Id $editor.Id -Force
+		Stop-Process -Id $process.Id -Force
 	}
 	# ProcDump writes the dump and ends with the process.
-	for ($w = 0; $w -lt 40 -and -not $pd.HasExited; $w++) {
+	for ($w = 0; $w -lt 40 -and $pd -and -not $pd.HasExited; $w++) {
 		Start-Sleep -Milliseconds 500
 	}
-	if (-not $pd.HasExited) { Stop-Process -Id $pd.Id -Force }
+	if ($pd -and -not $pd.HasExited) { Stop-Process -Id $pd.Id -Force -ErrorAction SilentlyContinue }
 
 	if ($crashed) {
 		$crashes++
