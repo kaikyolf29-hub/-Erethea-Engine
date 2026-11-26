@@ -99,24 +99,49 @@ Fornalha) basta numa placa, de preferência a RTX.
 
 ## 10. Teste conjunto com a Fornalha 3D
 
-1. Instale a Fornalha 3D de desktop e aponte para a Erethea (ela acha em
-   `%LOCALAPPDATA%\Erethea`).
-2. Peça por um prompt um jogo curto: um personagem que anda e ataca, um
-   cenário com vila e floresta, um inimigo, efeitos, música e dublagem.
-3. Abra o projeto na Erethea: as cenas se montam sozinhas, o personagem anda,
-   a música troca no combate, a fala tem eco na caverna.
-4. Confira que o projeto ganhou as configurações da Erethea (o `project.godot`
+A Fornalha de 26/11 já tem a Erethea como engine padrão. Use a versão mais nova
+dela (o roteiro da própria Fornalha, `TESTE_DO_CRIADOR.md` no repositório dela,
+cobre as bancadas por dentro; aqui fica o que é da Erethea).
+
+1. Instale a Fornalha 3D de desktop. Em **Máquina → Programas**, a Erethea
+   aparece achada em `%LOCALAPPDATA%\Erethea`, com a versão.
+2. Peça por um prompt um jogo curto: um personagem que anda e ataca, um mapa
+   com vila, floresta e estrada (pela bancada de mapa), um inimigo, efeitos,
+   música, dublagem e uma cena curta.
+3. **Com a Erethea fechada**, mande montar (**Montar na engine**) e depois
+   **Rodar teste**. **Esperado:** o relatório diz
+   `fornalha + erethea --agent-test`, "passou" e 0 erros (os dois testes
+   juntos: o da Fornalha anda com o jogador, o da Erethea mede desempenho e
+   avisos).
+4. Abra o projeto na Erethea e aperte F5. O mapa aparece com relevo, rio,
+   estradas, vegetação e a vila; o personagem anda sem cair; a música troca no
+   combate; a fala sai da cabeça de quem fala, com a boca mexendo; a cena curta
+   toca com os personagens certos.
+5. **Agora com a Erethea aberta no projeto**, peça na Fornalha uma mudança (um
+   inimigo novo, ou gerar o mapa de novo) e monte. **Esperado:** sem fechar
+   nada, a cena se atualiza sozinha no editor e o mapa continua lá. O relatório
+   da montagem (no editor: *Projeto › Ferramentas › Build Scenes from
+   game.project.json...*) diz que as cenas foram feitas pelo `montar.gd` da
+   Fornalha. Se o mapa sumir ou o inimigo novo não aparecer, anote: é a ponte.
+6. Confira que o projeto ganhou as configurações da Erethea (o `project.godot`
    passa a ter `erethea/quality_preset=4`, entre outras) e que o jogo roda com
    a escolha pela placa do passo 3: sombras por ray tracing na RTX, sombra de
    contato na RX 580, olhos e cabelo com o brilho do passo 6.
-5. Na Galeria da Fornalha, a prévia do asset mostra o modelo com o
+7. Abra a pasta do projeto: tem o `AGENTS.md` (e o `CLAUDE.md`) que a Fornalha
+   grava para qualquer IA. Abra o Claude Code nessa pasta e peça uma mudança
+   pequena no jogo; ele usa os dois servidores MCP (Fornalha na porta 11480,
+   Erethea na 11481).
+8. Na Galeria da Fornalha, a prévia do asset mostra o modelo com o
    renderizador da Erethea (pedido nº 9; só se a Fornalha já tiver feito).
-6. Procure falhas e o que pode melhorar; anote tudo.
+9. Procure falhas e o que pode melhorar; anote tudo.
 
 ## 11. Atualização
 
-1. Com uma versão nova publicada no GitHub, abra a Erethea: ela avisa da
-   versão nova e atualiza sozinha, reabrindo o editor.
+1. Com uma versão nova publicada no GitHub (a 1.0.1 saiu em 26/11; se você
+   instalou a 1.0.0, ela serve para isso), abra a Erethea: o gerenciador de
+   projetos avisa da versão nova; clique no aviso, e ela baixa, instala por
+   cima sem perguntas e reabre. Se falhar, mande o
+   `%TEMP%\erethea-update.log`.
 
 ## O que mandar de volta
 
