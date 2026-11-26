@@ -708,6 +708,26 @@ Pedidos da Erethea Engine para a Fornalha 3D (26/11):
 13. AGENTS.md: o servidor MCP da Erethea agora liga sozinho nos projetos da Fornalha (com game.project.json), na porta 11481. Pode tirar do guia o "ligue em Configurações do Editor › Erethea › MCP"; para desligar num projeto, editor/erethea_fornalha/mcp_server = false no project.godot.
 ```
 
+**Conferido em 26/11 na Fornalha de 08:28 UTC** (commit `1320beb`): os pedidos 10
+(projeto do "ola" em `engine_monta_cenas`), 11 (linha `FORNALHA_MONTAR`) e 12
+(`directional_shadow_blend_splits` no sol do mapa) estão feitos. O visual anime
+novo dela (`guia_visual.render = "anime"`, `anime.gdshader` e
+`contorno.gdshader`) também vale nas cenas que a Erethea monta: o
+`principal.gd` acha o nó `Mundo`, e os personagens trocam o material pelos
+scripts da Fornalha. Pedidos mandados ao Kaiky em seguida:
+
+```text
+Pedidos da Erethea Engine para a Fornalha 3D (26/11, depois da Fornalha de 08:28 UTC):
+
+Conferi no código de vocês os pedidos 10, 11 e 12 (projeto do "ola", linha FORNALHA_MONTAR e blend_splits no sol do mapa): estão certos. O visual anime também funciona nas cenas que a Erethea monta.
+
+13. AGENTS.md (guia.rs, linha da Erethea): desde a Erethea 1.0.2, o servidor MCP do editor liga sozinho nos projetos com game.project.json, na porta 11481. Troque "(ligue em Configurações do Editor › Erethea › MCP, ou ERETHEA_MCP_PORT=11481)" por "(liga sozinho quando o projeto abre na Erethea 1.0.2 ou mais nova; noutra porta, ERETHEA_MCP_PORT=<porta>; para desligar num projeto, editor/erethea_fornalha/mcp_server=false no project.godot)".
+
+14. A Erethea tem instalador publicado: https://github.com/kaikyolf29-hub/-Erethea-Engine/releases/latest/download/erethea-setup-x86_64.exe (Windows 64 bits, sem assinatura por enquanto). Instala sem perguntas com: erethea-setup-x86_64.exe /VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART /DIR="<pasta>" (o executável de linha de comando é <pasta>\erethea.console.exe; sem /DIR fica em %LOCALAPPDATA%\Erethea, onde a Fornalha já procura). O SHA-256 de cada versão está no campo "digest" do asset em https://api.github.com/repos/kaikyolf29-hub/-Erethea-Engine/releases/latest. Sugestões: (a) no CI do Windows da Fornalha, instalar a Erethea assim e rodar os testes de engine também nela (FORNALHA_TESTE_ERETHEA), para pegar cedo qualquer quebra da ponte; (b) em Máquina → Programas, um "Baixar" da Erethea como o do Blender e da Godot, conferindo esse SHA-256. E o ESTADO.md ainda diz que não há build da Erethea para baixar.
+
+15. Para saber: num projeto com o mapa da bancada (World/mapa/mapa.json) e a Erethea aberta nele, a Erethea monta as cenas rodando o próprio Scripts/fornalha/montar.gd do projeto sem janela (--headless --path <projeto> --script res://Scripts/fornalha/montar.gd), como a Fornalha faz. O montar.gd tem que continuar rodando assim, sem depender de nada que só a Fornalha passa por fora (variável de ambiente ou argumento).
+```
+
 A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md
 dela (cabelo fio a fio, pele, geometria virtual, terreno, FSR, névoa de altura e
 raios de luz); esses pedidos estão nas Fases 4 e 5 acima. A Fornalha acha a
