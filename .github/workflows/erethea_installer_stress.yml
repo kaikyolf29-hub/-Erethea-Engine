@@ -16,12 +16,15 @@ permissions:
 jobs:
   update:
     runs-on: windows-latest
-    name: Updates (${{ matrix.close && 'with' || 'without' }} /CLOSEAPPLICATIONS, ${{ matrix.shard }})
+    name: ${{ matrix.mode }} (${{ matrix.shard }})
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        close: [true, false]
+        # Experiment of 26/11: the update without /CLOSEAPPLICATIONS hung too.
+        # Now: an update that doesn't start the editor again, against only
+        # starting the installed editor, with no installer.
+        mode: [no-reopen, editor-only]
         shard: [1, 2]
     steps:
       - name: Checkout
@@ -56,14 +59,16 @@ jobs:
             Dir = $env:ERETHEA_DIR
             OutDir = (Join-Path $env:RUNNER_TEMP "updates")
           }
-          if ("${{ matrix.close }}" -eq "true") { $arguments.CloseApplications = $true }
+          $arguments.CloseApplications = $true
+          if ("${{ matrix.mode }}" -eq "no-reopen") { $arguments.NoReopen = $true }
+          if ("${{ matrix.mode }}" -eq "editor-only") { $arguments.EditorOnly = $true; $arguments.Runs = 20 }
           ./erethea/tests/installer_update_stress.ps1 @arguments
 
       - name: Upload the installer's logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: erethea-installer-stress-${{ matrix.close }}-${{ matrix.shard }}
+          name: erethea-installer-stress-${{ matrix.mode }}-${{ matrix.shard }}
           path: ${{ runner.temp }}/updates
           retention-days: 14
           if-no-files-found: ignore

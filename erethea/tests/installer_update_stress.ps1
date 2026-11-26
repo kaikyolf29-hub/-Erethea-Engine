@@ -8,22 +8,42 @@ param(
 	[Parameter(Mandatory = $true)][string]$Dir,
 	[Parameter(Mandatory = $true)][string]$OutDir,
 	[int]$Runs = 10,
-	[switch]$CloseApplications
+	[switch]$CloseApplications,
+	# Without /update=1: the installer doesn't start the editor again.
+	[switch]$NoReopen,
+	# No installer: only starts the installed editor (the project manager, with
+	# the default renderer, as the installer does) and stops it.
+	[switch]$EditorOnly
 )
 
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $exe = [IO.Path]::GetFullPath((Join-Path $Dir "erethea.exe"))
 $close = if ($CloseApplications) { " /CLOSEAPPLICATIONS" } else { "" }
+$update = if ($NoReopen) { "" } else { " /update=1" }
+
+if ($EditorOnly) {
+	for ($i = 1; $i -le $Runs; $i++) {
+		$start = Get-Date
+		Write-Output "$(Get-Date -Format o) EDITOR $i"
+		$process = Start-Process -FilePath $exe -PassThru
+		Start-Sleep -Seconds 4
+		Write-Output ("      running: {0}, after {1:N1} s" -f (-not $process.HasExited), ((Get-Date) - $start).TotalSeconds)
+		Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+		Start-Sleep -Seconds 1
+	}
+	Write-Output "$(Get-Date -Format o) DONE"
+	exit 0
+}
 
 for ($i = 1; $i -le $Runs; $i++) {
-	Write-Output "$(Get-Date -Format o) UPDATE $i$close"
+	Write-Output "$(Get-Date -Format o) UPDATE $i$close$update"
 	Get-CimInstance Win32_Process | Where-Object { $_.Name -like "erethea*" -or $_.Name -like "*setup*" -or ($_.ExecutablePath -and $_.ExecutablePath -like "$Dir*") } |
 		Format-Table ProcessId, ParentProcessId, Name, ExecutablePath -AutoSize | Out-String -Width 300
 	$log = Join-Path $OutDir "update-$i.log"
 	$info = New-Object System.Diagnostics.ProcessStartInfo
 	$info.FileName = $Setup
-	$info.Arguments = "/SILENT /SUPPRESSMSGBOXES /NORESTART$close /update=1 /LOG=`"$log`""
+	$info.Arguments = "/SILENT /SUPPRESSMSGBOXES /NORESTART$close$update /LOG=`"$log`""
 	$info.UseShellExecute = $true
 	$start = Get-Date
 	$p = [System.Diagnostics.Process]::Start($info)
@@ -44,7 +64,7 @@ for ($i = 1; $i -le $Runs; $i++) {
 			$exited = Get-Date
 			Write-Output ("      the installer finished with exit code {0} after {1:N1} s" -f $p.ExitCode, ($exited - $start).TotalSeconds)
 		}
-		if ($exited -and ($editor -or (Get-Date) -gt $exited.AddSeconds(60))) {
+		if ($exited -and ($editor -or $NoReopen -or (Get-Date) -gt $exited.AddSeconds(60))) {
 			break
 		}
 		if ((Get-Date) -gt $deadline) {
