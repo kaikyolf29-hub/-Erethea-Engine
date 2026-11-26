@@ -60,8 +60,10 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   **Release `v1.0.1`** (com o #54) publicado em 26/11 às 06:17 UTC, do `main`
   em `e281105` (instalador de 102,6 MB, SHA-256
   `35af1052a6f8b1244ad0fdf210df9379e6b324657fc24b8babb75cba9a45d0ad`).
-  **Release `v1.0.2`** (com o #56) pedido em seguida ao workflow com
-  *publish*, do `main` em `82a59dd`; confira em "Releases" que saiu.
+  **Release `v1.0.2`** (com o #56) publicado às 07:40 UTC, do `main` em
+  `82a59dd` (instalador de 102,7 MB, SHA-256
+  `82f5b737ea80a519c596f159d445eb2a2e01f1354e79697c0b00c7f63d286f9f`). É a
+  versão para o teste do Kaiky; a 1.0.1 instalada avisa dela e atualiza.
 - **Fornalha conferida em 26/11** (branch `claude/eloquent-brahmagupta-75ilfh`,
   15 commits depois do padrão): a Erethea virou a engine principal dela, que
   ganhou a bancada de mapa (`World/mapa`), cenas curtas (`CenasCurtas`) e roda
