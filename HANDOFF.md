@@ -17,20 +17,25 @@ Depois cole:
 Você vai continuar a Erethea Engine, o fork da Godot do repositório
 kaikyolf29-hub/-Erethea-Engine. Leia primeiro o HANDOFF.md (na raiz do main;
 se um PR aberto do Claude mexe no HANDOFF.md, o do branch dele é mais novo),
-depois o CLAUDE.md e o erethea/README.md. Siga o passo a passo do HANDOFF.md a
-partir de "O que fazer agora", na ordem, até a última fase e o lançamento.
+depois o CLAUDE.md e o erethea/README.md. A Erethea já foi lançada (veja os
+releases no GitHub e o "Estado" no começo do HANDOFF.md): continue a partir dos
+"Próximos passos" desse Estado, na ordem. Se eu mandar o relatório do meu
+teste (erethea/TESTE_DO_CRIADOR.md), corrija primeiro o que ele apontar.
 Trabalhe sozinho: um PR pequeno por tarefa, testes passando antes do merge, e
 você mesmo faz o merge no main quando o CI inteiro passar (nunca com o CI
-vermelho). Não me peça para testar versões intermediárias: eu só testo o
-instalador final. Só me chame para decisões que mudam o plano ou para coisas
-que só eu posso fazer (contas, pagamentos, placa de vídeo). Fale comigo em
-português do Brasil. Ao terminar cada PR, atualize o HANDOFF.md com o que
-mudou.
+vermelho). Versões novas saem pelo workflow "🔥 Erethea Release" rodado à mão
+no main com a versão e "publish" (erethea/README.md, "Lançar uma versão").
+Não me peça para testar versões intermediárias: eu só testo o instalador.
+Só me chame para decisões que mudam o plano ou para coisas que só eu posso
+fazer (contas, pagamentos, placa de vídeo). Fale comigo em português do
+Brasil. Ao terminar cada PR, atualize o HANDOFF.md com o que mudou.
 ```
 
 Na conta nova, as sessões do Claude Code desta conta (inclusive as sessões
-Sonnet que ajudavam em paralelo) não existem: os PRs abertos ficam no GitHub,
-e quem continua termina cada um (veja "Estado em 25/11", logo abaixo).
+Sonnet que ajudavam em paralelo) e os lembretes agendados não existem: os PRs
+abertos ficam no GitHub, e quem continua termina cada um (veja o "Estado",
+logo abaixo). A conversa em si não passa de uma conta para outra; o que
+importa dela está neste arquivo.
 
 ## Estado em 25/11, noite: 1.0.0 lançada (leia antes de tudo)
 
