@@ -14,6 +14,8 @@ the scenes with the build_fornalha_scenes tool, as an agent would: the first
 build makes them and keeps principal.tscn, a second one changes nothing, a
 forced one replaces principal.tscn and keeps a copy, and a scene changed by
 hand is kept. Last, it runs the game without a window and walks the player.
+At the end, the world becomes one of the Fornalha's map bench (World/mapa):
+the build runs a stand-in for the Fornalha's montar.gd, which builds it.
 
     python erethea/tests/fornalha_import/test_fornalha_import.py <editor executable> [--out <folder>]
 """
@@ -338,6 +340,9 @@ def build_checks(mcp, project):
     check('path="res://Characters/heroi/heroi.glb"' in character, "the character scene uses the model's file")
     check('path="res://Scripts/fornalha/jogador.gd"' in character, "the player has the Fornalha's player script")
     check('[node name="BracoCamera"' in character, "the player has its camera")
+    # As in the Fornalha's own scenes: Sons.falar() and the cutscenes find the character by these.
+    check('groups=["personagens"]' in character, "the player is in the group of characters")
+    check('metadata/fornalha_id = "heroi"' in character, "with its id")
     enemy = (project / "Enemies/lobo/lobo.tscn").read_text(encoding="utf-8")
     check('path="res://Scripts/fornalha/inimigo.gd"' in enemy, "the enemy has the Fornalha's enemy script")
     forest = (project / "World/areas/floresta.tscn").read_text(encoding="utf-8")
@@ -524,6 +529,51 @@ def terrain_checks(editor, project, out, port, timeout):
         check(all(found[file] == "unchanged" for file in SCENES[:-1] + TERRAIN_FILES), "then nothing changes")
 
 
+# Plays the Fornalha's montar.gd, which builds the world of its map bench.
+MAP_ASSEMBLY = """extends SceneTree
+
+
+func _init() -> void:
+	var world := Node3D.new()
+	world.name = "Mundo"
+	var mark := Node3D.new()
+	mark.name = "MapaDaFornalha"
+	world.add_child(mark)
+	mark.owner = world
+	var scene := PackedScene.new()
+	scene.pack(world)
+	ResourceSaver.save(scene, "res://World/mundo.tscn")
+	world.free()
+	print("FORNALHA_MONTAR ", JSON.stringify({"ok": true, "cenas": ["res://World/mundo.tscn"], "erros": []}))
+	quit(0)
+"""
+
+
+def map_checks(editor, project, out, port, timeout):
+    """A world from the Fornalha's map bench: the Fornalha's montar.gd builds it."""
+    print("With the Fornalha's map")
+    (project / "World/mapa").mkdir(parents=True, exist_ok=True)
+    (project / "World/mapa/mapa.json").write_text(json.dumps({"tamanho_m": 64, "arquivos": {}}), encoding="utf-8")
+    (project / "Scripts/fornalha/montar.gd").write_text(MAP_ASSEMBLY, encoding="utf-8")
+    with editor_session(editor, project, out / "editor_map.log", port, timeout) as mcp:
+        report = mcp.data("build_fornalha_scenes")
+        found = results(report)
+        check(report["ok"], "nothing failed")
+        check(found == {"res://World/mundo.tscn": "updated"}, "the scenes are the ones montar.gd says it built")
+        world = (project / "World/mundo.tscn").read_text(encoding="utf-8")
+        check('[node name="MapaDaFornalha"' in world, "the world is the one montar.gd made")
+        record = json.loads((project / ".erethea/fornalha_import.json").read_text(encoding="utf-8"))
+        check(
+            record.get("assembled_by") == "res://Scripts/fornalha/montar.gd", "and the record says montar.gd built it"
+        )
+    (project / "Scripts/fornalha/montar.gd").unlink()
+    with editor_session(editor, project, out / "editor_map_no_script.log", port, timeout) as mcp:
+        _, text = mcp.call("build_fornalha_scenes", None, True)
+        check("montar.gd" in text, "without montar.gd, the build says why")
+        world = (project / "World/mundo.tscn").read_text(encoding="utf-8")
+        check('[node name="MapaDaFornalha"' in world, "and leaves the map's world as it was")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("editor")
@@ -625,6 +675,7 @@ def main():
             )
 
         terrain_checks(editor, project, out, args.port, args.timeout)
+        map_checks(editor, project, out, args.port, args.timeout)
 
     except Failure as failure:
         print(f"\nFAILED: {failure}\nLogs in {out}")

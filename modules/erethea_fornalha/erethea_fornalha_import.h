@@ -106,11 +106,19 @@ struct EretheaFornalhaProject {
 	bool enemy_near = false; // An extra enemy in front of the player, for tests.
 	String music;
 	String sky;
+	// The folder of the map, when the Fornalha's map bench made the world
+	// (World/mapa, with its mapa.json): then the Fornalha's montar.gd builds
+	// the scenes, and the models in it are the map's.
+	String map_folder;
+	Vector<String> map_models;
 	// The music of each situation, by file name.
 	Vector<EretheaFornalhaMusic> music_tracks;
 	Vector<String> warnings;
 
 	static EretheaFornalhaProject read();
+	// The folder of the Fornalha's map that .fornalha/cena.json names, or
+	// World/mapa; empty when it has no mapa.json.
+	static String find_map_folder(const Dictionary &p_scene_manifest);
 
 	// Changes when anything the scenes are built from changes, such as a new
 	// character or a model the Fornalha made again.
@@ -171,6 +179,14 @@ public:
 	static constexpr const char *MAIN_SCENE = "res://principal.tscn";
 	static constexpr const char *WORLD_SCENE = "res://World/mundo.tscn";
 	static constexpr const char *SCRIPTS_FOLDER = "res://Scripts/fornalha";
+	static constexpr const char *SCENE_MANIFEST = "res://.fornalha/cena.json";
+	static constexpr const char *MAP_FOLDER = "res://World/mapa";
+	// The Fornalha's own assembly, which it writes into each project.
+	static constexpr const char *ASSEMBLY_SCRIPT = "res://Scripts/fornalha/montar.gd";
+	// Sons.falar() and the cutscenes of the Fornalha find a character by its
+	// group and this id, also once renamed in a scene (lobo_01...).
+	static constexpr const char *CHARACTERS_GROUP = "personagens";
+	static constexpr const char *CHARACTER_ID_META = "fornalha_id";
 	static constexpr const char *SETTING_LOOPING_ANIMATIONS = "editor/erethea_fornalha/looping_animations";
 	static constexpr const char *SETTING_BUILD_AUTOMATICALLY = "editor/erethea_fornalha/build_automatically";
 	static constexpr const char *SETTING_LIVE_LINK = "editor/erethea_fornalha/live_link";
@@ -202,7 +218,19 @@ public:
 	// Build by itself when what the scenes come from changed since the last
 	// build. Before the first build, only in a project with no main scene yet:
 	// one whose scenes the Fornalha assembles waits for someone to build once.
-	static bool should_build_automatically(bool p_built_before, const String &p_built_signature, const String &p_signature, bool p_main_scene_exists);
+	// A project with the Fornalha's map is built by its montar.gd, which makes
+	// every scene the same way the Fornalha does, so it doesn't wait.
+	static bool should_build_automatically(bool p_built_before, const String &p_built_signature, const String &p_signature, bool p_main_scene_exists, bool p_has_map = false);
+	// Whether the editor builds this project's scenes by itself, and so tells
+	// the Fornalha that it doesn't need to run its montar.gd ("monta_cenas").
+	static bool builds_scenes_automatically(bool p_built_before, bool p_main_scene_exists, bool p_has_map);
+	// The same, for the project open in the editor and its settings.
+	static bool builds_scenes_automatically();
+	// What the Fornalha's montar.gd printed: the line
+	// FORNALHA_MONTAR {"ok": ..., "cenas": [...], "erros": [...]}. Adds a
+	// result per scene (created when it wasn't in p_existed_before) and one
+	// that failed for its errors. Returns false when the line is missing.
+	static bool read_assembly_output(const String &p_output, const Vector<String> &p_existed_before, Report &r_report);
 	static bool was_built_before();
 	static String get_built_signature();
 	static String get_action_name(Action p_action);
@@ -245,5 +273,8 @@ public:
 	// With interactive music, r_music_clips gets the situations the Musica node can play.
 	static Node *make_main(const EretheaFornalhaProject &p_project, Vector<String> &r_warnings, Vector<String> *r_music_clips = nullptr);
 
+	// Builds the scenes. In a project with the Fornalha's map, by running its
+	// montar.gd without a window, as the Fornalha does (p_force changes nothing
+	// there: montar.gd makes every scene again).
 	static Report build(bool p_force = false);
 };

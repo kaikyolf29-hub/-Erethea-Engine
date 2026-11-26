@@ -83,6 +83,8 @@ private:
 	Timer *build_timer = nullptr;
 	String checked_signature;
 	int import_waits = 0;
+	// What the last "ola" told the Fornalha: whether the editor builds the scenes.
+	bool told_builds_scenes = false;
 
 	void _start();
 	void _settings_changed();
@@ -93,6 +95,7 @@ private:
 	void _http_completed(int p_result, int p_code, const PackedStringArray &p_headers, const PackedByteArray &p_body);
 	void _bridge_changed(int64_t p_version, const PackedStringArray &p_files);
 	void _send(const Dictionary &p_message);
+	void _send_hello();
 
 	void _filesystem_changed();
 	void _build_if_needed();

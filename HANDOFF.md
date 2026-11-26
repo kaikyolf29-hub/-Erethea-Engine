@@ -55,6 +55,21 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
   janela, #41 geometria densa (Fase 5), #52 opção *publish* do workflow de
   release.
+- **Fornalha conferida em 26/11** (branch `claude/eloquent-brahmagupta-75ilfh`,
+  15 commits depois do padrão): a Erethea virou a engine principal dela, que
+  ganhou a bancada de mapa (`World/mapa`), cenas curtas (`CenasCurtas`) e roda
+  o `--agent-test` da Erethea junto com o teste dela. Três falhas da ponte,
+  corrigidas no PR da montagem pelo `montar.gd`: (1) com o editor aberto, o
+  mapa sumia (a montagem em C++ só conhece o blockout; agora ela roda o
+  `montar.gd` do projeto quando há `World/mapa/mapa.json`); (2) o
+  `monta_cenas` do "ola" era `true` mesmo quando a Erethea não ia montar, e
+  ninguém montava; (3) os personagens montados pela Erethea não tinham o grupo
+  `personagens` nem o `fornalha_id`, então a fala e as cenas curtas não os
+  achavam. Pedidos 10 a 12 para a Fornalha em "Pedidos para a Fornalha". A
+  montagem em C++ (mundo do blockout) continua diferente do `montar.gd` em
+  detalhes de ambiente (SSIL, SDFGI e névoa volumétrica, que o preset de
+  qualidade da Erethea decide); se a Fornalha mudar mais a montagem, prefira
+  rodar o `montar.gd` a copiar.
 - **PRs abertos**: nenhum. Regra para os próximos: merge um
   por vez, com o CI inteiro verde e conferindo conflito com o `main` antes;
   se conflitar, junte o `main`, valide o `doc/classes/ProjectSettings.xml` com
@@ -664,6 +679,19 @@ JÁ PEDIDOS ANTES (continuam valendo):
 8. Depois (quando a Erethea tiver a prévia com LibGodot): embutir a prévia da Erethea na Galeria, como vai estar descrito no erethea/README.md.
 
 9. Prévia (já existe, PR da LibGodot): para mostrar um asset com o renderizador da Erethea, chamar erethea.console.exe --erethea-preview=<arquivo.glb> (não precisa de projeto). Para trocar de asset sem reiniciar, passar também --erethea-preview-control=<arquivo.txt> e escrever o caminho do novo .glb nesse arquivo (ou regravar o mesmo .glb). Para embutir pela DLL (LibGodot), siga o erethea/README.md, "Prévia para a Fornalha" (calls em ordem, argumentos e o exemplo em C de erethea/tests/libgodot/).
+```
+
+**Novos pedidos (26/11, depois de conferir a Fornalha de 26/11, commit
+`2293636` do branch `claude/eloquent-brahmagupta-75ilfh`):**
+
+```text
+Pedidos da Erethea Engine para a Fornalha 3D (26/11):
+
+10. Elo ao vivo: o "ola" da Erethea traz "projeto" (a pasta do projeto aberto no editor). Antes de pular o montar.gd porque a engine disse monta_cenas, confira se esse projeto é o que está sendo montado. Hoje, com a Erethea aberta em outro projeto, a Fornalha pula o montar.gd e ninguém monta. A Erethea agora manda "ola" de novo quando o monta_cenas muda: guarde sempre o último.
+
+11. Mapa da bancada: a Erethea agora monta os projetos com World/mapa/mapa.json rodando o próprio montar.gd do projeto (--headless --script res://Scripts/fornalha/montar.gd), então com o editor aberto o mapa sai igual ao da Fornalha. Mantenha a linha FORNALHA_MONTAR {"ok","cenas","erros"} no fim e os caminhos de "cenas" iguais aos que o montar.gd salva.
+
+12. Sol do mapa (opcional): no _luz_do_mapa, directional_shadow_blend_splits = true. Tira a emenda entre as cascatas da sombra, que aparece mais num mapa de 500 m. É o que a Erethea faz no mundo do blockout.
 ```
 
 A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md

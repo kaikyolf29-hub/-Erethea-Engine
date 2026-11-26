@@ -149,7 +149,7 @@ void EretheaFornalhaLink::_process_websocket() {
 			if (!websocket_open) {
 				websocket_open = true;
 				print_line(vformat("Erethea: live link with the Fornalha open (%s).", websocket->get_requested_url()));
-				_send(make_hello(ProjectSettings::get_singleton()->globalize_path("res://"), GLOBAL_GET(EretheaFornalhaImport::SETTING_BUILD_AUTOMATICALLY)));
+				_send_hello();
 			}
 			while (websocket.is_valid() && websocket->get_available_packet_count() > 0) {
 				const uint8_t *buffer = nullptr;
@@ -231,11 +231,24 @@ void EretheaFornalhaLink::_send(const Dictionary &p_message) {
 #endif
 }
 
+void EretheaFornalhaLink::_send_hello() {
+	// Only true when the editor will build them: otherwise the Fornalha stops
+	// running its montar.gd and nobody builds the scenes.
+	told_builds_scenes = EretheaFornalhaImport::builds_scenes_automatically();
+	_send(make_hello(ProjectSettings::get_singleton()->globalize_path("res://"), told_builds_scenes));
+}
+
 void EretheaFornalhaLink::_filesystem_changed() {
 	build_timer->start();
 }
 
 void EretheaFornalhaLink::_build_if_needed() {
+#ifdef MODULE_WEBSOCKET_ENABLED
+	// The answer changes when the project gets the Fornalha's map, for example.
+	if (websocket.is_valid() && websocket_open && EretheaFornalhaImport::builds_scenes_automatically() != told_builds_scenes) {
+		_send_hello();
+	}
+#endif
 	if (!bool(GLOBAL_GET(EretheaFornalhaImport::SETTING_BUILD_AUTOMATICALLY)) || !EretheaFornalhaImport::is_fornalha_project()) {
 		return;
 	}
@@ -249,7 +262,7 @@ void EretheaFornalhaLink::_build_if_needed() {
 	if (signature == checked_signature) {
 		return;
 	}
-	if (!EretheaFornalhaImport::should_build_automatically(EretheaFornalhaImport::was_built_before(), EretheaFornalhaImport::get_built_signature(), signature, FileAccess::exists(EretheaFornalhaImport::MAIN_SCENE))) {
+	if (!EretheaFornalhaImport::should_build_automatically(EretheaFornalhaImport::was_built_before(), EretheaFornalhaImport::get_built_signature(), signature, FileAccess::exists(EretheaFornalhaImport::MAIN_SCENE), !project.map_folder.is_empty())) {
 		checked_signature = signature;
 		return;
 	}
@@ -257,6 +270,9 @@ void EretheaFornalhaLink::_build_if_needed() {
 	bool imported = project.world_model.is_empty() || ResourceLoader::exists(project.world_model);
 	for (const EretheaFornalhaCharacter &character : project.characters) {
 		imported = imported && ResourceLoader::exists(character.model);
+	}
+	for (const String &model : project.map_models) {
+		imported = imported && ResourceLoader::exists(model);
 	}
 	for (const EretheaFornalhaMusic &music : project.music_tracks) {
 		imported = imported && music.imported;

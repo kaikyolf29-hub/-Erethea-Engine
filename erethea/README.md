@@ -883,9 +883,27 @@ fica em `modules/erethea_fornalha/`.
 | `principal.tscn` | O mundo, o jogador no ponto de nascimento e o HUD |
 
 São os mesmos nomes de nós e de arquivos que a montagem da Fornalha usa, então
-o `run_test` da Fornalha continua funcionando. O modelo entra como instância
-do `.glb`, então quando a Fornalha gera o modelo de novo a cena mostra o novo
-sem perder colisão, câmera e script.
+o `run_test` da Fornalha continua funcionando. Cada personagem também entra no
+grupo `personagens`, com o id dele no metadado `fornalha_id`, como nas cenas da
+própria Fornalha: é assim que o `Sons.falar()` (a fala sai da cabeça do
+personagem e mexe a boca) e as cenas curtas (`CenasCurtas`) acham quem fala. O
+modelo entra como instância do `.glb`, então quando a Fornalha gera o modelo de
+novo a cena mostra o novo sem perder colisão, câmera e script.
+
+**Mundo da bancada de mapa.** Quando a Fornalha faz o mundo pela bancada de
+mapa (`generate_map`, que deixa `World/mapa/mapa.json` com o relevo, a água,
+as construções, a vegetação e a luz), quem monta as cenas é o `montar.gd` da
+própria Fornalha (`res://Scripts/fornalha/montar.gd`, que ela grava em cada
+projeto). A Erethea não guarda uma cópia de como o mapa vira cena, que ficaria
+para trás da Fornalha: ela roda esse script sem janela, como a Fornalha faz
+(`--headless --script`), e o relatório lista as cenas que ele disse ter feito
+(`created` ou `updated`) e os erros dele (`failed`). Nesse caso valem as regras
+do `montar.gd`: ele faz todas as cenas de novo a cada montagem (o *force* não
+muda nada, e cena mudada à mão não fica), então a Erethea não roda se uma
+delas estiver aberta com mudanças não salvas, e avisa. As texturas dos
+personagens e dos modelos do mapa (terreno, água e construções) também são
+marcadas para a compressão em VRAM. Sem o `montar.gd` no projeto, a montagem
+não faz nada e diz para montar pela Fornalha (`import_to_engine`).
 
 **O que o dev mudou fica.** A Erethea guarda em `res://.erethea/fornalha_import.json`
 como deixou cada cena. Na próxima montagem, uma cena que alguém mudou depois,
@@ -1038,6 +1056,16 @@ vez (existe `res://.erethea/fornalha_import.json`), monta de novo sempre que o
 que as cenas usam muda. Se nunca montou, só monta sozinha num projeto que ainda
 não tem `principal.tscn`. Num projeto cujas cenas a Fornalha monta ela mesma
 (`montar.gd`), a Erethea espera alguém montar uma vez pelo menu ou pelo agente.
+Num projeto com o mapa da Fornalha (`World/mapa/mapa.json`), monta sempre que o
+mapa ou o `.fornalha/cena.json` mudam, rodando o `montar.gd` (veja "Mundo da
+bancada de mapa", acima).
+
+O `monta_cenas` do "ola" diz a verdade: é `true` só quando a Erethea vai montar
+sozinha este projeto, e ela manda o "ola" de novo quando isso muda (quando o
+mapa aparece, por exemplo). Antes, ele era `true` sempre que
+`build_automatically` estava ligado; num projeto que a Fornalha já tinha
+montado, ela parava de rodar o `montar.gd` e a Erethea esperava a primeira
+montagem pelo menu, então um personagem novo não entrava em cena nenhuma.
 
 **Configurações.** Só valem em projetos com `game.project.json`; projetos da
 Godot não mudam.
@@ -1067,7 +1095,7 @@ Mensagens pelo WebSocket, em texto JSON:
 
 | De | Mensagem | Quando |
 | --- | --- | --- |
-| Erethea | `{"tipo": "ola", "programa": "Erethea Engine", "versao": "...", "projeto": "<pasta>", "monta_cenas": true}` | Ao abrir. `monta_cenas` diz que a Erethea monta as cenas, então a Fornalha não precisa rodar o `montar.gd` |
+| Erethea | `{"tipo": "ola", "programa": "Erethea Engine", "versao": "...", "projeto": "<pasta>", "monta_cenas": true}` | Ao abrir, e de novo quando `monta_cenas` muda. `monta_cenas` diz que a Erethea monta as cenas, então a Fornalha não precisa rodar o `montar.gd` |
 | Fornalha | `{"tipo": "ponte", "versao": 4, "arquivos": [...]}` | Ao abrir e sempre que gravar arquivos no projeto |
 | Erethea | `{"tipo": "cenas", "ok": true, "summary": "...", "scenes": [{"file": "...", "result": "created"}], "warnings": [...]}` | Depois de montar sozinha; é o mesmo relatório da ferramenta `build_fornalha_scenes` |
 
