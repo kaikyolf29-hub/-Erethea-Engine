@@ -918,8 +918,20 @@ revisados aqui antes do merge.
     80 atualizações seguidas, enquanto no CI o passo trava em umas 4 de 10
     execuções, sempre na primeira atualização depois de instalar. A suspeita
     agora é o estado da máquina logo depois da instalação e do primeiro uso
-    do editor, não a atualização em si. Próximo passo, se valer a pena: no
-    branch de investigação, uma instalação nova antes de cada atualização. Para o usuário de
+    do editor, não a atualização em si. Terceiro experimento: 24 ciclos de
+    desinstalar, instalar, abrir o projeto com o editor instalado e atualizar
+    (`/CLOSEAPPLICATIONS /update=1`, igual ao CI): **nenhum travou**;
+  - janela, terceira rodada: o `title_bar_test.ps1` inteiro 24 vezes (3
+    máquinas × 8, projeto novo e sem os dados do editor em cada vez, ProcDump
+    preso): **nenhuma queda**;
+  - **conclusão**: fora da rodada completa do CI (com os builds e dezenas de
+    jobs da mesma execução), nenhuma das duas falhas aparece: 0 quedas em 84
+    aberturas do editor e 1 travamento em umas 100 atualizações. É o
+    ambiente do executor, não o código da Erethea; nenhum usuário as vê. O
+    combinado continua: refaça só o job que falhou e nunca faça merge com
+    ele vermelho. O ProcDump fica no teste da janela: se a queda voltar, o
+    dump vem no artefato `erethea-window-test`. Parei de investigar aqui; o
+    branch `claude/erethea-window-stress` fica para quem quiser continuar. Para o usuário de
     verdade nada muda (num PC com placa o editor reabre normal; a atualização
     de 1.0.0 para 1.0.1 é o passo 11 do teste do Kaiky).
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
