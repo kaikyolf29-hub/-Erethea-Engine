@@ -55,9 +55,13 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
   janela, #41 geometria densa (Fase 5), #52 opção *publish* do workflow de
   release, #54 ponte com a Fornalha de 26/11 (mapa pelo `montar.gd`,
-  `monta_cenas` certo, grupo `personagens`). Release `v1.0.1` (com o #54)
-  pedido em 26/11 ao workflow com *publish* (rodada no `main` em `e281105`);
-  confira em "Releases" que saiu com o `erethea-setup-x86_64.exe`.
+  `monta_cenas` certo, grupo `personagens`), #55 roteiro do teste com a
+  Fornalha de 26/11, #56 servidor MCP ligado sozinho nos projetos da Fornalha.
+  **Release `v1.0.1`** (com o #54) publicado em 26/11 às 06:17 UTC, do `main`
+  em `e281105` (instalador de 102,6 MB, SHA-256
+  `35af1052a6f8b1244ad0fdf210df9379e6b324657fc24b8babb75cba9a45d0ad`).
+  **Release `v1.0.2`** (com o #56) pedido em seguida ao workflow com
+  *publish*, do `main` em `82a59dd`; confira em "Releases" que saiu.
 - **Fornalha conferida em 26/11** (branch `claude/eloquent-brahmagupta-75ilfh`,
   15 commits depois do padrão): a Erethea virou a engine principal dela, que
   ganhou a bancada de mapa (`World/mapa`), cenas curtas (`CenasCurtas`) e roda
@@ -903,13 +907,19 @@ revisados aqui antes do merge.
   - instalador: `installer_update_stress.ps1` fez 10 atualizações seguidas
     por máquina, duas com `/CLOSEAPPLICATIONS` e duas sem. As duas com e uma
     sem passaram as 10 (uns 9 s cada); **a outra sem travou**: o passo passou
-    do próprio limite de 30 min sem acabar, como no CI. Então **não é o
+    do próprio limite de 30 min sem acabar, e o job foi cancelado aos 55 min
+    **sem log nenhum**, nem dos passos que tinham passado, igual ao CI. Então **não é o
     `/CLOSEAPPLICATIONS`** (o experimento 3 está descartado), e é o executor
     inteiro que para, não o script. Sobra a suspeita de o editor que o
     instalador reabre (`/update=1`) começar com o renderizador padrão num
-    executor sem placa. Próximo experimento, no mesmo branch: atualizações sem
-    `/update=1` (o instalador não reabre o editor) contra abrir só o
-    `erethea.exe` instalado várias vezes, sem instalador. Para o usuário de
+    executor sem placa. Segundo experimento: 20 atualizações sem `/update=1`
+    (o instalador não reabre o editor) e 40 aberturas só do `erethea.exe`
+    instalado, sem instalador: **nenhuma travou**. Somando, travou 1 em umas
+    80 atualizações seguidas, enquanto no CI o passo trava em umas 4 de 10
+    execuções, sempre na primeira atualização depois de instalar. A suspeita
+    agora é o estado da máquina logo depois da instalação e do primeiro uso
+    do editor, não a atualização em si. Próximo passo, se valer a pena: no
+    branch de investigação, uma instalação nova antes de cada atualização. Para o usuário de
     verdade nada muda (num PC com placa o editor reabre normal; a atualização
     de 1.0.0 para 1.0.1 é o passo 11 do teste do Kaiky).
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
