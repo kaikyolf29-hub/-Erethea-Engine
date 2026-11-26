@@ -1,0 +1,69 @@
+name: 🔥 Erethea installer stress (investigation)
+# Investigation only, on its own branch: updates an installed Erethea many
+# times, with and without /CLOSEAPPLICATIONS, to find why the "Update
+# silently" step of the installer test hangs the runner. Not part of the CI.
+on:
+  push:
+    branches: [claude/erethea-window-stress]
+    paths:
+      - ".github/workflows/erethea_installer_stress.yml"
+      - "erethea/tests/installer_update_stress.ps1"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  update:
+    runs-on: windows-latest
+    name: Updates (${{ matrix.close && 'with' || 'without' }} /CLOSEAPPLICATIONS, ${{ matrix.shard }})
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        close: [true, false]
+        shard: [1, 2]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download the installer of main
+        uses: actions/download-artifact@v8
+        with:
+          name: erethea-setup-windows
+          path: setup
+          run-id: 45706536850
+          github-token: ${{ github.token }}
+
+      - name: Install silently and open a project, as the installer test does
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "Erethea"
+          $p = Start-Process -Wait -PassThru setup/erethea-setup-x86_64.exe `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/DIR=`"$dir`""
+          if ($p.ExitCode -ne 0) { throw "Installer failed with exit code $($p.ExitCode)" }
+          $exe = "$dir/erethea.exe"
+          & $exe --headless --import --path erethea/tests/smoke_project 2>&1 | Out-Null
+          & $exe --headless --path erethea/tests/smoke_project 2>&1 | Out-Null
+          "ERETHEA_DIR=$dir" >> $env:GITHUB_ENV
+
+      - name: Update many times
+        shell: pwsh
+        timeout-minutes: 30
+        run: |
+          $arguments = @{
+            Setup = (Resolve-Path setup/erethea-setup-x86_64.exe).Path
+            Dir = $env:ERETHEA_DIR
+            OutDir = (Join-Path $env:RUNNER_TEMP "updates")
+          }
+          if ("${{ matrix.close }}" -eq "true") { $arguments.CloseApplications = $true }
+          ./erethea/tests/installer_update_stress.ps1 @arguments
+
+      - name: Upload the installer's logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-installer-stress-${{ matrix.close }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/updates
+          retention-days: 14
+          if-no-files-found: ignore
