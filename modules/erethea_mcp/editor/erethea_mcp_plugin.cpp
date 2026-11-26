@@ -53,6 +53,7 @@
 #include "editor/file_system/editor_file_system.h"
 #include "editor/run/editor_run_bar.h"
 #include "editor/settings/editor_settings.h"
+#include "main/main.h"
 #include "scene/main/viewport.h"
 #include "servers/display/display_server.h"
 
@@ -863,6 +864,15 @@ Dictionary EretheaMcpPlugin::_get_status() {
 
 void EretheaMcpPlugin::_apply_settings() {
 	bool enabled = EDITOR_GET(SETTING_ENABLED);
+#ifdef MODULE_ERETHEA_FORNALHA_ENABLED
+	// The AGENTS.md that the Fornalha writes in its projects tells the AI to
+	// use this server, so it starts there without being turned on by hand. Not
+	// in a command line run such as the Fornalha's --import, which may run
+	// while the editor that has the port is open.
+	if (!enabled && !Main::is_cmdline_tool() && EretheaFornalhaImport::is_fornalha_project() && bool(GLOBAL_GET(EretheaFornalhaImport::SETTING_MCP_SERVER))) {
+		enabled = true;
+	}
+#endif
 	int port = EDITOR_GET(SETTING_PORT);
 	const String port_environment = OS::get_singleton()->get_environment(PORT_ENVIRONMENT);
 	if (!port_environment.is_empty()) {

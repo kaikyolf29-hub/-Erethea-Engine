@@ -72,7 +72,10 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   montagem em C++ (mundo do blockout) continua diferente do `montar.gd` em
   detalhes de ambiente (SSIL, SDFGI e névoa volumétrica, que o preset de
   qualidade da Erethea decide); se a Fornalha mudar mais a montagem, prefira
-  rodar o `montar.gd` a copiar.
+  rodar o `montar.gd` a copiar. Num PR seguinte, o servidor MCP do editor
+  passou a ligar sozinho nos projetos da Fornalha (o `AGENTS.md` dela manda a
+  IA usar a porta 11481; antes, só ligado à mão), com
+  `editor/erethea_fornalha/mcp_server` para desligar.
 - **PRs abertos**: nenhum. Regra para os próximos: merge um
   por vez, com o CI inteiro verde e conferindo conflito com o `main` antes;
   se conflitar, junte o `main`, valide o `doc/classes/ProjectSettings.xml` com
@@ -695,6 +698,8 @@ Pedidos da Erethea Engine para a Fornalha 3D (26/11):
 11. Mapa da bancada: a Erethea agora monta os projetos com World/mapa/mapa.json rodando o próprio montar.gd do projeto (--headless --script res://Scripts/fornalha/montar.gd), então com o editor aberto o mapa sai igual ao da Fornalha. Mantenha a linha FORNALHA_MONTAR {"ok","cenas","erros"} no fim e os caminhos de "cenas" iguais aos que o montar.gd salva.
 
 12. Sol do mapa (opcional): no _luz_do_mapa, directional_shadow_blend_splits = true. Tira a emenda entre as cascatas da sombra, que aparece mais num mapa de 500 m. É o que a Erethea faz no mundo do blockout.
+
+13. AGENTS.md: o servidor MCP da Erethea agora liga sozinho nos projetos da Fornalha (com game.project.json), na porta 11481. Pode tirar do guia o "ligue em Configurações do Editor › Erethea › MCP"; para desligar num projeto, editor/erethea_fornalha/mcp_server = false no project.godot.
 ```
 
 A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md

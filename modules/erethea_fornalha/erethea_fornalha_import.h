@@ -193,6 +193,8 @@ public:
 	static constexpr const char *SETTING_AREA_ACOUSTICS = "editor/erethea_fornalha/area_acoustics";
 	static constexpr const char *SETTING_INTERACTIVE_MUSIC = "editor/erethea_fornalha/interactive_music";
 	static constexpr const char *SETTING_TERRAIN_FROM_BLOCKOUT = "editor/erethea_fornalha/terrain_from_blockout";
+	// The editor's MCP server, for the AI that the Fornalha's AGENTS.md points to.
+	static constexpr const char *SETTING_MCP_SERVER = "editor/erethea_fornalha/mcp_server";
 	static constexpr const char *SETTING_ERETHEA_DEFAULTS_APPLIED = "editor/erethea_fornalha/erethea_defaults_applied";
 	// The terrain made from the blockout's ground, and its materials.
 	static constexpr const char *TERRAIN_DATA_FILE = "res://World/terreno.res";
