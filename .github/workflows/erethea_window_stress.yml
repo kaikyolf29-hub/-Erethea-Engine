@@ -1,0 +1,53 @@
+name: 🔥 Erethea window stress (investigation)
+# Investigation only, on its own branch: opens the editor many times to catch
+# the fast fail (0xC0000409) of the window test in a dump. Not part of the CI.
+on:
+  push:
+    branches: [claude/erethea-window-stress]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  stress:
+    runs-on: windows-latest
+    name: Editor started many times
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download the Windows editor of main
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-editor
+          path: bin
+          run-id: 45706536850
+          github-token: ${{ github.token }}
+
+      - name: Start the editor many times
+        shell: pwsh
+        run: |
+          $procdump = Join-Path $env:RUNNER_TEMP "procdump"
+          Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile "$procdump.zip"
+          Expand-Archive "$procdump.zip" -DestinationPath $procdump -Force
+          ./erethea/tests/window/editor_stress.ps1 `
+            -Editor (Resolve-Path bin/erethea.windows.editor.x86_64.exe) `
+            -Project (Resolve-Path erethea/tests/smoke_project) `
+            -OutDir (Join-Path $env:RUNNER_TEMP "stress") `
+            -ProcDump (Join-Path $procdump "procdump64.exe") `
+            -Runs 20
+
+      - name: Upload the runs that crashed
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: erethea-window-stress-${{ matrix.shard }}
+          path: ${{ runner.temp }}/stress
+          retention-days: 14
+          if-no-files-found: ignore
