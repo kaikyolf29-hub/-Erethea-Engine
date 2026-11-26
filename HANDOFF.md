@@ -54,12 +54,15 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   cascatas do sol no mundo da Fornalha, #47 texturas dos modelos da Fornalha
   comprimidas, #48 teste sem ray tracing no WARP, #49 ProcDump no teste da
   janela, #41 geometria densa (Fase 5), #52 opção *publish* do workflow de
-  release.
+  release, #54 ponte com a Fornalha de 26/11 (mapa pelo `montar.gd`,
+  `monta_cenas` certo, grupo `personagens`). Release `v1.0.1` (com o #54)
+  pedido em 26/11 ao workflow com *publish* (rodada no `main` em `e281105`);
+  confira em "Releases" que saiu com o `erethea-setup-x86_64.exe`.
 - **Fornalha conferida em 26/11** (branch `claude/eloquent-brahmagupta-75ilfh`,
   15 commits depois do padrão): a Erethea virou a engine principal dela, que
   ganhou a bancada de mapa (`World/mapa`), cenas curtas (`CenasCurtas`) e roda
   o `--agent-test` da Erethea junto com o teste dela. Três falhas da ponte,
-  corrigidas no PR da montagem pelo `montar.gd`: (1) com o editor aberto, o
+  corrigidas no #54: (1) com o editor aberto, o
   mapa sumia (a montagem em C++ só conhece o blockout; agora ela roda o
   `montar.gd` do projeto quando há `World/mapa/mapa.json`); (2) o
   `monta_cenas` do "ola" era `true` mesmo quando a Erethea não ia montar, e
@@ -883,6 +886,27 @@ revisados aqui antes do merge.
   `/CLOSEAPPLICATIONS` (ou trocar por `/NOCLOSEAPPLICATIONS`) só no passo do
   teste e contar de novo; se parar de travar, a correção vai para o
   instalador de verdade, fechando o editor antes de instalar.
+- **Investigação de 26/11** (branch `claude/erethea-window-stress`, que não
+  entra no `main`: dois workflows só de investigação, disparados por push
+  nesse branch, que usam o editor e o instalador já compilados de uma rodada
+  do `main` com `run-id`):
+  - janela: `editor_stress.ps1` abriu o editor 60 vezes (gerenciador de
+    projetos e depois o editor no `smoke_project` com a primeira importação,
+    no ANGLE, metade sem os dados do editor) com o ProcDump preso: **nenhuma
+    queda**. A queda só apareceu no roteiro inteiro do `title_bar_test.ps1`,
+    onde o ProcDump continua preso; espere o dump da próxima;
+  - instalador: `installer_update_stress.ps1` fez 10 atualizações seguidas
+    por máquina, duas com `/CLOSEAPPLICATIONS` e duas sem. As duas com e uma
+    sem passaram as 10 (uns 9 s cada); **a outra sem travou**: o passo passou
+    do próprio limite de 30 min sem acabar, como no CI. Então **não é o
+    `/CLOSEAPPLICATIONS`** (o experimento 3 está descartado), e é o executor
+    inteiro que para, não o script. Sobra a suspeita de o editor que o
+    instalador reabre (`/update=1`) começar com o renderizador padrão num
+    executor sem placa. Próximo experimento, no mesmo branch: atualizações sem
+    `/update=1` (o instalador não reabre o editor) contra abrir só o
+    `erethea.exe` instalado várias vezes, sem instalador. Para o usuário de
+    verdade nada muda (num PC com placa o editor reabre normal; a atualização
+    de 1.0.0 para 1.0.1 é o passo 11 do teste do Kaiky).
 - Rodar de novo um job reaproveita o artefato do build da mesma execução; para
   um build novo, suba um commit.
 
