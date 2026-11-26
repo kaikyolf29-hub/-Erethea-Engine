@@ -221,6 +221,9 @@ TEST_CASE("[SceneTree][Modules][EretheaFornalha] Character scenes") {
 	CharacterBody3D *body = Object::cast_to<CharacterBody3D>(root);
 	REQUIRE(body != nullptr);
 	CHECK(body->get_name() == StringName("hero"));
+	// The Fornalha's Sons.falar() and cutscenes find it by these, as in its own scenes.
+	CHECK(body->get_meta(EretheaFornalhaImport::CHARACTER_ID_META, String()) == Variant("hero"));
+	CHECK(body->is_in_group(EretheaFornalhaImport::CHARACTERS_GROUP));
 	CHECK(body->get_collision_layer() == EretheaFornalhaImport::LAYER_PLAYER);
 	CHECK(body->get_collision_mask() == (EretheaFornalhaImport::LAYER_WORLD | EretheaFornalhaImport::LAYER_ENEMIES));
 	// The project has no Fornalha scripts here.
@@ -254,6 +257,12 @@ TEST_CASE("[SceneTree][Modules][EretheaFornalha] Character scenes") {
 		}
 	}
 	CHECK(linked);
+	// The group is saved with the scene.
+	bool grouped = false;
+	for (const StringName &group : state->get_node_groups(0)) {
+		grouped = grouped || group == StringName(EretheaFornalhaImport::CHARACTERS_GROUP);
+	}
+	CHECK(grouped);
 	memdelete(root);
 
 	EretheaFornalhaCharacter wolf;
@@ -321,6 +330,17 @@ TEST_CASE("[Modules][EretheaFornalha] Building scenes by themselves") {
 	CHECK(Import::should_build_automatically(true, "", "b", true));
 	CHECK_FALSE(Import::should_build_automatically(true, "a", "a", true));
 	CHECK_FALSE(Import::should_build_automatically(true, "a", "a", false));
+	// With the Fornalha's map, its montar.gd builds: no waiting for a first build.
+	CHECK(Import::should_build_automatically(false, "", "a", true, true));
+	CHECK(Import::should_build_automatically(true, "a", "b", true, true));
+	CHECK_FALSE(Import::should_build_automatically(true, "a", "a", true, true));
+
+	// What the editor tells the Fornalha ("monta_cenas"): only when it will build,
+	// or else nobody builds the scenes of a project the Fornalha assembled before.
+	CHECK(Import::builds_scenes_automatically(false, false, false));
+	CHECK_FALSE(Import::builds_scenes_automatically(false, true, false));
+	CHECK(Import::builds_scenes_automatically(true, true, false));
+	CHECK(Import::builds_scenes_automatically(false, true, true));
 
 	EretheaFornalhaProject project;
 	EretheaFornalhaCharacter hero;
@@ -356,6 +376,38 @@ TEST_CASE("[Modules][EretheaFornalha] Building scenes by themselves") {
 	EretheaFornalhaProject warned = project;
 	warned.warnings.push_back("No blockout in World/ yet.");
 	CHECK(warned.get_signature() == signature);
+
+	EretheaFornalhaProject with_map = project;
+	with_map.map_folder = "res://World/mapa";
+	CHECK(with_map.get_signature() != signature);
+}
+
+TEST_CASE("[Modules][EretheaFornalha] What the Fornalha's montar.gd built") {
+	using Import = EretheaFornalhaImport;
+	Vector<String> existed;
+	existed.push_back("res://principal.tscn");
+
+	Import::Report report;
+	const String output = "Erethea Engine v4.8\nWARNING: something\n  FORNALHA_MONTAR {\"ok\": true, \"cenas\": [\"res://World/mundo.tscn\", \"res://principal.tscn\"], \"erros\": []}\n";
+	CHECK(Import::read_assembly_output(output, existed, report));
+	REQUIRE(report.files.size() == 2);
+	CHECK(report.files[0].file == "res://World/mundo.tscn");
+	CHECK(report.files[0].action == Import::ACTION_CREATED);
+	CHECK(report.files[1].action == Import::ACTION_UPDATED);
+	CHECK(report.to_dictionary()["ok"] == Variant(true));
+
+	Import::Report failed;
+	CHECK(Import::read_assembly_output("FORNALHA_MONTAR {\"ok\": false, \"cenas\": [\"res://World/mundo.tscn\"], \"erros\": [\"terreno do mapa nao importado\"]}", existed, failed));
+	REQUIRE(failed.files.size() == 2);
+	CHECK(failed.files[1].file == Import::ASSEMBLY_SCRIPT);
+	CHECK(failed.files[1].action == Import::ACTION_FAILED);
+	CHECK(failed.files[1].message.contains("terreno"));
+	CHECK(failed.to_dictionary()["ok"] == Variant(false));
+
+	// It didn't get to the end.
+	Import::Report missing;
+	CHECK_FALSE(Import::read_assembly_output("SCRIPT ERROR: Parse Error\n", existed, missing));
+	CHECK(missing.files.is_empty());
 }
 
 TEST_CASE("[Modules][EretheaFornalha] Erethea's settings in projects from the Fornalha") {

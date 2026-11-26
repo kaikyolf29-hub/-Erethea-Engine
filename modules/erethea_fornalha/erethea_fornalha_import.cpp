@@ -40,6 +40,7 @@
 #include "core/io/resource_uid.h"
 #include "core/object/class_db.h"
 #include "core/object/script_language.h"
+#include "core/os/os.h"
 #include "core/os/time.h"
 #include "editor/editor_node.h"
 #include "editor/editor_undo_redo_manager.h"
@@ -202,9 +203,31 @@ static void _scan_music(Vector<EretheaFornalhaMusic> &r_tracks, Vector<String> &
 	}
 }
 
+String EretheaFornalhaProject::find_map_folder(const Dictionary &p_scene_manifest) {
+	String folder = _string(_dictionary(p_scene_manifest.get("mapa", Variant())).get("pasta", Variant()));
+	if (!folder.begins_with("res://")) {
+		folder = EretheaFornalhaImport::MAP_FOLDER;
+	}
+	return FileAccess::exists(folder.path_join("mapa.json")) ? folder : String();
+}
+
 EretheaFornalhaProject EretheaFornalhaProject::read() {
 	EretheaFornalhaProject project;
 	const Dictionary game_project = _read_json(EretheaFornalhaImport::GAME_PROJECT_FILE, &project.warnings);
+	// What the Fornalha chose when it last assembled the game.
+	const Dictionary scene_manifest = _read_json(EretheaFornalhaImport::SCENE_MANIFEST, &project.warnings);
+
+	project.map_folder = find_map_folder(scene_manifest);
+	if (!project.map_folder.is_empty()) {
+		const Dictionary files = _dictionary(_read_json(project.map_folder.path_join("mapa.json"), &project.warnings).get("arquivos", Variant()));
+		const char *models[][2] = { { "terreno", "terreno.glb" }, { "agua", "" }, { "estruturas", "" } };
+		for (const auto &model : models) {
+			const String name = files.has(model[0]) ? _string(files[model[0]]) : String(model[1]);
+			if (!name.is_empty() && FileAccess::exists(project.map_folder.path_join(name))) {
+				project.map_models.push_back(project.map_folder.path_join(name));
+			}
+		}
+	}
 
 	_scan_characters("res://Characters", true, project.characters);
 	_scan_characters("res://Enemies", false, project.characters);
@@ -260,7 +283,9 @@ EretheaFornalhaProject EretheaFornalhaProject::read() {
 		area.acoustics = planned_areas.has(area.id) ? _string(planned_areas[area.id].get("acustica", Variant())) : String();
 		project.areas.push_back(area);
 	}
-	if (project.world_model.is_empty()) {
+	if (!project.map_folder.is_empty()) {
+		// The world is the map, which montar.gd builds.
+	} else if (project.world_model.is_empty()) {
 		project.warnings.push_back("No blockout in World/ yet, so the world has no ground. Generate the world in the Fornalha (generate_blockout).");
 	} else {
 		for (const String &id : planned_order) {
@@ -274,8 +299,6 @@ EretheaFornalhaProject EretheaFornalhaProject::read() {
 		}
 	}
 
-	// What the Fornalha chose when it last assembled the game.
-	const Dictionary scene_manifest = _read_json("res://.fornalha/cena.json", &project.warnings);
 	const String chosen = _string(scene_manifest.get("jogador", Variant()));
 	const int chosen_index = project.find_character(chosen);
 	if (chosen_index >= 0 && project.characters[chosen_index].player) {
@@ -345,6 +368,11 @@ String EretheaFornalhaProject::get_signature() const {
 	// Only when on, so that the signature of the projects that don't use it stays.
 	if (bool(GLOBAL_GET(EretheaFornalhaImport::SETTING_TERRAIN_FROM_BLOCKOUT))) {
 		inputs.push_back("terrain from blockout");
+	}
+	// montar.gd builds the map from what .fornalha/cena.json says, which the
+	// Fornalha writes again each time it assembles the game.
+	if (!map_folder.is_empty()) {
+		inputs.push_back(vformat("map %s %d %d %d", map_folder, int64_t(FileAccess::get_modified_time(map_folder.path_join("mapa.json"))), int64_t(FileAccess::get_modified_time(map_folder.path_join("espalhamento.json"))), int64_t(FileAccess::get_modified_time(EretheaFornalhaImport::SCENE_MANIFEST))));
 	}
 	return JSON::stringify(inputs).md5_text();
 }
@@ -544,11 +572,61 @@ EretheaFornalhaImport::Action EretheaFornalhaImport::decide(bool p_exists, const
 	return p_recorded_hash.is_empty() ? ACTION_KEPT_FOREIGN : ACTION_KEPT_EDITED;
 }
 
-bool EretheaFornalhaImport::should_build_automatically(bool p_built_before, const String &p_built_signature, const String &p_signature, bool p_main_scene_exists) {
-	if (!p_built_before) {
+bool EretheaFornalhaImport::should_build_automatically(bool p_built_before, const String &p_built_signature, const String &p_signature, bool p_main_scene_exists, bool p_has_map) {
+	if (!p_built_before && !p_has_map) {
 		return !p_main_scene_exists;
 	}
 	return p_built_signature != p_signature;
+}
+
+bool EretheaFornalhaImport::builds_scenes_automatically(bool p_built_before, bool p_main_scene_exists, bool p_has_map) {
+	return p_has_map || p_built_before || !p_main_scene_exists;
+}
+
+bool EretheaFornalhaImport::builds_scenes_automatically() {
+	if (!bool(GLOBAL_GET(SETTING_BUILD_AUTOMATICALLY)) || !is_fornalha_project()) {
+		return false;
+	}
+	const bool has_map = !EretheaFornalhaProject::find_map_folder(_read_json(SCENE_MANIFEST)).is_empty();
+	return builds_scenes_automatically(was_built_before(), FileAccess::exists(MAIN_SCENE), has_map);
+}
+
+bool EretheaFornalhaImport::read_assembly_output(const String &p_output, const Vector<String> &p_existed_before, Report &r_report) {
+	static const String PREFIX = "FORNALHA_MONTAR ";
+	Dictionary result;
+	bool found = false;
+	for (const String &line : p_output.split("\n")) {
+		const String text = line.strip_edges();
+		if (text.begins_with(PREFIX)) {
+			const Variant parsed = JSON::parse_string(text.substr(PREFIX.length()));
+			if (parsed.get_type() == Variant::DICTIONARY) {
+				result = parsed;
+				found = true;
+			}
+		}
+	}
+	if (!found) {
+		return false;
+	}
+	for (const Variant &scene : _array(result.get("cenas", Variant()))) {
+		FileResult file;
+		file.file = _string(scene);
+		file.action = p_existed_before.has(file.file) ? ACTION_UPDATED : ACTION_CREATED;
+		file.message = "Built by the Fornalha's montar.gd.";
+		r_report.files.push_back(file);
+	}
+	PackedStringArray errors;
+	for (const Variant &error : _array(result.get("erros", Variant()))) {
+		errors.push_back(_string(error));
+	}
+	if (!errors.is_empty() || !bool(result.get("ok", false))) {
+		FileResult file;
+		file.file = ASSEMBLY_SCRIPT;
+		file.action = ACTION_FAILED;
+		file.message = errors.is_empty() ? String("The Fornalha's montar.gd reported a failure.") : String("; ").join(errors);
+		r_report.files.push_back(file);
+	}
+	return true;
 }
 
 bool EretheaFornalhaImport::was_built_before() {
@@ -759,6 +837,7 @@ Vector<String> EretheaFornalhaImport::mark_model_textures_used_in_3d(const Ereth
 	if (!p_project.world_model.is_empty()) {
 		models.push_back(p_project.world_model);
 	}
+	models.append_array(p_project.map_models);
 	Vector<String> marked;
 	for (const String &model : models) {
 		if (!ResourceLoader::exists(model)) {
@@ -797,6 +876,8 @@ Vector<String> EretheaFornalhaImport::mark_model_textures_used_in_3d(const Ereth
 Node *EretheaFornalhaImport::make_character(const EretheaFornalhaCharacter &p_character, Vector<String> &r_warnings) {
 	CharacterBody3D *root = memnew(CharacterBody3D);
 	root->set_name(p_character.id.validate_node_name());
+	root->set_meta(CHARACTER_ID_META, p_character.id);
+	root->add_to_group(CHARACTERS_GROUP, true);
 	// The Fornalha's game code: a third-person player, or an enemy that chases and attacks.
 	_set_script(root, p_character.player ? "jogador.gd" : "inimigo.gd", r_warnings);
 	root->set_collision_layer(p_character.player ? LAYER_PLAYER : LAYER_ENEMIES);
@@ -1478,6 +1559,94 @@ static void _save_terrain(const EretheaFornalhaProject &p_project, EretheaFornal
 }
 #endif // MODULE_ERETHEA_TERRAIN_ENABLED
 
+// The scenes of a project whose world is the Fornalha's map: its montar.gd
+// builds them, without a window, as the Fornalha does when the editor isn't
+// open. Erethea keeps no copy of how the map becomes a scene (the terrain, the
+// water, the buildings, the plants, the light), which would fall behind the
+// Fornalha's.
+static void _build_with_assembly_script(const EretheaFornalhaProject &p_project, EretheaFornalhaImport::Report &r_report) {
+	typedef EretheaFornalhaImport Import;
+	if (!FileAccess::exists(Import::ASSEMBLY_SCRIPT)) {
+		r_report.error = vformat("The world of this project is the Fornalha's map (%s), which %s builds, and the project doesn't have that script. Assemble the game in the Fornalha (import_to_engine), which writes it.", p_project.map_folder, Import::ASSEMBLY_SCRIPT);
+		return;
+	}
+	Vector<String> scenes;
+	for (const EretheaFornalhaCharacter &character : p_project.characters) {
+		scenes.push_back(character.scene);
+	}
+	scenes.push_back(Import::WORLD_SCENE);
+	scenes.push_back(Import::MAIN_SCENE);
+	// montar.gd writes every scene again, so one open with unsaved changes would be lost.
+	Vector<String> existed;
+	for (const String &scene : scenes) {
+		if (_is_open_with_unsaved_changes(scene)) {
+			Import::FileResult result;
+			result.file = scene;
+			result.action = Import::ACTION_KEPT_UNSAVED;
+			result.message = "Open in the editor with unsaved changes. Save or close it, then build again.";
+			r_report.files.push_back(result);
+		}
+		if (FileAccess::exists(scene)) {
+			existed.push_back(scene);
+		}
+	}
+	if (r_report.count(Import::ACTION_KEPT_UNSAVED) > 0) {
+		r_report.error = "Some scenes are open with unsaved changes, and the Fornalha's montar.gd makes every scene again. Save or close them, then build again.";
+		return;
+	}
+
+	List<String> arguments;
+	arguments.push_back("--headless");
+	arguments.push_back("--path");
+	arguments.push_back(ProjectSettings::get_singleton()->get_resource_path());
+	arguments.push_back("--script");
+	arguments.push_back(Import::ASSEMBLY_SCRIPT);
+	String output;
+	int exit_code = -1;
+	const Error error = OS::get_singleton()->execute(OS::get_singleton()->get_executable_path(), arguments, &output, &exit_code, true);
+	if (error != OK) {
+		r_report.error = vformat("Couldn't run the Fornalha's montar.gd (error %d).", error);
+		return;
+	}
+	const Vector<String> lines = output.strip_edges().split("\n");
+	if (!Import::read_assembly_output(output, existed, r_report)) {
+		r_report.error = vformat("The Fornalha's montar.gd didn't finish (exit code %d). The end of what it printed:\n%s", exit_code, String("\n").join(lines.slice(MAX(0, lines.size() - 15))));
+		return;
+	}
+	// What the engine complained about while building, such as a script that doesn't compile.
+	for (const String &line : lines) {
+		const String text = line.strip_edges();
+		if ((text.begins_with("ERROR:") || text.begins_with("SCRIPT ERROR:")) && r_report.warnings.size() < 50) {
+			r_report.warnings.push_back(text);
+		}
+	}
+	r_report.compressed_textures = Import::mark_model_textures_used_in_3d(p_project);
+
+	Dictionary record;
+	record["format"] = 1;
+	record["about"] = "The Fornalha's montar.gd built these scenes, from the Fornalha's map. Erethea builds them again with it when what they come from changes.";
+	record["assembled_by"] = Import::ASSEMBLY_SCRIPT;
+	record["files"] = Dictionary();
+	record["inputs"] = p_project.get_signature();
+	Ref<FileAccess> file = FileAccess::open(Import::RECORD_FILE, FileAccess::WRITE);
+	if (file.is_valid()) {
+		file->store_string(JSON::stringify(record, "\t", true) + "\n");
+	} else {
+		r_report.warnings.push_back(vformat("%s couldn't be written, so the editor will build again when it opens.", Import::RECORD_FILE));
+	}
+
+	if (EditorFileSystem::get_singleton()) {
+		EditorFileSystem::get_singleton()->scan_changes();
+	}
+	if (EditorNode::get_singleton()) {
+		for (const Import::FileResult &result : r_report.files) {
+			if ((result.action == Import::ACTION_CREATED || result.action == Import::ACTION_UPDATED) && EditorNode::get_singleton()->is_scene_open(result.file)) {
+				EditorNode::get_singleton()->reload_scene(result.file);
+			}
+		}
+	}
+}
+
 EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	Report report;
 	if (!is_fornalha_project()) {
@@ -1486,6 +1655,11 @@ EretheaFornalhaImport::Report EretheaFornalhaImport::build(bool p_force) {
 	}
 	const EretheaFornalhaProject project = EretheaFornalhaProject::read();
 	report.warnings = project.warnings;
+	if (!project.map_folder.is_empty()) {
+		DirAccess::make_dir_recursive_absolute(ProjectSettings::get_singleton()->globalize_path(WORK_FOLDER));
+		_build_with_assembly_script(project, report);
+		return report;
+	}
 
 	EretheaFornalhaBuildState state;
 	state.force = p_force;

@@ -118,6 +118,8 @@ ignore-words-list = [
 	"comando",
 	"eles",
 	"erro",
+	# Erethea: field name of what the Fornalha's montar.gd prints (FORNALHA_MONTAR).
+	"erros",
 	"foto",
 	"instale",
 	"longe",
