@@ -674,7 +674,11 @@ assets; o do editor cuida do que só o editor aberto sabe fazer.
 **Ligar.** Vem desligado. Ligue em *Configurações do Editor › Erethea › MCP*
 (`erethea/mcp/enabled`); a porta padrão é 11481 (`erethea/mcp/port`). Também
 dá para ligar só numa execução com a variável de ambiente `ERETHEA_MCP_PORT`,
-que liga o servidor e escolhe a porta. Quando ele sobe, o painel Saída mostra
+que liga o servidor e escolhe a porta. Nos projetos da Fornalha (com
+`game.project.json`) ele liga sozinho, porque o `AGENTS.md` que a Fornalha
+grava em cada projeto manda a IA usar este servidor; para desligar nesses
+projetos, `editor/erethea_fornalha/mcp_server` nas Configurações do Projeto.
+Ele só escuta em `127.0.0.1`. Quando ele sobe, o painel Saída mostra
 `Erethea MCP: server listening on http://127.0.0.1:11481/mcp`. Para conectar o
 Claude Code:
 
@@ -1076,6 +1080,7 @@ Godot não mudam.
 | Configurações do Projeto | `editor/erethea_fornalha/live_link`: perguntar à Fornalha o que ela gravou | ligado |
 | Configurações do Projeto | `editor/erethea_fornalha/area_acoustics`: eco de cada área (veja "Som") | ligado |
 | Configurações do Projeto | `editor/erethea_fornalha/interactive_music`: música que muda no fim do compasso (veja "Som") | ligado |
+| Configurações do Projeto | `editor/erethea_fornalha/mcp_server`: ligar o servidor MCP do editor (veja "Servidor MCP do editor") | ligado |
 | Configurações do Editor | `erethea/fornalha/port`: porta da API da Fornalha | `11480` |
 
 A variável de ambiente `ERETHEA_FORNALHA_PORT` troca a porta, como nos testes.

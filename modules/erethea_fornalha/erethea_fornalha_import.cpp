@@ -526,6 +526,8 @@ void EretheaFornalhaImport::register_project_settings() {
 	GLOBAL_DEF(SETTING_INTERACTIVE_MUSIC, true);
 	// Off: the ground of the blockout stays as the Fornalha made it.
 	GLOBAL_DEF(SETTING_TERRAIN_FROM_BLOCKOUT, false);
+	// The Fornalha's AGENTS.md tells the AI to use the editor's MCP server.
+	GLOBAL_DEF(SETTING_MCP_SERVER, true);
 	GLOBAL_DEF(PropertyInfo(Variant::PACKED_STRING_ARRAY, SETTING_ERETHEA_DEFAULTS_APPLIED), PackedStringArray());
 }
 

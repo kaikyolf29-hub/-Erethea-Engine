@@ -289,9 +289,15 @@ def results_of(report):
 
 
 @contextlib.contextmanager
-def editor_session(editor, project, log_file, port, timeout):
-    """Runs the editor with its MCP server and yields the connection."""
+def editor_session(editor, project, log_file, port, timeout, set_port=True):
+    """Runs the editor with its MCP server and yields the connection.
+
+    With set_port false, the server isn't turned on through ERETHEA_MCP_PORT,
+    so it must start by itself, on the port of the editor settings.
+    """
     environment = dict(os.environ, ERETHEA_MCP_PORT=str(port))
+    if not set_port:
+        del environment["ERETHEA_MCP_PORT"]
     command = [editor, "--editor", "--headless", "--path", str(project), "--audio-driver", "Dummy"]
     print("Running: " + " ".join(command))
     with open(log_file, "w", encoding="utf-8", errors="replace") as log:
@@ -574,6 +580,17 @@ def map_checks(editor, project, out, port, timeout):
         check('[node name="MapaDaFornalha"' in world, "and leaves the map's world as it was")
 
 
+def mcp_default_checks(editor, project, out, timeout):
+    """The AGENTS.md of the Fornalha points the AI to the editor's MCP server."""
+    print("The MCP server, not turned on by hand")
+    with editor_session(editor, project, out / "editor_mcp_default.log", 11481, timeout, set_port=False) as mcp:
+        status = json.loads(mcp.http("GET", "/status", timeout=5)[2])
+        check(
+            Path(status["project_path"]).resolve() == project.resolve(),
+            "in a project from the Fornalha it starts by itself, on the default port",
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("editor")
@@ -676,6 +693,7 @@ def main():
 
         terrain_checks(editor, project, out, args.port, args.timeout)
         map_checks(editor, project, out, args.port, args.timeout)
+        mcp_default_checks(editor, project, out, args.timeout)
 
     except Failure as failure:
         print(f"\nFAILED: {failure}\nLogs in {out}")
