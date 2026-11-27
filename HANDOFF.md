@@ -1,6 +1,6 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 e atualizado a cada PR (última vez em 25/11/2026, no lançamento da 1.0.0). Uma sessão nova
+Escrito em 22/11/2026 e atualizado a cada PR (última vez em 27/11/2026, com os pedidos revisados para a Fornalha). Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -123,13 +123,25 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   1. Esperar o relatório do teste do Kaiky (`erethea/TESTE_DO_CRIADOR.md`) e
      corrigir o que ele achar, um PR por falha, em versões `1.0.x` lançadas do
      mesmo jeito.
-  2. O 0xC0000409 do teste da janela, quando o ProcDump pegar (artefato
-     `erethea-window-test`), e o experimento 3 do travamento do instalador
-     (tirar o `/CLOSEAPPLICATIONS` do teste; "Falhas conhecidas do CI").
+  2. O 0xC0000409 do teste da janela, só se o ProcDump pegar um dump
+     (artefato `erethea-window-test`). O experimento 3 do instalador já foi
+     descartado na investigação de 26/11 ("Falhas conhecidas do CI"). Em
+     27/11 as rodadas do `main` e dos PRs desde 26/11 estavam todas verdes na
+     primeira tentativa.
   3. A assinatura do instalador, quando o Kaiky tiver a conta (SignPath
      Foundation ou Certum; "Assinatura do instalador" no `erethea/README.md`).
-  4. Depois: path tracing da NVIDIA, reflexos e GI por ray tracing (Fase 4) e
-     a Godot 4.8 estável (item 10 de "O que fazer agora").
+  4. **Só depois do teste do Kaiky** (decidido por ele em 27/11): reflexos
+     por ray tracing (Fase 4, item 2) e o pedido nº 6 da Fornalha, o visual
+     anime nativo (contorno por pós-processo, com profundidade e normal e
+     grossura em pixels, e luz em faixas como opção de material ou ambiente;
+     desligado por padrão; ao terminar, dizer à Fornalha o nome da opção para
+     ela ligar quando a bíblia pedir `guia_visual.render = "anime"`). Ele quer
+     acompanhar os reflexos no PC dele. Depois: GI por ray tracing, o path
+     tracing da NVIDIA e a Godot 4.8 estável (item 10 de "O que fazer
+     agora"). Conferido em 27/11: a 4.8 estável ainda não saiu (só a
+     `4.8-beta5` no `godotengine/godot-builds`), e o branch `nvidia-pt-dlss`
+     da NVIDIA continua nos três commits de 02/11 sobre a Godot de junho
+     (`c3e6b2c0`), então o path tracing segue esperando.
 - **Lições**: compile sempre com `dev_mode=yes` (sem ele, avisos que o CI
   trata como erro passam, e trocar refaz o build inteiro, 23 min). Arquivos só
   do Windows também compilam aqui com o MinGW. Para provar que um teste pega a
@@ -731,6 +743,33 @@ Conferi no código de vocês os pedidos 10, 11 e 12 (projeto do "ola", linha FOR
 14. A Erethea tem instalador publicado: https://github.com/kaikyolf29-hub/-Erethea-Engine/releases/latest/download/erethea-setup-x86_64.exe (Windows 64 bits, sem assinatura por enquanto). Instala sem perguntas com: erethea-setup-x86_64.exe /VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART /DIR="<pasta>" (o executável de linha de comando é <pasta>\erethea.console.exe; sem /DIR fica em %LOCALAPPDATA%\Erethea, onde a Fornalha já procura). O SHA-256 de cada versão está no campo "digest" do asset em https://api.github.com/repos/kaikyolf29-hub/-Erethea-Engine/releases/latest. Sugestões: (a) no CI do Windows da Fornalha, instalar a Erethea assim e rodar os testes de engine também nela (FORNALHA_TESTE_ERETHEA), para pegar cedo qualquer quebra da ponte; (b) em Máquina → Programas, um "Baixar" da Erethea como o do Blender e da Godot, conferindo esse SHA-256. E o ESTADO.md ainda diz que não há build da Erethea para baixar.
 
 15. Para saber: num projeto com o mapa da bancada (World/mapa/mapa.json) e a Erethea aberta nele, a Erethea monta as cenas rodando o próprio Scripts/fornalha/montar.gd do projeto sem janela (--headless --path <projeto> --script res://Scripts/fornalha/montar.gd), como a Fornalha faz. O montar.gd tem que continuar rodando assim, sem depender de nada que só a Fornalha passa por fora (variável de ambiente ou argumento).
+```
+
+**Revisado em 27/11, antes de o Kaiky colar** (Fornalha de 26/11 às 23:04 UTC,
+commit `f2d351d` do branch `claude/eloquent-brahmagupta-75ilfh`): o pedido 13
+continua valendo (`guia.rs` ainda manda ligar o MCP à mão); no 14, o CI da
+Fornalha ainda não usa a Erethea e o `programas.rs` só baixa o Blender e a
+Godot ("a Erethea é do criador"), e o `ESTADO.md` ainda diz que não há build
+para baixar; o 15 já está atendido (o `montar.gd` não lê variável de ambiente
+nem argumento) e virou só um aviso; a Fornalha ainda não exporta o cabelo fio a
+fio como arestas soltas, e o próprio `ESTADO.md` dela diz que falta o "cabelo
+fio a fio (Erethea #40) com o groom da Fornalha" para o nível AAA, então o
+pedido do README ("Cabelo fio a fio") entrou como 16. A Fornalha também pediu
+algo novo à Erethea (nº 6 no `ESTADO.md` dela: visual anime nativo), que entra
+nos próximos passos depois do teste. Texto que vai para o Kaiky:
+
+```text
+Pedidos da Erethea Engine para a Fornalha 3D (27/11, depois da Fornalha de 26/11 às 23:04 UTC):
+
+13. AGENTS.md (guia.rs, linha da Erethea): desde a Erethea 1.0.2, o servidor MCP do editor liga sozinho nos projetos com game.project.json, na porta 11481. Troque "(ligue em Configurações do Editor › Erethea › MCP, ou ERETHEA_MCP_PORT=11481)" por "(liga sozinho quando o projeto abre na Erethea 1.0.2 ou mais nova; noutra porta, ERETHEA_MCP_PORT=<porta>; para desligar num projeto, editor/erethea_fornalha/mcp_server=false no project.godot)".
+
+14. A Erethea agora tem instalador público: https://github.com/kaikyolf29-hub/-Erethea-Engine/releases/latest/download/erethea-setup-x86_64.exe (Windows 64 bits, sem assinatura por enquanto). Instala sem perguntas com: erethea-setup-x86_64.exe /VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART /DIR="<pasta>" (o executável de linha de comando é <pasta>\erethea.console.exe; sem /DIR fica em %LOCALAPPDATA%\Erethea, onde a Fornalha já procura). O SHA-256 de cada versão está no campo "digest" do asset em https://api.github.com/repos/kaikyolf29-hub/-Erethea-Engine/releases/latest. Com isso: (a) o CI do Windows da Fornalha pode instalar a Erethea assim e rodar os testes de engine também nela (FORNALHA_TESTE_ERETHEA), para a prova na Erethea deixar de ser só local; (b) o programas.rs pode ganhar a Erethea em Máquina → Programas, como o Blender e a Godot, conferindo esse SHA-256 (o comentário "a Erethea é do criador" era de quando não havia build público); (c) o ESTADO.md ainda diz que não há build da Erethea para baixar.
+
+15. Cabelo fio a fio (o que o ESTADO.md de vocês diz que falta para o cabelo AAA): a Erethea já desenha o penteado fio a fio (EretheaHairStrands, desde a 1.0.0). No nível Máximo, exporte o penteado também como arestas soltas: uma malha sem faces, cada fio uma cadeia de arestas da raiz para a ponta (ponto 0 → 1, 1 → 2...), sem vértices soltos, para o glTF gravar primitivas LINES. Prenda os vértices à cabeça com o grupo de vértices e o Armature (peso 1,0 no osso head, como a malha_de_fios já faz); UV opcional. Nome da malha: <id>_hair_strands; largura do fio no nome do material, como hoje (_cabelo_fios_70 = 0,7 mm). Na Erethea, monte um EretheaHairStrands com source_mesh = a malha importada, width = a largura do material e skeleton = NodePath("..") sob o Skeleton3D do personagem. Na Godot comum, continue com os cards.
+
+Avisos (sem nada a fazer):
+- Num projeto com World/mapa/mapa.json e a Erethea aberta nele, a Erethea monta as cenas rodando o próprio montar.gd sem janela (--headless --path <projeto> --script res://Scripts/fornalha/montar.gd). Conferi: ele não depende de variável de ambiente nem de argumento. Mantenha assim.
+- Pedido 6 de vocês (visual anime nativo, contorno por pós-processo e luz em faixas): anotado. Entra na Erethea depois do teste do criador; quando sair, a Erethea avisa o nome da opção para vocês ligarem quando a bíblia pedir anime.
 ```
 
 A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md
