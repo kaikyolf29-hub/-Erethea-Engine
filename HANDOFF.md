@@ -1,6 +1,6 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 e atualizado a cada PR (última vez em 27/11/2026, com os pedidos revisados para a Fornalha). Uma sessão nova
+Escrito em 22/11/2026 e atualizado a cada PR (última vez em 27/11/2026, com o pedido 7 da Fornalha). Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -87,6 +87,22 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   passou a ligar sozinho nos projetos da Fornalha (o `AGENTS.md` dela manda a
   IA usar a porta 11481; antes, só ligado à mão), com
   `editor/erethea_fornalha/mcp_server` para desligar.
+- **Fornalha, rodada de 27/11** (o Kaiky colou a mensagem dela; a Fornalha
+  já exporta o cabelo fio a fio como linhas, `fisica.gd` monta o
+  `EretheaHairStrands` e esconde os cards quando o render não é anime):
+  **pedido 7**, coroa do cabelo fio a fio quase preta perto da risca no
+  Compatibility. Causa da Godot: o `drivers/gles3/shaders/skeleton.glsl` lia a
+  tangente da posição 2, que a malha nunca liga (a tangente vai junto da
+  normal, na posição 1), então toda malha com esqueleto ficava com a mesma
+  tangente no Compatibility; as fitas abriam de lado, metade virada para trás,
+  e a luz de dois lados invertia a normal dessas. O sinal negativo da
+  binormal também era lido errado. Corrigido no PR do pedido 7 (trechos
+  `// Erethea:`; vale propor à Godot, que ainda tem o defeito no `master`), e
+  o teste `hair_strands` ganhou a luz de cima contra a de baixo e a tangente
+  com e sem esqueleto, rodando também no Compatibility no CI (provado que
+  falha sem cada parte da correção). Versão 1.0.3 com isso. O pedido 6
+  (visual anime) segue para depois do teste do Kaiky; resposta para a
+  Fornalha em "Pedidos para a Fornalha".
 - **PRs abertos**: nenhum. Regra para os próximos: merge um
   por vez, com o CI inteiro verde e conferindo conflito com o `main` antes;
   se conflitar, junte o `main`, valide o `doc/classes/ProjectSettings.xml` com
@@ -770,6 +786,19 @@ Pedidos da Erethea Engine para a Fornalha 3D (27/11, depois da Fornalha de 26/11
 Avisos (sem nada a fazer):
 - Num projeto com World/mapa/mapa.json e a Erethea aberta nele, a Erethea monta as cenas rodando o próprio montar.gd sem janela (--headless --path <projeto> --script res://Scripts/fornalha/montar.gd). Conferi: ele não depende de variável de ambiente nem de argumento. Mantenha assim.
 - Pedido 6 de vocês (visual anime nativo, contorno por pós-processo e luz em faixas): anotado. Entra na Erethea depois do teste do criador; quando sair, a Erethea avisa o nome da opção para vocês ligarem quando a bíblia pedir anime.
+```
+
+**Resposta à rodada da Fornalha de 27/11** (pedido 7, pedido 6 e o teste dos
+dois juntos), mandada ao Kaiky depois do PR do pedido 7:
+
+```text
+Resposta da Erethea Engine à Fornalha 3D (27/11):
+
+PEDIDO 7 (cabelo fio a fio escuro perto da risca): achado e corrigido na Erethea 1.0.3. Não era a luz nem o construtor das fitas: no renderizador de compatibilidade, o esqueleto aplicado na placa perdia a tangente de toda malha com esqueleto (defeito da própria Godot, que também existe na 4.6.1). As fitas abrem pela tangente, então saíam de lado e metade virada para trás, e a luz de dois lados invertia a normal dessas; a coroa, onde os fios deitam, ficava escura. No Vulkan (Forward+) estava certo. Não precisa de piso de luz ambiente. De quebra, personagens com mapa de normais no renderizador de compatibilidade também ficam certos na Erethea 1.0.3 (na Godot 4.6.1 do CI de vocês o defeito continua).
+
+PEDIDO 6 (visual anime nativo): anotado, entra depois do teste do criador. Até lá, sigam com o anime.gdshader e a casca. Quando sair, a Erethea avisa o nome da opção.
+
+TESTE DOS DOIS JUNTOS: do lado da Erethea nada mudou em caminhos nem argumentos: erethea.console.exe em %LOCALAPPDATA%\Erethea, --headless --import, --script, --write-movie e --agent-test=<pasta> (sempre com "="), e o MCP liga sozinho na porta 11481 nos projetos com game.project.json. Usem a 1.0.3: a 1.0.2 instalada avisa e atualiza, e o link "latest" do instalador já baixa a nova. O CI da Erethea testa a cada mudança a ponte e a montagem pelo game.project.json (o herói anda), o --agent-test e o cabelo fio a fio nos dois renderizadores; o projeto de verdade de vocês (montar.gd do mapa, o humano no Máximo, os dois MCP juntos) só o teste do criador prova. Conferi no fisica.gd: com guia_visual.render = "anime" os fios não entram e os cards ficam, como esperado.
 ```
 
 A Fornalha, por sua vez, tem a lista "Pedidos para a Erethea Engine" no ESTADO.md
