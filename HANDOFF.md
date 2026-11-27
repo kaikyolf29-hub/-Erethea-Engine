@@ -750,11 +750,11 @@ commit `f2d351d` do branch `claude/eloquent-brahmagupta-75ilfh`): o pedido 13
 continua valendo (`guia.rs` ainda manda ligar o MCP à mão); no 14, o CI da
 Fornalha ainda não usa a Erethea e o `programas.rs` só baixa o Blender e a
 Godot ("a Erethea é do criador"), e o `ESTADO.md` ainda diz que não há build
-para baixar; o 15 já está atendido (o `montar.gd` não lê variável de ambiente
-nem argumento) e virou só um aviso; a Fornalha ainda não exporta o cabelo fio a
+para baixar; o 15 antigo já está atendido (o `montar.gd` não lê variável de
+ambiente nem argumento) e virou só um aviso; a Fornalha ainda não exporta o cabelo fio a
 fio como arestas soltas, e o próprio `ESTADO.md` dela diz que falta o "cabelo
 fio a fio (Erethea #40) com o groom da Fornalha" para o nível AAA, então o
-pedido do README ("Cabelo fio a fio") entrou como 16. A Fornalha também pediu
+pedido do README ("Cabelo fio a fio") virou o novo 15. A Fornalha também pediu
 algo novo à Erethea (nº 6 no `ESTADO.md` dela: visual anime nativo), que entra
 nos próximos passos depois do teste. Texto que vai para o Kaiky:
 
