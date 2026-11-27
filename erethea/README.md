@@ -580,9 +580,14 @@ um shader seu, ponha um `material_override`.
 **Teste.** `erethea/tests/hair_strands/` gera algumas centenas de fios sobre
 uma esfera, com um `Skeleton3D` de um osso, desenha o cabelo, gira o osso em
 90° e desenha de novo; confere que há pixels de cabelo sobre a cabeça, que eles
-mudam de lugar com o giro e que `strand_fraction` menor desenha menos, e
-imprime `ERETHEA_HAIR_OK`. O CI (`erethea_hair_strands.yml`) roda a cena no
-lavapipe e sobe as capturas. Rodando à mão:
+mudam de lugar com o giro e que `strand_fraction` menor desenha menos. Depois
+acende o sol bem de cima e bem de baixo e confere que o topo do cabelo fica
+mais claro com a luz de cima, e desenha quatro quadrados (sem e com esqueleto,
+com o sinal da binormal +1 e -1) para conferir que a malha com esqueleto
+mantém a tangente. Imprime `ERETHEA_HAIR_OK`. O CI (`erethea_hair_strands.yml`)
+roda a cena no lavapipe (Forward+) e de novo no renderizador Compatibility, e
+sobe as capturas. Rodando à mão (acrescente `--rendering-method
+gl_compatibility` antes do `--` para o Compatibility):
 
 ```sh
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 1280x720x24" \
@@ -595,8 +600,16 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 
   fios da Fornalha de verdade: o teste usa fios de mentira, desenhados no
   lavapipe. O custo em quadros de dezenas de milhares de fios só se mede na
   placa.
-- Nos renderizadores Mobile e Compatibility o shader é o mesmo (a Godot
-  trata o alpha hash neles), mas só o Forward+ foi desenhado em teste.
+- **Compatibility (27/11, pedido 7 da Fornalha):** a coroa perto da risca saía
+  quase preta. A causa era da Godot: no Compatibility, o esqueleto aplicado
+  na placa (`drivers/gles3/shaders/skeleton.glsl`) lia a tangente de um
+  atributo que nunca é ligado (a malha guarda a tangente junto da normal), e
+  toda malha com esqueleto ficava com a mesma tangente. As fitas abriam de
+  lado, metade delas virada para trás, e a luz de dois lados invertia a normal
+  dessas. Corrigido no `skeleton.glsl` (trechos `// Erethea:`), junto com a
+  leitura do sinal da binormal negativo. Vale também para personagens com mapa
+  de normais no Compatibility. Vale propor à Godot. O Mobile usa o mesmo
+  shader do Forward+ e não foi desenhado em teste.
 - A Fornalha ainda não exporta as arestas soltas (veja o pedido abaixo).
 - Sombras próprias do cabelo (sombra entre os fios) e o LOD por distância
   (hoje o `strand_fraction` é manual) ficam para depois.

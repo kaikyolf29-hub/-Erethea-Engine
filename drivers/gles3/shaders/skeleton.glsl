@@ -40,11 +40,21 @@ layout(location = 1) in highp uvec2 in_normal;
 layout(location = 2) in highp uvec2 in_tangent;
 #endif
 #else // MODE_BLEND_PASS
+#if defined(USE_NORMAL) && defined(USE_TANGENT)
+// Erethea: The source mesh packs the tangent right after the normal, in the same
+// attribute (see MeshStorage::_mesh_surface_generate_version_for_input_mask), and
+// never binds location 2. Reading the tangent from there gave every skinned mesh
+// a constant tangent.
+layout(location = 1) in highp vec4 in_normal_tangent;
+#define in_normal in_normal_tangent.xy
+#define in_tangent in_normal_tangent.zw
+#else
 #ifdef USE_NORMAL
 layout(location = 1) in highp vec2 in_normal;
 #endif
 #ifdef USE_TANGENT
 layout(location = 2) in highp vec2 in_tangent;
+#endif
 #endif
 #endif // MODE_BLEND_PASS
 
@@ -118,8 +128,12 @@ vec2 vec3_to_oct(vec3 e) {
 
 vec4 oct_to_tang(vec2 oct_sign_encoded) {
 	// Binormal sign encoded in y component
-	vec2 oct = vec2(oct_sign_encoded.x, abs(oct_sign_encoded.y) * 2.0 - 1.0);
-	return vec4(oct_to_vec3(oct), sign(oct_sign_encoded.y));
+	// Erethea: Inverse of tang_to_oct(): y is in [0.5, 1] for a positive binormal
+	// sign and in [0, 0.5] for a negative one. The old decoding only worked for
+	// the positive sign.
+	float signed_y = oct_sign_encoded.y * 2.0 - 1.0;
+	vec2 oct = vec2(oct_sign_encoded.x, abs(signed_y));
+	return vec4(oct_to_vec3(oct), signed_y >= 0.0 ? 1.0 : -1.0);
 }
 
 vec2 tang_to_oct(vec4 base) {

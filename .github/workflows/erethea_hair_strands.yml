@@ -7,8 +7,11 @@ on:
 # (modules/erethea_materials) on the CPU, with Mesa's lavapipe Vulkan driver:
 # a few hundred strands weighted to a one-bone skeleton, before and after the
 # bone turns. The test checks that hair pixels show up over the head, that they
-# follow the pose and that drawing a fraction of the strands draws less, and
-# prints ERETHEA_HAIR_OK. The captures are uploaded as an artifact.
+# follow the pose, that drawing a fraction of the strands draws less, that the
+# top of the hair takes the light from above and that skinned meshes keep their
+# tangent space, and prints ERETHEA_HAIR_OK. It runs with Forward+ and again
+# with the Compatibility renderer (the Fornalha's CI uses it), whose skinning
+# used to lose the tangent. The captures are uploaded as an artifact.
 
 jobs:
   hair-strands-linux:
@@ -41,6 +44,15 @@ jobs:
             --audio-driver Dummy --fixed-fps 30 -- --out="$PWD/hair_strands/hair.png" 2>&1 | tee hair.log
           grep -q ERETHEA_HAIR_OK hair.log
 
+      - name: Draw the hair with the Compatibility renderer
+        run: |
+          ERETHEA="$PWD/bin/erethea.linuxbsd.editor.x86_64.mono"
+          cp -r erethea/tests/hair_strands "$RUNNER_TEMP/hair_strands_compat"
+          xvfb-run -a -s "-screen 0 1280x720x24" "$ERETHEA" --path "$RUNNER_TEMP/hair_strands_compat" \
+            --audio-driver Dummy --fixed-fps 30 --rendering-method gl_compatibility \
+            -- --out="$PWD/hair_strands/compatibility/hair.png" 2>&1 | tee hair_compatibility.log
+          grep -q ERETHEA_HAIR_OK hair_compatibility.log
+
       - name: Upload captures
         if: always()
         uses: actions/upload-artifact@v7
@@ -49,4 +61,5 @@ jobs:
           path: |
             hair_strands
             hair.log
+            hair_compatibility.log
           retention-days: 14
