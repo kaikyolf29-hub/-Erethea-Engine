@@ -89,7 +89,7 @@ struct EretheaMcpToolSpec {
 
 static const EretheaMcpToolSpec TOOL_SPECS[] = {
 	{ "get_editor_state", "Editor state", true, false,
-			"Shows what the Erethea editor has open: the project, the open scenes, the scene being edited (the one the other tools act on), and whether the game is running.",
+			"Shows what the Erethea editor has open: the project, the open scenes, the scene being edited (the one the other tools act on), whether the game is running, and whether the editor is importing files (most tools then answer that it's busy, to try again in a few seconds).",
 			R"({"type": "object", "properties": {}})" },
 	{ "get_scene_tree", "Scene tree", true, false,
 			"Lists the nodes of the scene being edited: name, type, path, script and instanced scene. Paths are relative to the scene's root, which is \".\".",
@@ -110,8 +110,8 @@ static const EretheaMcpToolSpec TOOL_SPECS[] = {
 			"Creates a scene file with a single root node, saves it and opens it. Fails if the file exists.",
 			R"({"type": "object", "properties": {"path": {"type": "string", "description": "The new file, such as \"res://levels/forest.tscn\"."}, "root_type": {"type": "string", "description": "Class of the root node (default \"Node3D\"), or a script's class_name."}, "root_name": {"type": "string", "description": "Name of the root node (default: from the file name)."}}, "required": ["path"]})" },
 	{ "create_node", "Create node", false, false,
-			"Adds a node to the scene being edited: a new node of a class (type, such as \"MeshInstance3D\") or an instance of a scene (scene, such as \"res://characters/player.tscn\"), and can set its properties at once. One undoable action.",
-			R"({"type": "object", "properties": {"parent": {"type": "string", "description": "Path of the parent (default \".\", the root)."}, "type": {"type": "string", "description": "Node class or script class_name."}, "scene": {"type": "string", "description": "Scene to instance, instead of a type."}, "name": {"type": "string", "description": "Node name, made unique among its siblings."}, "properties": {"type": "object", "description": "Properties to set, as in set_node_properties."}}})" },
+			"Adds a node to the scene being edited: a new node of a class (type, such as \"MeshInstance3D\") or an instance of a scene (scene, such as \"res://characters/player.tscn\", or a 3D model such as \"res://items/chest.glb\", .gltf or .fbx), and can set its properties at once. One undoable action.",
+			R"({"type": "object", "properties": {"parent": {"type": "string", "description": "Path of the parent (default \".\", the root)."}, "type": {"type": "string", "description": "Node class or script class_name."}, "scene": {"type": "string", "description": "Scene (.tscn, .scn) or 3D model (.glb, .gltf, .fbx) to instance, instead of a type."}, "name": {"type": "string", "description": "Node name, made unique among its siblings."}, "properties": {"type": "object", "description": "Properties to set, as in set_node_properties."}}})" },
 	{ "set_node_properties", "Set node properties", false, false,
 			"Sets properties of a node in the scene being edited, in one undoable action, and returns the new values. Values: numbers, booleans and strings; vectors as [x, y, z] or \"Vector3(x, y, z)\"; colors as \"#ff8800\", [r, g, b, a] or \"Color(r, g, b, a)\"; enums as a number or a name; a resource as a path (\"res://materials/grass.tres\"), or a new one as {\"type\": \"BoxMesh\", \"properties\": {\"size\": [2, 1, 1]}}; other types as Godot literals, such as \"Transform3D(...)\".",
 			R"({"type": "object", "properties": {"node": {"type": "string", "description": "Node path; \".\" is the root."}, "properties": {"type": "object", "description": "Property names and values, such as {\"position\": [0, 1, 0], \"visible\": true}."}}, "required": ["node", "properties"]})" },
@@ -196,8 +196,25 @@ bool EretheaMcpPlugin::call_tool(const String &p_name, const Dictionary &p_argum
 	return finished;
 }
 
+// Tools that only read what an import doesn't change, or stop the game.
+static bool _works_while_importing(const String &p_name) {
+	return p_name == "get_editor_state" || p_name == "get_errors" || p_name == "list_files" || p_name == "read_file" || p_name == "stop_game";
+}
+
 bool EretheaMcpPlugin::_call_tool(const String &p_name, const Dictionary &p_arguments, bool p_can_wait, EretheaMcpToolResult &r_result, uint64_t &r_pending_id) {
 	print_verbose(vformat("Erethea MCP: %s", p_name));
+	// While the editor imports files, its progress dialog runs the main loop,
+	// and the server answers from inside the import. Scenes and resources are
+	// then half updated, and starting another import is an error: the client
+	// is told to wait instead.
+	if (EditorFileSystem::get_singleton() && EditorFileSystem::get_singleton()->is_importing() && !_works_while_importing(p_name)) {
+		r_result = EretheaMcpToolResult::error("The editor is busy importing files. Try again in a few seconds: get_editor_state says \"importing\": false when it's done.");
+		Dictionary busy;
+		busy["busy"] = "importing";
+		busy["retry_after_seconds"] = 2;
+		r_result.structured = busy;
+		return true;
+	}
 	if (p_name == "take_screenshot") {
 		return _take_screenshot(p_arguments, p_can_wait, r_result, r_pending_id);
 	}
@@ -721,6 +738,7 @@ EretheaMcpToolResult EretheaMcpPlugin::_get_editor_state() {
 	state["playing_scene"] = run_bar->is_playing() ? Variant(run_bar->get_playing_scene()) : Variant();
 	state["headless"] = DisplayServer::get_singleton()->get_name() == "headless";
 	state["scanning"] = EditorFileSystem::get_singleton()->is_scanning();
+	state["importing"] = EditorFileSystem::get_singleton()->is_importing();
 	return EretheaMcpToolResult::object(state);
 }
 
@@ -857,7 +875,8 @@ Dictionary EretheaMcpPlugin::_get_status() {
 	status["version"] = GODOT_VERSION_FULL_BUILD;
 	status["project"] = GLOBAL_GET("application/config/name");
 	status["project_path"] = ProjectSettings::get_singleton()->get_resource_path();
-	status["ready"] = EditorFileSystem::get_singleton() && !EditorFileSystem::get_singleton()->is_scanning();
+	status["ready"] = EditorFileSystem::get_singleton() && !EditorFileSystem::get_singleton()->is_scanning() && !EditorFileSystem::get_singleton()->is_importing();
+	status["importing"] = EditorFileSystem::get_singleton() && EditorFileSystem::get_singleton()->is_importing();
 	status["playing"] = EditorRunBar::get_singleton() && EditorRunBar::get_singleton()->is_playing();
 	return status;
 }

@@ -701,11 +701,11 @@ claude mcp add --transport http erethea http://127.0.0.1:11481/mcp
 
 | Ferramenta | O que faz |
 | --- | --- |
-| `get_editor_state` | Projeto, cena principal, cenas abertas e não salvas, se o jogo está rodando |
+| `get_editor_state` | Projeto, cena principal, cenas abertas e não salvas, se o jogo está rodando e se o editor está importando arquivos |
 | `get_scene_tree` | Árvore de nós da cena aberta, com tipo, script e cena instanciada |
 | `get_node_properties` | Propriedades de um nó |
 | `open_scene`, `create_scene` | Abre uma cena ou cria uma nova com o nó raiz pedido |
-| `create_node` | Cria um nó (classe ou `class_name`) ou instancia uma cena, já com propriedades |
+| `create_node` | Cria um nó (classe ou `class_name`) ou instancia uma cena ou um modelo 3D importado (`.glb`, `.gltf`, `.fbx`), já com propriedades |
 | `set_node_properties` | Muda propriedades; aceita `[1, 2, 3]`, `"Vector3(1, 2, 3)"`, `"#ff8800"`, nomes de enum e recursos |
 | `delete_node` | Apaga um nó (nunca a raiz) |
 | `write_script` | Escreve um script e devolve os erros com linha e coluna |
@@ -729,13 +729,26 @@ disco quando o agente (ou a pessoa) salva.
 ou `Origin` que não sejam da própria máquina (o que impede um site aberto no
 navegador de mexer no editor) e só aceita caminhos dentro do projeto.
 
+**Durante a importação.** Enquanto o editor importa arquivos (por exemplo,
+modelos que a Fornalha acabou de gravar), as ferramentas que mexem em cenas e
+recursos respondem na hora que o editor está ocupado (`"busy": "importing"`,
+tentar de novo em alguns segundos), em vez de rodar no meio da importação.
+`get_editor_state`, `get_errors`, `list_files`, `read_file` e `stop_game`
+continuam respondendo, e `get_editor_state` diz `"importing": true` até acabar.
+O servidor mantém a conexão aberta entre pedidos (keep-alive, avisando o tempo
+em `Keep-Alive: timeout=110`), como esperam o PowerShell, o .NET e o Node.
+
 **Para a Fornalha.** `GET http://127.0.0.1:11481/status` responde sem sessão
-com o nome do projeto aberto, a pasta e se o jogo está rodando.
+com o nome do projeto aberto, a pasta, se o jogo está rodando e se o editor está
+importando (`ready` só fica `true` quando ele não está procurando nem importando
+arquivos).
 
 **Teste.** `erethea/tests/mcp/test_mcp.py` abre o editor com o servidor ligado
 num projeto vazio e faz o que um agente faria: cria cenas, nós e um script,
 salva, roda o jogo, lê o `print` e o erro do jogo (com arquivo e linha) e tira
-capturas. O CI roda no Linux sem janela e com janela (Xvfb e lavapipe, onde as
+capturas. Também manda 300 pedidos numa só conexão (nenhum pode cair), grava
+16 texturas e um `.gltf` enquanto chama ferramentas (com janela, elas têm que
+responder que o editor está importando) e instancia o modelo com `create_node`. O CI roda no Linux sem janela e com janela (Xvfb e lavapipe, onde as
 capturas têm que ser imagens de verdade) e no Windows sem janela. As capturas
 e os logs ficam no artefato `erethea-mcp-linux`.
 

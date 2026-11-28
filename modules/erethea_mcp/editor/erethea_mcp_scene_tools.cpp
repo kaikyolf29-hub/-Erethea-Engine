@@ -106,6 +106,32 @@ static bool _scene_file_path(const Variant &p_path, String &r_path, String &r_er
 	return true;
 }
 
+// A scene to instance: a .tscn or .scn, or a 3D model that the editor imports
+// as a scene (.glb, .gltf, .fbx, .blend and the like), as the FileSystem dock
+// instances it when it's dragged to the scene.
+static bool _instanceable_scene_path(const Variant &p_path, String &r_path, String &r_error) {
+	if (!project_path(p_path, r_path, r_error)) {
+		return false;
+	}
+	if (!ResourceLoader::exists(r_path)) {
+		if (FileAccess::exists(r_path)) {
+			r_error = vformat("%s isn't imported yet. Call rescan_files, wait until get_editor_state says it's neither scanning nor importing, and try again.", r_path);
+		} else {
+			r_error = vformat("%s doesn't exist.", r_path);
+		}
+		return false;
+	}
+	const String type = ResourceLoader::get_resource_type(r_path);
+	if (!ClassDB::is_parent_class(type, "PackedScene")) {
+		r_error = vformat("%s isn't a scene, nor a model imported as a scene: the editor loads it as %s.", r_path, type.is_empty() ? String("nothing") : type);
+		if (ClassDB::is_parent_class(type, "Mesh")) {
+			r_error += vformat(" Add a MeshInstance3D with {\"mesh\": \"%s\"} instead.", r_path);
+		}
+		return false;
+	}
+	return true;
+}
+
 static Node *_edited_scene(String &r_error) {
 	Node *root = EditorNode::get_singleton()->get_edited_scene();
 	if (!root) {
@@ -357,15 +383,15 @@ EretheaMcpToolResult create_node(const Dictionary &p_arguments) {
 		}
 	} else {
 		String path;
-		if (!_scene_file_path(scene_argument, path, error)) {
+		if (!_instanceable_scene_path(scene_argument, path, error)) {
 			return _error(error);
 		}
 		if (path == root->get_scene_file_path()) {
 			return _error("A scene can't be instanced inside itself.");
 		}
-		const Ref<PackedScene> packed = ResourceLoader::exists(path) ? ResourceLoader::load(path) : Ref<Resource>();
+		const Ref<PackedScene> packed = ResourceLoader::load(path);
 		if (packed.is_null()) {
-			return _error(vformat("%s doesn't exist or isn't a scene.", path));
+			return _error(vformat("%s couldn't be loaded as a scene. get_errors may say why.", path));
 		}
 		child = packed->instantiate(PackedScene::GEN_EDIT_STATE_INSTANCE);
 		if (!child) {
