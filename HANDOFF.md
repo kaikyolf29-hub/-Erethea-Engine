@@ -146,9 +146,18 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
     menos a primeira e o `--import`. Correção genérica: vale propor à Godot. O
     teste do MCP grava um `.gltf` em duas metades e falha sem a correção
     (`glTF: Error parsing .gltf JSON data`).
-  - **Falta da parte 1:** cabelo fio a fio visto nas capturas (manchas claras na coroa vista de cima,
-    metade de baixo quase preta de costas, duas manchas retas no brilho do
-    anime, que lá usa cards); `get_scene_tree` dentro das instâncias (ou
+  - **Feito (PR do cabelo de 28/11):** as duas falhas do cabelo fio a fio
+    reproduzidas numa cabeça em tamanho real (12 mil fios de 0,7 mm sobre uma
+    camada escura; experimento fora do repositório, as medidas estão no
+    `erethea/README.md`, "Cabelo fio a fio"). Normal da casca nunca para baixo
+    (o cabelo pendurado olhava para o chão), `backlight` passou a funcionar (a
+    Godot ignora `BACKLIGHT` com `light()` próprio), brilho do céu fraco
+    (`SPECULAR` 0,35) e raiz mais larga (`root_width`, 2 por padrão). De costas,
+    na sombra, a metade de baixo foi de 11 para 19 de 255. O anime usa os cards
+    da Fornalha: as manchas retas e o escuro dele são do shader dela (dizer à
+    Fornalha na próxima rodada, junto com escurecer a camada de baixo e tirar o
+    brilho dela, que aparece nas falhas da coroa).
+  - **Falta da parte 1:** `get_scene_tree` dentro das instâncias (ou
     `list_animations` e `get_skeleton`), câmera (posição e alvo) no
     `take_screenshot` e o `run_test` sem janela dizer que não devolve captura.
 - **PRs abertos**: nenhum. Regra para os próximos: merge um

@@ -554,14 +554,19 @@ módulo, sem arquivo para editar), a fita abre para os lados no espaço de
 vista, perpendicular ao fio e à direção da câmera, afinando até a ponta; a
 transparência é *alpha hash* (sem erro de ordem, e funciona no Compatibility);
 o brilho tem duas faixas anisotrópicas (Kajiya-Kay), com deslocamento
-diferente em cada fio, mais a raiz mais escura e a luz atravessando contra a
-luz. A AABB inclui a metade da largura.
+diferente em cada fio, mais a raiz mais escura, a luz atravessando contra a
+luz e um brilho do céu fraco (para o cabelo na sombra não virar uma mancha
+preta). A fita é mais larga perto da raiz (`root_width`, o dobro por padrão),
+voltando à largura normal no primeiro terço do fio. A normal da casca aponta
+para fora do meio do penteado, nunca para baixo: o cabelo que cai abaixo do
+meio olha para os lados. A AABB inclui a metade da largura.
 
 ```gdscript
 var hair := EretheaHairStrands.new()
 hair.source_mesh = hair_mesh_instance.mesh   # a malha de linhas importada do .glb
-hair.width = 0.0015                          # largura na raiz, em metros
-hair.tip_width = 0.25                        # largura na ponta, como fração da da raiz
+hair.width = 0.0015                          # largura do fio, em metros
+hair.tip_width = 0.25                        # largura na ponta, como fração da largura
+hair.root_width = 2.0                        # largura na raiz, como múltiplo da largura
 hair.strand_fraction = 0.5                   # LOD: desenha metade dos fios, espalhados
 hair.color_root = Color(0.05, 0.03, 0.02)
 hair.color_tip = Color(0.2, 0.12, 0.08)
@@ -570,10 +575,10 @@ hair.skeleton = NodePath("..")               # o Skeleton3D da cabeça
 ```
 
 Propriedades: `source_mesh`, `strand_fraction` (0 a 1), `width`, `tip_width`,
-`color_root`, `color_tip`, `roughness`, `specular_primary`,
+`root_width` (1 a 4), `color_root`, `color_tip`, `roughness`, `specular_primary`,
 `specular_secondary`, `specular_shift_primary`, `specular_shift_secondary`,
 `backlight`. A malha de fitas é refeita (no fim do quadro) quando mudam
-`source_mesh`, `strand_fraction` ou `width`; as demais só atualizam o
+`source_mesh`, `strand_fraction`, `width` ou `root_width`; as demais só atualizam o
 material. `get_strand_count()` diz quantos fios estão desenhados. Para usar
 um shader seu, ponha um `material_override`.
 
@@ -584,7 +589,9 @@ mudam de lugar com o giro e que `strand_fraction` menor desenha menos. Depois
 acende o sol bem de cima e bem de baixo e confere que o topo do cabelo fica
 mais claro com a luz de cima, e desenha quatro quadrados (sem e com esqueleto,
 com o sinal da binormal +1 e -1) para conferir que a malha com esqueleto
-mantém a tangente. Imprime `ERETHEA_HAIR_OK`. O CI (`erethea_hair_strands.yml`)
+mantém a tangente. Também confere que nenhuma normal da casca aponta para
+baixo, que `backlight` clareia o cabelo contra a luz e que `root_width` maior
+cobre mais. Imprime `ERETHEA_HAIR_OK`. O CI (`erethea_hair_strands.yml`)
 roda a cena no lavapipe (Forward+) e de novo no renderizador Compatibility, e
 sobe as capturas. Rodando à mão (acrescente `--rendering-method
 gl_compatibility` antes do `--` para o Compatibility):
@@ -600,6 +607,22 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json xvfb-run -a -s "-screen 0 
   fios da Fornalha de verdade: o teste usa fios de mentira, desenhados no
   lavapipe. O custo em quadros de dezenas de milhares de fios só se mede na
   placa.
+- **Teste noturno de 28/11 (RX 580, Forward+):** de cima, a coroa tinha
+  manchas claras (falhas entre os fios mostrando a camada de baixo, que
+  reflete o céu) e, de costas, a metade de baixo do cabelo ficava quase preta.
+  Reproduzido aqui numa cabeça em tamanho real com 12 mil fios de 0,7 mm sobre
+  uma camada escura, como a Fornalha exporta. Causas da Erethea: a normal da
+  casca do cabelo pendurado abaixo do meio do penteado apontava para o chão
+  (luz ambiente do chão, escura, e nada do sol), o `backlight` não fazia nada
+  (a Godot só soma o `BACKLIGHT` em shaders sem `light()` próprio), o shader
+  não tinha brilho do céu nenhum e a raiz tinha a mesma largura do resto. Com
+  as quatro correções, a metade de baixo vista de costas, na sombra da cabeça,
+  ficou uns 70% mais clara (luminância média de 11 para 19 de 255, a de cima
+  de 30 para 36) e as falhas da coroa diminuíram. O resto é a cor: o cabelo
+  castanho-escuro da Fornalha é muito escuro (linear ~0,02), e na sombra só a
+  luz ambiente o ilumina. O visual anime usa os cards da Fornalha, não estes
+  fios, então as manchas retas do brilho anime e o escuro de costas nele são
+  do shader dela.
 - **Compatibility (27/11, pedido 7 da Fornalha):** a coroa perto da risca saía
   quase preta. A causa era da Godot: no Compatibility, o esqueleto aplicado
   na placa (`drivers/gles3/shaders/skeleton.glsl`) lia a tangente de um
