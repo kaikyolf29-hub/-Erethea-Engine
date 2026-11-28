@@ -198,6 +198,10 @@ PackedByteArray serialize(const EretheaMcpHttpResponse &p_response, bool p_close
 	head += "Cache-Control: no-store\r\n";
 	if (p_close) {
 		head += "Connection: close\r\n";
+	} else {
+		// Clients that read it close idle connections before the server does,
+		// instead of sending a request on a connection that is closing.
+		head += vformat("Keep-Alive: timeout=%d\r\n", int(EretheaMcpServer::IDLE_TIMEOUT_MSEC / 1000) - 10);
 	}
 	for (const String &header : p_response.headers) {
 		head += header + "\r\n";
@@ -421,9 +425,12 @@ bool EretheaMcpServer::is_listening() const {
 }
 
 void EretheaMcpServer::poll() {
-	if (!is_listening()) {
+	if (!is_listening() || polling) {
+		// Called again by a tool that runs the main loop: the clients wait
+		// until it returns, as their state is in use.
 		return;
 	}
+	polling = true;
 	const uint64_t now = OS::get_singleton()->get_ticks_msec();
 
 	while (tcp_server->is_connection_available()) {
@@ -453,7 +460,11 @@ void EretheaMcpServer::poll() {
 			finish_call(client.pending_id, EretheaMcpToolResult::error("The tool didn't answer in time."));
 		}
 		_process_buffer(client);
-		if (!client.waiting && now - client.last_activity_msec > IDLE_TIMEOUT_MSEC) {
+		// Not `now`: reading the request sets a later time, and the subtraction
+		// would wrap around and close the connection that the client has just
+		// used, while it may already be sending its next request there.
+		const uint64_t idle_check_msec = OS::get_singleton()->get_ticks_msec();
+		if (!client.waiting && idle_check_msec > client.last_activity_msec && idle_check_msec - client.last_activity_msec > IDLE_TIMEOUT_MSEC) {
 			client.done = true;
 		}
 	}
@@ -466,6 +477,7 @@ void EretheaMcpServer::poll() {
 		}
 		E = next;
 	}
+	polling = false;
 }
 
 void EretheaMcpServer::finish_call(uint64_t p_pending_id, const EretheaMcpToolResult &p_result) {

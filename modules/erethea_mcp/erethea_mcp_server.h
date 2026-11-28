@@ -98,11 +98,12 @@ class EretheaMcpServer {
 public:
 	static constexpr uint16_t DEFAULT_PORT = 11481;
 	static constexpr const char *ENDPOINT = "/mcp";
+	// Idle connections close after this.
+	static constexpr uint64_t IDLE_TIMEOUT_MSEC = 120000;
 
 private:
 	static constexpr int MAX_CLIENTS = 16;
 	static constexpr int MAX_SESSIONS = 64;
-	static constexpr uint64_t IDLE_TIMEOUT_MSEC = 120000;
 	// Longest wait for a tool call that answers later.
 	static constexpr uint64_t CALL_TIMEOUT_MSEC = 60000;
 
@@ -128,6 +129,9 @@ private:
 	EretheaMcpProtocol protocol;
 	Callable status_callable;
 	uint16_t port = 0;
+	// A tool can run the editor's main loop, such as while it shows a progress
+	// dialog, which comes back to poll() before the tool returns.
+	bool polling = false;
 
 	String _new_session_id() const;
 	void _send(Client &p_client, const EretheaMcpHttpResponse &p_response);
