@@ -1,6 +1,6 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 e atualizado a cada PR (última vez em 28/11/2026, no lançamento da 1.0.3). Uma sessão nova
+Escrito em 22/11/2026 e atualizado a cada PR (última vez em 28/11/2026, nas correções do MCP pedidas pelo teste noturno). Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -107,6 +107,44 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   versão para o teste do Kaiky e o teste conjunto com a Fornalha. O pedido 6
   (visual anime) segue para depois do teste do Kaiky; resposta para a
   Fornalha em "Pedidos para a Fornalha".
+- **Teste noturno de 28/11** (Kaiky e Fornalha juntos, RX 580, Erethea 1.0.3;
+  relatórios `RELATORIO_ERETHEA.md` e `RELATORIO.md` enviados pelo Kaiky):
+  quase tudo funcionou (ponte, `montar.gd`, `--agent-test`, 22 ferramentas do
+  MCP, cabelo de frente). Ordem fixada pelo Kaiky: **1)** corrigir as falhas da
+  Erethea do relatório e lançar a 1.0.4; **2)** reflexos por ray tracing (ele
+  insiste que não seja esquecido) e o pacote de IA: `run_script` no MCP com
+  desfazer (o contrato da Fornalha já espera esse nome; ao lançar, mandar a ela
+  o nome, os argumentos e o retorno exatos), animação por texto no editor com o
+  esqueleto `fornalha-jogo-1` e cena inteira montada pelo agente e conferida
+  por captura (resposta da Fornalha no arquivo do projeto
+  `erethea-wip/fornalha-resposta-pacote-ia-27-11.md`); **3)** pedidos da versão
+  definitiva: página com um botão que baixa e instala, progresso e erros em
+  português em cada botão de instalar, baixar ou preparar (com os
+  pré-requisitos antes do clique), versão da Erethea com data e código da
+  build na janela (sem mudar o `4.8.beta` nem o `--version` da Godot) e a logo
+  nítida de 16 a 48 px (traço mais grosso, `.ico` com vários tamanhos, arte em
+  alta no splash e no gerenciador de projetos; o desenho fica). A assinatura
+  segue desligada até o Kaiky pagar.
+  - **Feito (PR do MCP de 28/11):** (a) o MCP derrubava conexões reaproveitadas
+    (keep-alive, que o PowerShell e o .NET usam): o `poll()` lia a hora uma vez
+    e a leitura do pedido gravava uma hora mais nova, e a subtração sem sinal
+    dava a volta e fechava a conexão logo depois de responder; aqui caíam 69 de
+    3000 pedidos, e com o editor ocupado (abrindo e importando) muito mais.
+    Agora nenhum, e o servidor avisa `Keep-Alive: timeout=110`. (b) Durante uma
+    importação, o diálogo de progresso roda o laço do editor e o servidor
+    respondia no meio dela: agora as ferramentas que mexem em cenas e recursos
+    respondem `"busy": "importing"` (só com janela; sem janela o editor imprime
+    o progresso e os pedidos esperam), `get_editor_state` e `/status` dizem
+    `importing`, e o `poll()` não roda de novo dentro de uma ferramenta. (c)
+    `create_node` instancia modelos importados como cena (`.glb`, `.gltf`,
+    `.fbx`), com erro claro para o que ainda não foi importado ou não é cena.
+  - **Falta da parte 1:** a ponte esperar o arquivo parar de mudar antes de
+    importar (70 erros de glTF com o editor aberto enquanto a Fornalha gravava);
+    cabelo fio a fio visto nas capturas (manchas claras na coroa vista de cima,
+    metade de baixo quase preta de costas, duas manchas retas no brilho do
+    anime, que lá usa cards); `get_scene_tree` dentro das instâncias (ou
+    `list_animations` e `get_skeleton`), câmera (posição e alvo) no
+    `take_screenshot` e o `run_test` sem janela dizer que não devolve captura.
 - **PRs abertos**: nenhum. Regra para os próximos: merge um
   por vez, com o CI inteiro verde e conferindo conflito com o `main` antes;
   se conflitar, junte o `main`, valide o `doc/classes/ProjectSettings.xml` com
@@ -140,9 +178,8 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   `actions_run_trigger`, método `run_workflow`, `ref` `main`). Ele cria a tag
   no commit compilado e publica o release.
 - **Próximos passos**:
-  1. Esperar o relatório do teste do Kaiky (`erethea/TESTE_DO_CRIADOR.md`) e
-     corrigir o que ele achar, um PR por falha, em versões `1.0.x` lançadas do
-     mesmo jeito.
+  1. Terminar a parte 1 do teste noturno de 28/11 (bloco acima) e lançar a
+     1.0.4; depois as partes 2 e 3, na ordem.
   2. O 0xC0000409 do teste da janela, só se o ProcDump pegar um dump
      (artefato `erethea-window-test`). O experimento 3 do instalador já foi
      descartado na investigação de 26/11 ("Falhas conhecidas do CI"). Em

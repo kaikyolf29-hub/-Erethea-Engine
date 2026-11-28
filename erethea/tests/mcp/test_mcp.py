@@ -19,10 +19,12 @@ import http.client
 import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import time
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -127,6 +129,148 @@ class Mcp:
     def data(self, tool, arguments=None, expect_error=False):
         result, text = self.call(tool, arguments, expect_error)
         return result.get("structuredContent") or json.loads(text)
+
+
+class KeptAlive:
+    """Sends every request on one connection, as .NET, Node and most HTTP clients do."""
+
+    def __init__(self, mcp):
+        self.mcp = mcp
+        self.connection = http.client.HTTPConnection("127.0.0.1", mcp.port, timeout=60)
+        self.headers = {}
+
+    def rpc(self, method, params=None):
+        self.mcp.last_id += 1
+        message = {"jsonrpc": "2.0", "id": self.mcp.last_id, "method": method, "params": params or {}}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "Mcp-Session-Id": self.mcp.session,
+        }
+        try:
+            self.connection.request("POST", "/mcp", body=json.dumps(message).encode(), headers=headers)
+            response = self.connection.getresponse()
+            payload = response.read()
+        except (http.client.HTTPException, ConnectionError) as error:
+            raise Failure(f"{method}: the server dropped the kept-alive connection ({error!r})")
+        self.headers = {name.lower(): value for name, value in response.getheaders()}
+        if response.status != 200:
+            raise Failure(f"{method}: HTTP {response.status}: {payload[:500]!r}")
+        if self.headers.get("connection", "").lower() == "close":
+            raise Failure(f"{method}: the server closed the kept-alive connection")
+        return json.loads(payload)
+
+    def call(self, tool, arguments=None):
+        reply = self.rpc("tools/call", {"name": tool, "arguments": arguments or {}})
+        if "error" in reply:
+            raise Failure(f"{tool}: JSON-RPC error {reply['error']}")
+        return reply["result"]
+
+    def close(self):
+        self.connection.close()
+
+
+def write_noise_png(path, size):
+    """An RGB image of random pixels, which takes the editor a while to import."""
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    rows = b"".join(b"\x00" + os.urandom(size * 3) for _ in range(size))
+    header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows, 1)) + chunk(b"IEND", b"")
+    )
+
+
+def write_triangle_gltf(path):
+    """A glTF model with one triangle, its buffer inside the file."""
+    positions = struct.pack("<9f", 0, 0, 0, 1, 0, 0, 0, 1, 0)
+    model = {
+        "asset": {"version": "2.0"},
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"name": "Triangle", "mesh": 0}],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+        "buffers": [
+            {
+                "byteLength": len(positions),
+                "uri": "data:application/octet-stream;base64," + base64.b64encode(positions).decode(),
+            }
+        ],
+        "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": len(positions)}],
+        "accessors": [
+            {
+                "bufferView": 0,
+                "componentType": 5126,
+                "count": 3,
+                "type": "VEC3",
+                "min": [0, 0, 0],
+                "max": [1, 1, 0],
+            }
+        ],
+    }
+    path.write_text(json.dumps(model), encoding="utf-8")
+
+
+def check_connections_and_imports(mcp, project, window):
+    print("Kept-alive connection and imports")
+    kept = KeptAlive(mcp)
+    for _ in range(300):
+        kept.rpc("ping")
+    check(True, "300 requests on one connection, none dropped")
+    check(kept.headers.get("keep-alive") == "timeout=110", "the server says how long it keeps idle connections")
+
+    # Textures that take some seconds to import, while tools are called. With a
+    # window, the editor's progress dialog keeps the server answering during
+    # the import, and the tools that need the editor's files answer that it's
+    # busy. Headless, the editor prints its progress instead, and the requests
+    # wait for the import to end. Either way, no connection is dropped.
+    folder = project / "mcp_test" / "noise"
+    folder.mkdir(parents=True)
+    count = 16
+    for index in range(count):
+        write_noise_png(folder / f"noise_{index}.png", 1024)
+    write_triangle_gltf(project / "mcp_test" / "triangle.gltf")
+    kept.call("rescan_files")
+    busy = 0
+    importing_seen = False
+    imported = False
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        result = kept.call("get_scene_tree")
+        if result["isError"]:
+            text = result["content"][0]["text"]
+            if (result.get("structuredContent") or {}).get("busy") != "importing":
+                raise Failure(f"get_scene_tree failed during the import: {text[:500]}")
+            busy += 1
+        state = kept.call("get_editor_state")["structuredContent"]
+        importing_seen = importing_seen or state["importing"]
+        imported = (project / "mcp_test" / "triangle.gltf.import").exists() and all(
+            (folder / f"noise_{index}.png.import").exists() for index in range(count)
+        )
+        if imported and not state["importing"] and not state["scanning"] and not result["isError"]:
+            break
+        time.sleep(0.05)
+    check(imported, f"the {count} textures and a model were imported")
+    if window:
+        check(importing_seen, "get_editor_state said the editor was importing")
+        check(busy > 0, f"get_scene_tree answered {busy} times that the editor was busy importing")
+    check(not kept.call("get_scene_tree")["isError"], "after the import, the tools work again")
+    kept.close()
+
+    print("3D models")
+    model = mcp.data("create_node", {"scene": "res://mcp_test/triangle.gltf", "properties": {"position": [0, 0, -3]}})
+    check(model["node"] == "Triangle" and model["type"] == "Node3D", "a glTF model is instanced as a scene")
+    check(
+        find_node(mcp.data("get_scene_tree")["root"], "Triangle")["scene"] == "res://mcp_test/triangle.gltf",
+        "the tree shows the model's file",
+    )
+    _, text = mcp.call("create_node", {"scene": "res://mcp_test/noise/noise_0.png"}, expect_error=True)
+    check("CompressedTexture2D" in text, "a texture isn't instanced, and the error says what it is")
+    write_triangle_gltf(project / "mcp_test" / "late.gltf")
+    _, text = mcp.call("create_node", {"scene": "res://mcp_test/late.gltf"}, expect_error=True)
+    check("rescan_files" in text, "a model not imported yet asks for rescan_files")
 
 
 def wait_until_ready(mcp, editor, timeout):
@@ -287,6 +431,8 @@ def run_checks(mcp, project, window, out):
         "main.tscn on disk has the mesh, the script and the instance",
     )
     check((project / "mcp_test" / "box.gd").read_text(encoding="utf-8") == BOX_SCRIPT, "box.gd on disk")
+
+    check_connections_and_imports(mcp, project, window)
 
     print("Checks before export")
     report = mcp.data("check_export")
