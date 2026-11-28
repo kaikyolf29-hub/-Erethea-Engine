@@ -1,6 +1,6 @@
 # Erethea Engine: notas de passagem
 
-Escrito em 22/11/2026 e atualizado a cada PR (última vez em 27/11/2026, com o pedido 7 da Fornalha). Uma sessão nova
+Escrito em 22/11/2026 e atualizado a cada PR (última vez em 28/11/2026, no lançamento da 1.0.3). Uma sessão nova
 do Claude (Claude Code na web ou no computador) lê este arquivo, o `CLAUDE.md` e
 o `erethea/README.md` e segue até a engine ficar pronta, sem precisar perguntar
 nada ao Kaiky. As regras de trabalho estão no `CLAUDE.md`; aqui ficam o estado,
@@ -100,7 +100,11 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   `// Erethea:`; vale propor à Godot, que ainda tem o defeito no `master`), e
   o teste `hair_strands` ganhou a luz de cima contra a de baixo e a tangente
   com e sem esqueleto, rodando também no Compatibility no CI (provado que
-  falha sem cada parte da correção). Versão 1.0.3 com isso. O pedido 6
+  falha sem cada parte da correção; PR #62). **Release `v1.0.3`** publicado
+  em 28/11 às 00:08 UTC, do `main` em `140187d` (rodada 46081235715;
+  instalador de 102,7 MB, SHA-256
+  `7d93e40822fc3d125a6316cbfce4ecedc129cabff8236e1aaf1e146067b12d11`); é a
+  versão para o teste do Kaiky e o teste conjunto com a Fornalha. O pedido 6
   (visual anime) segue para depois do teste do Kaiky; resposta para a
   Fornalha em "Pedidos para a Fornalha".
 - **PRs abertos**: nenhum. Regra para os próximos: merge um
