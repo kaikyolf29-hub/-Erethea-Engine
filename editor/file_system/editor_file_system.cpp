@@ -849,6 +849,19 @@ bool EditorFileSystem::_scan_import_support(const Vector<String> &reimports) {
 	return false;
 }
 
+// Erethea: Another program may still be writing a file that a scan finds, such
+// as Fornalha or Blender saving a model, and importing it then reads half a
+// file ("glTF: Couldn't load image index", "ERR_FILE_CORRUPT"). A file changed
+// in the last seconds is left for a scan a moment later, but not for more than
+// ERETHEA_MAX_SETTLE_WAITS scans in a row, for files that never stop changing.
+static constexpr int64_t ERETHEA_SETTLE_SECONDS = 2;
+static constexpr int ERETHEA_MAX_SETTLE_WAITS = 30;
+static int erethea_settle_waits = 0;
+
+static bool _erethea_is_file_settling(const String &p_path) {
+	return int64_t(OS::get_singleton()->get_unix_time()) - int64_t(FileAccess::get_modified_time(p_path)) < ERETHEA_SETTLE_SECONDS;
+}
+
 bool EditorFileSystem::_update_scan_actions() {
 	if (updating_scan_actions) {
 		return false;
@@ -865,6 +878,7 @@ bool EditorFileSystem::_update_scan_actions() {
 
 	Vector<String> reimports;
 	Vector<String> reloads;
+	bool files_settling = false; // Erethea: See _erethea_is_file_settling().
 
 	EditorProgress *ep = nullptr;
 	if (scan_actions.size() > 1) {
@@ -989,6 +1003,14 @@ bool EditorFileSystem::_update_scan_actions() {
 				String full_path = ia.dir->get_file_path(idx);
 
 				bool need_reimport = _test_for_reimport(full_path, ia.dir->files[idx]->import_md5);
+				// Erethea: See _erethea_is_file_settling(). Not in the first scan,
+				// which command line imports rely on.
+				if (need_reimport && !first_scan && erethea_settle_waits < ERETHEA_MAX_SETTLE_WAITS && _erethea_is_file_settling(full_path)) {
+					// So that the next scan tests it again.
+					ia.dir->files[idx]->modified_time = 0;
+					files_settling = true;
+					break;
+				}
 				if (need_reimport) {
 					// Must reimport.
 					reimports.push_back(full_path);
@@ -1041,6 +1063,14 @@ bool EditorFileSystem::_update_scan_actions() {
 			//do not import
 			return true;
 		}
+	}
+
+	// Erethea: See _erethea_is_file_settling().
+	if (files_settling) {
+		erethea_settle_waits++;
+		SceneTree::get_singleton()->create_timer(1.0)->connect("timeout", callable_mp(this, &EditorFileSystem::scan_changes));
+	} else {
+		erethea_settle_waits = 0;
 	}
 
 	if (!reimports.is_empty()) {
