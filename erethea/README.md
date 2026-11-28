@@ -748,7 +748,9 @@ num projeto vazio e faz o que um agente faria: cria cenas, nós e um script,
 salva, roda o jogo, lê o `print` e o erro do jogo (com arquivo e linha) e tira
 capturas. Também manda 300 pedidos numa só conexão (nenhum pode cair), grava
 16 texturas e um `.gltf` enquanto chama ferramentas (com janela, elas têm que
-responder que o editor está importando) e instancia o modelo com `create_node`. O CI roda no Linux sem janela e com janela (Xvfb e lavapipe, onde as
+responder que o editor está importando), instancia o modelo com `create_node` e
+grava outro `.gltf` em duas metades, com um segundo entre elas, que tem que ser
+importado inteiro, sem erro. O CI roda no Linux sem janela e com janela (Xvfb e lavapipe, onde as
 capturas têm que ser imagens de verdade) e no Windows sem janela. As capturas
 e os logs ficam no artefato `erethea-mcp-linux`.
 
@@ -1080,6 +1082,17 @@ blockout, as áreas do `game.project.json`), monta as cenas de novo como em
 "Cenas montadas pelo `game.project.json`". Cena que alguém mudou à mão fica como
 está. As cenas abertas recarregam, e num projeto novo a `principal.tscn` abre
 sozinha.
+
+**Arquivo ainda sendo gravado.** Com o editor aberto, um arquivo que mudou nos
+últimos 2 segundos não é importado na hora: o editor procura de novo um segundo
+depois e só importa quando ele para de mudar (no máximo 30 esperas seguidas,
+para um arquivo que nunca para). Antes, um modelo grande que a Fornalha ou o
+Blender ainda gravavam era importado pela metade (no teste de 28/11, 70 erros
+como `glTF: Couldn't load image index`), e só a importação seguinte dava certo.
+Vale para toda procura de arquivos do editor (o aviso da Fornalha, o
+`rescan_files` do MCP, a volta do foco para a janela), não para a primeira, ao
+abrir o projeto, nem para o `--import` da linha de comando. Está em
+`editor/file_system/editor_file_system.cpp` (trechos `// Erethea:`).
 
 **Quando monta sozinha.** Se a Erethea já montou as cenas deste projeto alguma
 vez (existe `res://.erethea/fornalha_import.json`), monta de novo sempre que o
