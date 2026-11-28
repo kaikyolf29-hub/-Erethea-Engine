@@ -183,8 +183,8 @@ def write_noise_png(path, size):
     )
 
 
-def write_triangle_gltf(path):
-    """A glTF model with one triangle, its buffer inside the file."""
+def triangle_gltf():
+    """A glTF model with one triangle, its buffer inside the file, as text."""
     positions = struct.pack("<9f", 0, 0, 0, 1, 0, 0, 0, 1, 0)
     model = {
         "asset": {"version": "2.0"},
@@ -210,7 +210,41 @@ def write_triangle_gltf(path):
             }
         ],
     }
-    path.write_text(json.dumps(model), encoding="utf-8")
+    return json.dumps(model, indent=1)
+
+
+def write_triangle_gltf(path):
+    path.write_text(triangle_gltf(), encoding="utf-8")
+
+
+def check_file_being_written(mcp, project):
+    print("Files still being written")
+    # As Fornalha or Blender write a big model: half now, the rest a second
+    # later. The editor must wait for the file to stop changing instead of
+    # importing half a model.
+    since = mcp.data("get_errors", {"limit": 1})["next"]
+    model = project / "mcp_test" / "growing.gltf"
+    text = triangle_gltf()
+    half = len(text) // 2
+    with model.open("w", encoding="utf-8") as file:
+        file.write(text[:half])
+    mcp.data("rescan_files")
+    time.sleep(1.0)
+    with model.open("a", encoding="utf-8") as file:
+        file.write(text[half:])
+    deadline = time.time() + 60
+    imported = False
+    while time.time() < deadline and not imported:
+        time.sleep(0.25)
+        state = mcp.data("get_editor_state")
+        imported = (project / "mcp_test" / "growing.gltf.import").exists() and not (
+            state["scanning"] or state["importing"]
+        )
+    check(imported, "the model was imported once it was whole")
+    errors = [entry for entry in mcp.data("get_errors", {"since": since})["entries"] if entry["level"] == "error"]
+    check(not errors, f"without import errors ({errors[0]['message'] if errors else ''})")
+    model_node = mcp.data("create_node", {"scene": "res://mcp_test/growing.gltf"})
+    check(model_node["type"] == "Node3D", "and it's instanced")
 
 
 def check_connections_and_imports(mcp, project, window):
@@ -433,6 +467,7 @@ def run_checks(mcp, project, window, out):
     check((project / "mcp_test" / "box.gd").read_text(encoding="utf-8") == BOX_SCRIPT, "box.gd on disk")
 
     check_connections_and_imports(mcp, project, window)
+    check_file_being_written(mcp, project)
 
     print("Checks before export")
     report = mcp.data("check_export")

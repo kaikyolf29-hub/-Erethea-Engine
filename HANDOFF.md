@@ -138,9 +138,15 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
     `importing`, e o `poll()` não roda de novo dentro de uma ferramenta. (c)
     `create_node` instancia modelos importados como cena (`.glb`, `.gltf`,
     `.fbx`), com erro claro para o que ainda não foi importado ou não é cena.
-  - **Falta da parte 1:** a ponte esperar o arquivo parar de mudar antes de
-    importar (70 erros de glTF com o editor aberto enquanto a Fornalha gravava);
-    cabelo fio a fio visto nas capturas (manchas claras na coroa vista de cima,
+  - **Feito (PR da importação de 28/11):** com o editor aberto, um arquivo que
+    mudou nos últimos 2 s não é importado na hora; o editor procura de novo um
+    segundo depois (até 30 vezes seguidas). Fica no
+    `editor/file_system/editor_file_system.cpp` (trechos `// Erethea:`), então
+    vale para toda procura (aviso da Fornalha, `rescan_files`, foco da janela),
+    menos a primeira e o `--import`. Correção genérica: vale propor à Godot. O
+    teste do MCP grava um `.gltf` em duas metades e falha sem a correção
+    (`glTF: Error parsing .gltf JSON data`).
+  - **Falta da parte 1:** cabelo fio a fio visto nas capturas (manchas claras na coroa vista de cima,
     metade de baixo quase preta de costas, duas manchas retas no brilho do
     anime, que lá usa cards); `get_scene_tree` dentro das instâncias (ou
     `list_animations` e `get_skeleton`), câmera (posição e alvo) no
