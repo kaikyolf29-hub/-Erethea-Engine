@@ -180,7 +180,12 @@ EretheaHairBuilder::Result EretheaHairBuilder::build(const Ref<Mesh> &p_source, 
 				if (tangent.is_zero_approx()) {
 					tangent = Vector3(0, -1, 0);
 				}
-				Vector3 normal = (p - center).normalized();
+				// Hair below the middle hangs: its shell faces out, not down. Facing
+				// the ground, the back of a hairstyle took the ground's dark ambient
+				// light and none of the sun's (Fornalha, 28/11).
+				Vector3 normal = p - center;
+				normal.y = MAX(normal.y, 0.0f);
+				normal = normal.normalized();
 				if (normal.is_zero_approx()) {
 					normal = Vector3(0, 1, 0);
 				}

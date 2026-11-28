@@ -6,16 +6,18 @@ extends Node3D
 ## the head, that they move with the pose, and that drawing a fraction of the
 ## strands draws less. Last, it lights the hair from above and from below and
 ## checks that the strands on top of the head are lit from above, whichever way
-## the ribbons face the camera. The ribbons are opened along the tangent, so it
-## also draws quads with and without skinning and checks that the skinned ones
-## get the same tangent space (with both binormal signs).
+## the ribbons face the camera. It checks that no strand's shell faces down,
+## that the back light lights the hair against the light and that wider roots
+## cover more. The ribbons are opened along the tangent, so it also draws quads
+## with and without skinning and checks that the skinned ones get the same
+## tangent space (with both binormal signs).
 ##
 ## Run with a window (Mesa's lavapipe and xvfb are enough) and a fixed frame
 ## rate, giving where to save the captures after "--":
 ##     erethea --path erethea/tests/hair_strands --fixed-fps 30 -- --out=<folder>/hair.png
 ## Add --rendering-method gl_compatibility to check the Compatibility renderer.
-## It saves hair_before.png, hair_after.png, hair_sparse.png, hair_lit_above.png
-## hair_lit_below.png and tangents.png next to it,
+## It saves hair_before.png, hair_after.png, hair_sparse.png, hair_lit_above.png,
+## hair_lit_below.png, hair_backlit.png and hair_tangents.png next to it,
 ## prints ERETHEA_HAIR_OK and quits with 0, or quits with 1 on failure.
 
 const STRAND_COUNT := 400
@@ -177,6 +179,44 @@ func _run(out: String) -> void:
 	print("hair brightness on top of the head: lit from above=%.4f lit from below=%.4f" % [brightness_above, brightness_below])
 	_check(brightness_above > brightness_below * 1.25, "the top of the hair is lit from above (%.4f, from below %.4f)" % [brightness_above, brightness_below])
 
+	# Hair below the middle of the hairstyle hangs: its shell normal faces out,
+	# never down, where it took the ground's dark ambient light and none of the
+	# sun's (Fornalha, 28/11: the lower half of the hair was black from behind).
+	var lowest_normal_y := 1.0
+	for surface in hair.mesh.get_surface_count():
+		for normal in hair.mesh.surface_get_arrays(surface)[Mesh.ARRAY_NORMAL]:
+			lowest_normal_y = minf(lowest_normal_y, normal.y)
+	_check(lowest_normal_y > -0.001, "no strand's shell faces down (lowest normal y %.3f)" % lowest_normal_y)
+
+	# Against the light (the sun shines from behind the hair at the camera),
+	# the back light property lights the hair. It did nothing, as Godot drops
+	# BACKLIGHT in shaders with their own light().
+	sun.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+	hair.backlight = 0.0
+	await _frames(5)
+	var dark_backlit := _image_brightness(await _capture())
+	hair.backlight = 1.0
+	await _frames(5)
+	var backlit_image := await _capture()
+	backlit_image.save_png(folder.path_join(stem + "_backlit.png"))
+	var backlit := _image_brightness(backlit_image)
+	hair.backlight = 0.4
+	print("hair against the light: backlight 0=%.1f backlight 1=%.1f" % [dark_backlit, backlit])
+	_check(backlit > dark_backlit * 1.15, "the back light lights the hair against the light (%.1f, without it %.1f)" % [backlit, dark_backlit])
+
+	# Wider roots cover more: a game has far fewer strands than a scalp, and
+	# what is under them showed through at the crown (Fornalha, 28/11).
+	sun.rotation_degrees = Vector3(-35.0, 25.0, 0.0)
+	hair.root_width = 1.0
+	await _frames(5)
+	var thin_roots: int = _hair_stats(await _capture()).count
+	hair.root_width = 3.0
+	await _frames(5)
+	var wide_roots: int = _hair_stats(await _capture()).count
+	hair.root_width = 2.0
+	print("hair pixels: root_width 1=%d root_width 3=%d" % [thin_roots, wide_roots])
+	_check(wide_roots > thin_roots * 1.1, "wider roots cover more (%d pixels, %d with thin roots)" % [wide_roots, thin_roots])
+
 	await _check_tangents(folder.path_join(stem + "_tangents.png"))
 
 	var stats_before := _hair_stats(before)
@@ -296,6 +336,18 @@ func _make_quad(binormal_sign: float) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## How much brighter than the background the picture is, summed over it: with
+## the head hidden, that is the hair's light.
+func _image_brightness(image: Image) -> float:
+	var size := image.get_size()
+	var background := image.get_pixel(0, 0).get_luminance()
+	var total := 0.0
+	for y in size.y:
+		for x in size.x:
+			total += maxf(image.get_pixel(x, y).get_luminance() - background, 0.0)
+	return total
 
 
 ## Mean brightness of the band of the picture where the top of the hair is

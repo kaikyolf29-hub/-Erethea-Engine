@@ -233,10 +233,11 @@ TEST_CASE("[Modules][EretheaMaterials] Hair strands node builds its mesh") {
 	REQUIRE(hair->get_mesh().is_valid());
 	CHECK(hair->get_mesh()->get_surface_count() == 1);
 	CHECK(hair->get_mesh()->surface_get_material(0).is_valid());
-	// The renderer culls with the custom AABB, which holds the ribbons' width.
+	// The renderer culls with the custom AABB, which holds the ribbons' width,
+	// at the roots twice the strand width by default (root_width).
 	Ref<ArrayMesh> built = hair->get_mesh();
 	REQUIRE(built.is_valid());
-	CHECK(Math::is_equal_approx(built->get_custom_aabb().size.x, (real_t)0.92, (real_t)0.0001));
+	CHECK(Math::is_equal_approx(built->get_custom_aabb().size.x, (real_t)0.94, (real_t)0.0001));
 
 	hair->set_strand_fraction(0.5f);
 	hair->rebuild();

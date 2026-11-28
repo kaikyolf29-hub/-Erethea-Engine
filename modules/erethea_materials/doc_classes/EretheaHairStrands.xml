@@ -33,13 +33,16 @@
 	</methods>
 	<members>
 		<member name="backlight" type="float" setter="set_backlight" getter="get_backlight" default="0.4">
-			How much light goes through the hair, seen against the light, as a fraction of the hair color.
+			How much light goes through the hair, seen against the light, as a fraction of the hair color. It also lights the side of the hair that faces away from the light.
 		</member>
 		<member name="color_root" type="Color" setter="set_color_root" getter="get_color_root" default="Color(0.075, 0.045, 0.03, 1)">
 			Color of the hair at the root. The color goes from this to [member color_tip] along each strand, and varies a little from strand to strand.
 		</member>
 		<member name="color_tip" type="Color" setter="set_color_tip" getter="get_color_tip" default="Color(0.2, 0.12, 0.08, 1)">
 			Color of the hair at the tip.
+		</member>
+		<member name="root_width" type="float" setter="set_root_width" getter="get_root_width" default="2.0">
+			Width of the strand at the root, as a multiple of [member width], going back to [member width] over the first third of the strand. A game has far fewer strands than a real scalp, and wider roots keep what is under the hair from showing between the strands at the crown and the parting.
 		</member>
 		<member name="roughness" type="float" setter="set_roughness" getter="get_roughness" default="0.45">
 			Roughness of the hair, as in [member BaseMaterial3D.roughness].

@@ -47,6 +47,7 @@ render_mode skip_vertex_transform, cull_disabled, depth_draw_opaque;
 
 uniform float strand_width = 0.0015;
 uniform float tip_width = 0.25;
+uniform float root_width = 2.0;
 uniform vec3 color_root : source_color = vec3(0.075, 0.045, 0.03);
 uniform vec3 color_tip : source_color = vec3(0.2, 0.12, 0.08);
 uniform float roughness_value : hint_range(0.0, 1.0) = 0.45;
@@ -69,7 +70,10 @@ void vertex() {
 	float side_len = length(side);
 	// A strand that points at the camera has no side: any perpendicular will do.
 	side = side_len > 0.0001 ? side / side_len : normalize(cross(dir, vec3(0.0, 1.0, 0.0)) + vec3(0.0001, 0.0, 0.0));
-	float half_width = 0.5 * strand_width * mix(1.0, tip_width, UV.y);
+	// Wider near the root, where a game has far fewer strands than a real
+	// scalp: the strands spread out from the crown and the parting, and what
+	// is under them showed through the gaps.
+	float half_width = 0.5 * strand_width * mix(1.0, tip_width, UV.y) * mix(root_width, 1.0, smoothstep(0.0, 0.35, UV.y));
 	VERTEX = pos + side * (UV.x * half_width);
 
 	// The normal of the hair's shell, turned a little towards the viewer so a
@@ -94,7 +98,9 @@ void fragment() {
 	AO = mix(0.5, 1.0, root_to_tip);
 	AO_LIGHT_AFFECT = 0.5;
 	ROUGHNESS = roughness_value;
-	SPECULAR = 0.0;
+	// The sky's sheen, which lit hair in the shade has. The lights' highlights
+	// are the strand's own, in light().
+	SPECULAR = 0.35;
 	BACKLIGHT = ALBEDO * backlight_amount;
 }
 
@@ -109,6 +115,9 @@ void light() {
 	float nl = dot(NORMAL, LIGHT);
 	// Wrapped diffuse: hair is a volume, the light goes around it.
 	DIFFUSE_LIGHT += max((nl + 0.45) / 1.45, 0.0) * ATTENUATION * LIGHT_COLOR / PI;
+	// The light that goes through the hair, seen against it. Godot only adds
+	// BACKLIGHT itself without a light() function.
+	DIFFUSE_LIGHT += BACKLIGHT * max(-nl, 0.0) * ATTENUATION * LIGHT_COLOR / PI;
 	// Each strand shifts the highlights by a different amount.
 	float shift = strand_rand - 0.5;
 	vec3 t1 = normalize(strand_dir + NORMAL * (specular_shift_primary + 0.3 * shift));
@@ -134,7 +143,7 @@ void EretheaHairStrands::_queue_rebuild() {
 
 void EretheaHairStrands::_rebuild() {
 	rebuild_queued = false;
-	EretheaHairBuilder::Result result = EretheaHairBuilder::build(source_mesh, width, strand_fraction);
+	EretheaHairBuilder::Result result = EretheaHairBuilder::build(source_mesh, width * root_width, strand_fraction);
 	strand_count = result.stats.strands;
 	source_strand_count = result.stats.source_strands;
 
@@ -161,6 +170,7 @@ void EretheaHairStrands::_update_material() {
 	}
 	material->set_shader_parameter("strand_width", width);
 	material->set_shader_parameter("tip_width", tip_width);
+	material->set_shader_parameter("root_width", root_width);
 	material->set_shader_parameter("color_root", color_root);
 	material->set_shader_parameter("color_tip", color_tip);
 	material->set_shader_parameter("roughness_value", roughness);
@@ -208,6 +218,16 @@ void EretheaHairStrands::set_tip_width(float p_tip_width) {
 
 float EretheaHairStrands::get_tip_width() const {
 	return tip_width;
+}
+
+void EretheaHairStrands::set_root_width(float p_root_width) {
+	root_width = CLAMP(p_root_width, 1.0f, 4.0f);
+	_update_material();
+	_queue_rebuild(); // The AABB depends on it.
+}
+
+float EretheaHairStrands::get_root_width() const {
+	return root_width;
 }
 
 void EretheaHairStrands::set_strand_fraction(float p_fraction) {
@@ -270,6 +290,8 @@ void EretheaHairStrands::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_width"), &EretheaHairStrands::get_width);
 	ClassDB::bind_method(D_METHOD("set_tip_width", "tip_width"), &EretheaHairStrands::set_tip_width);
 	ClassDB::bind_method(D_METHOD("get_tip_width"), &EretheaHairStrands::get_tip_width);
+	ClassDB::bind_method(D_METHOD("set_root_width", "root_width"), &EretheaHairStrands::set_root_width);
+	ClassDB::bind_method(D_METHOD("get_root_width"), &EretheaHairStrands::get_root_width);
 	ClassDB::bind_method(D_METHOD("set_strand_fraction", "fraction"), &EretheaHairStrands::set_strand_fraction);
 	ClassDB::bind_method(D_METHOD("get_strand_fraction"), &EretheaHairStrands::get_strand_fraction);
 	ClassDB::bind_method(D_METHOD("set_color_root", "color"), &EretheaHairStrands::set_color_root);
@@ -298,6 +320,7 @@ void EretheaHairStrands::_bind_methods() {
 	ADD_GROUP("Ribbon", "");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "width", PROPERTY_HINT_RANGE, "0,0.05,0.0001,or_greater,suffix:m"), "set_width", "get_width");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tip_width", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_tip_width", "get_tip_width");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "root_width", PROPERTY_HINT_RANGE, "1,4,0.05"), "set_root_width", "get_root_width");
 
 	ADD_GROUP("Color", "color_");
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "color_root", PROPERTY_HINT_COLOR_NO_ALPHA), "set_color_root", "get_color_root");

@@ -44,6 +44,7 @@ class EretheaHairStrands : public MeshInstance3D {
 	Ref<Mesh> source_mesh;
 	float width = 0.0015f;
 	float tip_width = 0.25f;
+	float root_width = 2.0f;
 	float strand_fraction = 1.0f;
 	Color color_root = Color(0.075f, 0.045f, 0.03f);
 	Color color_tip = Color(0.2f, 0.12f, 0.08f);
@@ -80,6 +81,8 @@ public:
 	float get_width() const;
 	void set_tip_width(float p_tip_width);
 	float get_tip_width() const;
+	void set_root_width(float p_root_width);
+	float get_root_width() const;
 	void set_strand_fraction(float p_fraction);
 	float get_strand_fraction() const;
 	void set_color_root(const Color &p_color);
