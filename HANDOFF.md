@@ -125,7 +125,7 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
   nítida de 16 a 48 px (traço mais grosso, `.ico` com vários tamanhos, arte em
   alta no splash e no gerenciador de projetos; o desenho fica). A assinatura
   segue desligada até o Kaiky pagar.
-  - **Feito (PR do MCP de 28/11):** (a) o MCP derrubava conexões reaproveitadas
+  - **Feito (#64, MCP, 28/11):** (a) o MCP derrubava conexões reaproveitadas
     (keep-alive, que o PowerShell e o .NET usam): o `poll()` lia a hora uma vez
     e a leitura do pedido gravava uma hora mais nova, e a subtração sem sinal
     dava a volta e fechava a conexão logo depois de responder; aqui caíam 69 de
@@ -138,7 +138,7 @@ compilação levou 59 min, contra 42 no ensaio). Agora o Kaiky testa no PC dele 
     `importing`, e o `poll()` não roda de novo dentro de uma ferramenta. (c)
     `create_node` instancia modelos importados como cena (`.glb`, `.gltf`,
     `.fbx`), com erro claro para o que ainda não foi importado ou não é cena.
-  - **Feito (PR da importação de 28/11):** com o editor aberto, um arquivo que
+  - **Feito (#65, importação, 28/11):** com o editor aberto, um arquivo que
     mudou nos últimos 2 s não é importado na hora; o editor procura de novo um
     segundo depois (até 30 vezes seguidas). Fica no
     `editor/file_system/editor_file_system.cpp` (trechos `// Erethea:`), então
